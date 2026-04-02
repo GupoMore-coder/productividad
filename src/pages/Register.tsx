@@ -15,28 +15,21 @@ export default function Register() {
   const [fullName, setFullName] = useState('');
   const [cedula, setCedula] = useState('');
   const [phone, setPhone] = useState('');
-  const [avatar, setAvatar] = useState('');
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  
+  // Storage for local preview only
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setUploadingAvatar(true);
+      setAvatarFile(file);
+      // Create local preview URL - works without Supabase
+      setAvatarPreview(URL.createObjectURL(file));
       setError('');
-      try {
-        const compressedBase64 = await compressImage(file);
-        const blob = base64ToBlob(compressedBase64);
-        const fileName = `temp-avatar-${Date.now()}.jpg`;
-        const publicUrl = await uploadFile('avatars', fileName, blob);
-        setAvatar(publicUrl);
-      } catch (err) {
-        console.error('Avatar upload error:', err);
-        setError('Error al subir el avatar.');
-      } finally {
-        setUploadingAvatar(false);
-      }
     }
   };
 
@@ -68,14 +61,31 @@ export default function Register() {
         throw new Error('La contraseña debe tener al menos 8 caracteres.');
       }
 
-      await signUp(cleanEmail, password, cleanUsername, {
+      // 1. SIGN UP (Auth)
+      const res = await signUp(cleanEmail, password, cleanUsername, {
         fullName,
         cedula,
         phone,
-        avatar,
         role: isSuper ? 'Administrador maestro' : 'Colaborador',
         isSuperAdmin: isSuper
       });
+
+      // 2. NOW THAT WE HAVE AN AUTH SESSION, UPLOAD AVATAR (if chosen)
+      if (avatarFile && res?.user) {
+        try {
+          const compressedBase64 = await compressImage(avatarFile);
+          const blob = base64ToBlob(compressedBase64);
+          const fileName = `avatar-${res.user.id}.jpg`;
+          const publicUrl = await uploadFile('avatars', fileName, blob);
+          
+          // Update the profile with the URL
+          const { supabase } = await import('@/lib/supabase');
+          await supabase.from('profiles').update({ avatar: publicUrl }).eq('id', res.user.id);
+        } catch (uploadErr) {
+          console.warn('Silent avatar upload error:', uploadErr);
+          // Don't fail registration if only the photo fails
+        }
+      }
 
       alert(isSuper 
         ? '¡Bienvenido Fernando! Tu cuenta de Administrador Maestro ha sido creada. Ya puedes iniciar sesión.' 
@@ -83,7 +93,11 @@ export default function Register() {
       );
       navigate('/login');
     } catch (err: any) {
-      setError(err.message || 'Error al registrar.');
+      if (err.message?.includes('already registered')) {
+        setError('Este correo o usuario ya está registrado. Por favor intenta Iniciar Sesión.');
+      } else {
+        setError(err.message || 'Error al registrar.');
+      }
     } finally {
       setLoading(false);
     }
@@ -122,22 +136,20 @@ export default function Register() {
 
         <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           
-          {/* Avatar Upload (Optional) */}
+          {/* Avatar Upload (PREVIEW ONLY) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
             <div style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '40px', background: 'rgba(255,255,255,0.05)', border: '2px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {avatar ? (
-                <img src={avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {avatarPreview ? (
+                <img src={avatarPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <User size={40} style={{ color: 'var(--text-secondary)' }} />
               )}
-              {uploadingAvatar && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>...</div>
-              )}
             </div>
             <label style={{ marginTop: '8px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Camera size={14} /> {avatar ? 'Cambiar foto' : 'Subir foto (opcional)'}
-              <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} disabled={uploadingAvatar} />
+              <Camera size={14} /> {avatarPreview ? 'Cambiar foto' : 'Escoger foto (opcional)'}
+              <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
             </label>
+            {avatarPreview && <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '4px' }}>La foto se subirá al finalizar el registro.</p>}
           </div>
 
           <div>
@@ -223,8 +235,8 @@ export default function Register() {
             </div>
           </div>
           
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px', padding: '14px' }} disabled={loading || uploadingAvatar}>
-            {loading ? 'Creando cuenta...' : (uploadingAvatar ? 'Procesando foto...' : 'Finalizar Registro')}
+          <button type="submit" className="btn-primary" style={{ marginTop: '8px', padding: '14px' }} disabled={loading}>
+            {loading ? 'Creando cuenta...' : 'Finalizar Registro'}
           </button>
         </form>
         

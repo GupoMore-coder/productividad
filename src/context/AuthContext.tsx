@@ -154,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       throw new Error('Credenciales inválidas');
     }
-    const { data, error } = await supabase.from('profiles').select('email').eq('username', username).single();
+    const { data, error } = await supabase.from('profiles').select('email').ilike('username', username).single();
     if (error || !data) throw new Error('Usuario no encontrado');
     
     const res = await supabase.auth.signInWithPassword({ email: data.email, password: pass });
