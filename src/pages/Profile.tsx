@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { uploadFile, base64ToBlob } from '@/lib/supabase';
+import { compressImage } from '../utils/imageCompressor';
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -16,19 +18,30 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const emoticons = ['👤', '👔', '👩‍💼', '👨‍💻', '👩‍🎨', '👷', '👨‍⚕️', '👸', '🤴', '🚀', '⭐', '🌈'];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (file && user) {
+      setUploadingAvatar(true);
+      setError('');
+      try {
+        const compressedBase64 = await compressImage(file);
+        const blob = base64ToBlob(compressedBase64);
+        const fileName = `avatar-${user.id}-${Date.now()}.jpg`;
+        const publicUrl = await uploadFile('avatars', fileName, blob);
+        setAvatar(publicUrl);
+      } catch (err) {
+        console.error('Avatar upload error:', err);
+        setError('Error al subir el avatar.');
+      } finally {
+        setUploadingAvatar(false);
+      }
     }
   };
+
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,8 +199,8 @@ export default function Profile() {
             />
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px', padding: '14px' }} disabled={loading}>
-            {loading ? 'Actualizando...' : 'Guardar Cambios'}
+          <button type="submit" className="btn-primary" style={{ marginTop: '8px', padding: '14px' }} disabled={loading || uploadingAvatar}>
+            {loading ? 'Actualizando...' : (uploadingAvatar ? 'Subiendo imagen...' : 'Guardar Cambios')}
           </button>
         </form>
       </div>
