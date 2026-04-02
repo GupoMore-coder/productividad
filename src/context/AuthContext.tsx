@@ -110,14 +110,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
+    // 1. Master Bypass for Fernando
+    if (email === 'fernando830609@gmail.com' && pass === 'admin') {
+      const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
+      const masterUser = { 
+        id: profile?.id || 'admin-master',
+        email, 
+        user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
+        role: 'Administrador maestro', 
+        isSuperAdmin: true 
+      };
+      setUser(masterUser);
+      localStorage.setItem('fast_access_email', email);
+      localStorage.setItem('fast_access_pass', 'admin');
+      return { data: { user: masterUser }, error: null };
+    }
+
     if (!isSupabaseConfigured) {
       const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
       let mockUser = db.find((u: any) => u.email === email && u.password === pass);
-
-      if (!mockUser && email === 'fernando830609@gmail.com' && (pass === '123456' || pass === 'admin')) {
-        mockUser = DEFAULT_USERS.find(u => u.id === 'admin');
-        if (mockUser) mockUser.password = pass;
-      }
 
       if (mockUser) {
         if (mockUser.blocked) throw new Error('Esta cuenta ha sido bloqueada.');
@@ -138,14 +149,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithUsername = async (username: string, pass: string) => {
+    const lowerUser = username.toLowerCase();
+
+    // 1. Master Bypass for Fernando
+    if (lowerUser === 'fernando' && pass === 'admin') {
+      const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
+      const masterUser = { 
+        id: profile?.id || 'admin-master',
+        email: profile?.email || 'fernando830609@gmail.com',
+        user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
+        role: 'Administrador maestro', 
+        isSuperAdmin: true 
+      };
+      setUser(masterUser);
+      localStorage.setItem('fast_access_email', masterUser.email);
+      localStorage.setItem('fast_access_pass', 'admin');
+      return { data: { user: masterUser }, error: null };
+    }
+
     if (!isSupabaseConfigured) {
       const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
-      let mockUser = db.find((u: any) => u.username === username.toLowerCase() && u.password === pass);
-
-      if (!mockUser && username.toLowerCase() === 'fernando' && (pass === '123456' || pass === 'admin')) {
-        mockUser = DEFAULT_USERS.find(u => u.id === 'admin');
-        if (mockUser) mockUser.password = pass;
-      }
+      let mockUser = db.find((u: any) => u.username === lowerUser && u.password === pass);
 
       if (mockUser) {
         await mockStorage.setItem('mock_user_session', mockUser);
@@ -165,6 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return res;
   };
+
 
   const signUp = async (email: string, pass: string, username: string, profileData?: any) => {
     if (!isSupabaseConfigured) {
