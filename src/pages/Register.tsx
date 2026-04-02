@@ -2,12 +2,26 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 
+const ROLES = [
+  'Administrador maestro',
+  'Director General (CEO)',
+  'Gestor Administrativo',
+  'Supervisora Puntos de Venta',
+  'Analista Contable',
+  'Consultora de Ventas',
+  'Colaborador'
+];
+
 export default function Register() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('Colaborador');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +31,7 @@ export default function Register() {
     setError('');
     
     try {
-      const cleanUsername = username.trim();
+      const cleanUsername = username.trim().toLowerCase();
       const cleanEmail = email.trim();
 
       if(cleanUsername.includes(' ') || cleanUsername.includes('@')) {
@@ -25,7 +39,7 @@ export default function Register() {
       }
 
       if (!/^[a-zA-Z]/.test(cleanUsername)) {
-        throw new Error('El nombre de usuario debe iniciar obligatoriamente con una letra (sin números, espacios ni caracteres especiales al inicio).');
+        throw new Error('El nombre de usuario debe iniciar obligatoriamente con una letra.');
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,8 +61,18 @@ export default function Register() {
         }
       }
 
-      await signUp(cleanEmail, password, cleanUsername);
-      alert('Solicitud enviada. Tu cuenta esta pendiente de aprobacion por el administrador. Se te notificara cuando puedas iniciar sesion.');
+      await signUp(cleanEmail, password, cleanUsername, {
+        fullName,
+        cedula,
+        phone,
+        role: isSuper ? 'Administrador maestro' : role,
+        isSuperAdmin: isSuper
+      });
+
+      alert(isSuper 
+        ? '¡Bienvenido Fernando! Tu cuenta de Administrador Maestro ha sido creada. Ya puedes iniciar sesión.' 
+        : 'Solicitud enviada. Tu cuenta está pendiente de aprobación. Se te notificará cuando puedas iniciar sesión.'
+      );
       navigate('/login');
     } catch (err: any) {
       setError(err.message || 'Error al registrar.');
@@ -58,8 +82,8 @@ export default function Register() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '16px' }} className="animate-fade-in">
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', padding: '32px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '40px 16px' }} className="animate-fade-in">
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', padding: '32px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px', position: 'relative' }} className="animate-fade-in">
           <button 
             type="button" 
@@ -86,27 +110,82 @@ export default function Register() {
 
         <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Alias o Nombre de Usuario Corto</label>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Nombre Completo</label>
             <input 
               type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              placeholder="Ej: pablo22"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Ej: Fernando Marulanda"
               style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none' }}
               required 
             />
           </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Cédula</label>
+              <input 
+                type="text" 
+                value={cedula}
+                onChange={(e) => setCedula(e.target.value)}
+                placeholder="CC / ID"
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none' }}
+                required 
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Teléfono</label>
+              <input 
+                type="tel" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Celular"
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none' }}
+                required 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Cargo / Rol</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', cursor: 'pointer' }}
+              required
+            >
+              {ROLES.filter(r => r !== 'Administrador maestro').map(r => (
+                <option key={r} value={r} style={{ backgroundColor: '#1a1622' }}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <hr style={{ border: '0', borderTop: '1px solid var(--glass-border)', margin: '8px 0' }} />
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Alias o Usuario</label>
+            <input 
+              type="text" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              placeholder="Ej: fernando"
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none' }}
+              required 
+            />
+          </div>
+
           <div>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Correo Electrónico</label>
             <input 
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Ej: pablo@correo.com"
+              placeholder="Ej: fernando@correo.com"
               style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none' }}
               required 
             />
           </div>
+
           <div>
             <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Contraseña</label>
             <input 
@@ -119,8 +198,8 @@ export default function Register() {
             />
           </div>
           
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px' }} disabled={loading}>
-            {loading ? 'Registrando...' : 'Registrarme'}
+          <button type="submit" className="btn-primary" style={{ marginTop: '16px' }} disabled={loading}>
+            {loading ? 'Creando cuenta...' : 'Finalizar Registro'}
           </button>
         </form>
         
@@ -131,3 +210,4 @@ export default function Register() {
     </div>
   );
 }
+

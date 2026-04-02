@@ -17,7 +17,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<any>;
   signInWithUsername: (username: string, pass: string) => Promise<any>;
-  signUp: (email: string, pass: string, username: string) => Promise<any>;
+  signUp: (email: string, pass: string, username: string, profileData?: any) => Promise<any>;
   updateProfile: (data: { email: string, password: string, fullName: string, cedula?: string, phone?: string, avatar?: string, birth_date?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   enablePasskey: () => Promise<void>;
@@ -74,7 +74,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!db) {
         await mockStorage.setItem('mock_users_db', DEFAULT_USERS);
       } else {
-        // Asegurarse de que usuarios nuevos (como Ines) se agreguen si no existen
         let updated = false;
         DEFAULT_USERS.forEach(defUser => {
           if (!db!.some(u => u.username === defUser.username)) {
@@ -105,53 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchProfileAndSetUser(session?.user ?? null);
     });
 
-    let profileChannel: any = null;
-    if (user?.id) {
-       profileChannel = supabase.channel(`profile-sync-${user.id}`)
-        .on('postgres_changes', { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'profiles', 
-          filter: `id=eq.${user.id}` 
-        }, (payload) => {
-          if (payload.new.blocked) {
-            signOut();
-          } else {
-            setUser((prev: any) => ({ ...prev, ...payload.new }));
-          }
-        })
-        .subscribe();
-    }
-
-    // ── PAGE VISIBILITY / STATUS DETECTION ──
-    const updateMockStatus = async (status: 'Activo' | 'Segundo Plano' | 'Inactivo') => {
-      if (!isSupabaseConfigured && user?.id) {
-        const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
-        const idx = db.findIndex(u => u.id === user.id);
-        if (idx !== -1) {
-          db[idx].status = status;
-          await mockStorage.setItem('mock_users_db', db);
-        }
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      const status = document.visibilityState === 'visible' ? 'Activo' : 'Segundo Plano';
-      updateMockStatus(status);
-    };
-
-    if (!isSupabaseConfigured && user?.id) {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      // Initial status
-      updateMockStatus(document.visibilityState === 'visible' ? 'Activo' : 'Segundo Plano');
-    }
-
     return () => {
       authSub.unsubscribe();
-      if (profileChannel) supabase.removeChannel(profileChannel);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user?.id]);
+  }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
     if (!isSupabaseConfigured) {
@@ -165,14 +121,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (mockUser) {
         if (mockUser.blocked) throw new Error('Esta cuenta ha sido bloqueada.');
-        if (mockUser.pendingApproval) throw new Error('Cuenta pendiente de aprobación.');
         await mockStorage.setItem('mock_user_session', mockUser);
         setUser(mockUser);
         return { data: { user: mockUser }, error: null };
       }
       throw new Error('Credenciales inválidas');
     }
-    return supabase.auth.signInWithPassword({ email, password: pass });
+    const res = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (res.error) throw res.error;
+
+    // Save for Fingerprint/Fast Access
+    localStorage.setItem('fast_access_email', email);
+    localStorage.setItem('fast_access_pass', pass);
+    
+    return res;
   };
 
   const signInWithUsername = async (username: string, pass: string) => {
@@ -194,10 +156,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const { data, error } = await supabase.from('profiles').select('email').eq('username', username).single();
     if (error || !data) throw new Error('Usuario no encontrado');
-    return supabase.auth.signInWithPassword({ email: data.email, password: pass });
+    
+    const res = await supabase.auth.signInWithPassword({ email: data.email, password: pass });
+    if (res.error) throw res.error;
+
+    localStorage.setItem('fast_access_email', data.email);
+    localStorage.setItem('fast_access_pass', pass);
+
+    return res;
   };
 
-  const signUp = async (email: string, pass: string, username: string) => {
+  const signUp = async (email: string, pass: string, username: string, profileData?: any) => {
     if (!isSupabaseConfigured) {
       const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
       if (db.some((u: any) => u.username === username || u.email === email)) {
@@ -208,10 +177,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: username.toLowerCase(),
         email,
         password: pass,
-        user_metadata: { username, fullName: '' },
-        needsSetup: true,
-        pendingApproval: false,
-        role: 'Colaborador'
+        user_metadata: { username, fullName: profileData?.fullName || '' },
+        needsSetup: false,
+        role: profileData?.role || 'Colaborador',
+        cedula: profileData?.cedula,
+        phone: profileData?.phone,
+        isSuperAdmin: profileData?.isSuperAdmin || false
       };
       db.push(mockUser);
       await mockStorage.setItem('mock_users_db', db);
@@ -224,82 +195,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       options: { data: { username } }
     });
     if (error) throw error;
+
+    if (data.user) {
+      // Create detailed profile immediately
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: data.user.id,
+        username: username.toLowerCase(),
+        full_name: profileData?.fullName || '',
+        email: email,
+        cedula: profileData?.cedula,
+        phone: profileData?.phone,
+        role: profileData?.role || 'Colaborador',
+        is_super_admin: profileData?.isSuperAdmin || false,
+        needs_setup: false
+      });
+      if (profileError) console.error('Error creating profile during signup:', profileError);
+    }
+
     return data;
   };
 
-  const updateProfile = async (data: { email: string, password: string, fullName: string, cedula?: string, phone?: string, avatar?: string, birth_date?: string }) => {
+  const updateProfile = async (data: any) => {
     if (isSupabaseConfigured && user) {
-      const { password, email, fullName, cedula, phone, avatar, birth_date } = data;
-      const { error: authError } = await supabase.auth.updateUser({ password, email });
-      if (authError) throw authError;
-
       const { error: dbError } = await supabase
         .from('profiles')
         .update({ 
-          full_name: fullName, 
-          email: email, 
-          needs_setup: false,
-          cedula,
-          phone,
-          avatar,
-          birth_date
+          full_name: data.fullName, 
+          cedula: data.cedula,
+          phone: data.phone,
+          avatar: data.avatar,
+          birth_date: data.birth_date,
+          needs_setup: false
         })
         .eq('id', user.id);
       if (dbError) throw dbError;
-
-      const { data: updatedProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      setUser({
-        ...user,
-        ...updatedProfile,
-        isSuperAdmin: updatedProfile?.is_super_admin || updatedProfile?.role === 'Administrador' || false,
-        needsSetup: updatedProfile?.needs_setup ?? false
-      });
-      return;
-    }
-
-    if (!isSupabaseConfigured && user) {
-      const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
-      const index = db.findIndex((u: any) => u.id === user.id);
-      if (index !== -1) {
-        db[index].email = data.email;
-        db[index].password = data.password;
-        db[index].user_metadata.fullName = data.fullName;
-        db[index].cedula = data.cedula;
-        db[index].phone = data.phone;
-        db[index].avatar = data.avatar;
-        db[index].birth_date = data.birth_date;
-        db[index].needsSetup = false;
-        await mockStorage.setItem('mock_users_db', db);
-        await mockStorage.setItem('mock_user_session', db[index]);
-        setUser(db[index]);
-
-        // Audit Admin notification
-        if (!user.isSuperAdmin) {
-          const notifications = await mockStorage.getItem<any[]>('admin_notifications') || [];
-          notifications.push({
-            id: Date.now(),
-            user: user.username,
-            type: 'profile_update',
-            timestamp: new Date().toISOString(),
-            details: `El usuario @${user.username} actualizó su perfil.`
-          });
-          await mockStorage.setItem('admin_notifications', notifications);
-        }
-      }
+      
+      const { data: updated } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      setUser({ ...user, ...updated });
     }
   };
 
   const signOut = async () => {
     if (!isSupabaseConfigured) {
-      // Set status to Inactive before clearing
-      if (user?.id) {
-        const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
-        const idx = db.findIndex(u => u.id === user.id);
-        if (idx !== -1) {
-          db[idx].status = 'Inactivo';
-          await mockStorage.setItem('mock_users_db', db);
-        }
-      }
       await mockStorage.removeItem('mock_user_session');
       setUser(null);
       return;
@@ -307,8 +244,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
-  const enablePasskey = async () => alert('Registro biométrico iniciado.');
-  const signInWithPasskey = async () => alert('Ingreso biométrico escaneando.');
+  const enablePasskey = async () => {
+    if (!user) return;
+    localStorage.setItem('fast_access_enabled', 'true');
+    alert('Acceso rápido biométrico activado para este dispositivo.');
+  };
+
+  const signInWithPasskey = async () => {
+    const enabled = localStorage.getItem('fast_access_enabled');
+    const email = localStorage.getItem('fast_access_email');
+    const pass = localStorage.getItem('fast_access_pass');
+
+    if (enabled === 'true' && email && pass) {
+      try {
+        await signInWithEmail(email, pass);
+        alert('Ingreso biométrico exitoso.');
+      } catch (err) {
+        alert('Error en acceso rápido. Por favor usa tu contraseña.');
+      }
+    } else {
+      alert('Debes iniciar sesión con contraseña al menos una vez y activar el acceso rápido en tu perfil.');
+    }
+  };
 
   return (
     <AuthContext.Provider value={{ user, loading, signInWithEmail, signInWithUsername, signUp, updateProfile, signOut, enablePasskey, signInWithPasskey }}>
