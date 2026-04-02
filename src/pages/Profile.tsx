@@ -79,7 +79,7 @@ export default function Profile() {
   if (!user) return null;
 
   return (
-    <div style={{ padding: '24px 16px 100px 16px', maxWidth: '500px', margin: '0 auto' }} className="animate-fade-in padding-safe">
+    <div style={{ padding: '24px 16px 130px 16px', maxWidth: '500px', margin: '0 auto' }} className="animate-fade-in padding-safe">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Tu Perfil</h2>
