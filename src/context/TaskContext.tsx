@@ -169,13 +169,20 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
       if (error) throw error;
-      return {
+      
+      const createdTask = {
         ...data,
         userId: data.user_id,
         isShared: data.is_shared,
         createdBy: data.created_by,
-        imageUrl: data.image_url
+        imageUrl: data.image_url,
+        isGroupTask: data.user_id !== user.id
       };
+      
+      // Sincronización proactiva inmediata
+      setTasks(prev => [createdTask, ...prev]);
+      
+      return createdTask;
     } else {
       const mockTask = { ...newTask, id: Math.random().toString(36).substring(7) } as Task;
       setTasks(prev => [...prev, mockTask]);
@@ -204,8 +211,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let updatedTask: Task | undefined;
       setTasks(prev => prev.map(t => {
         if (t.id === id) {
-          updatedTask = { ...t, ...updates };
-          return updatedTask;
+          const updated = { ...t, ...updates };
+          return updated;
         }
         return t;
       }));

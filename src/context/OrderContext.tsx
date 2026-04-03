@@ -327,36 +327,77 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const downloadOrderPdf = async (orderId: string) => {
-    if (!isSupabaseConfigured) {
-      alert('La generación de PDF en servidor requiere Supabase configurado.');
-      return;
-    }
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-order-pdf', {
-        body: { orderId },
+      const { default: jsPDF } = await import('jspdf');
+      const QRCode = await import('qrcode');
+      
+      const doc = new jsPDF();
+      const trackingUrl = `${window.location.origin}/status/${orderId}`;
+      const qrDataUrl = await QRCode.toDataURL(trackingUrl);
+
+      // Diseño del PDF Pro
+      doc.setFontSize(22);
+      doc.setTextColor(40, 40, 40);
+      doc.text("ORDEN DE SERVICIO - GRUPO MORE", 20, 20);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`ID Orden: ${orderId}`, 20, 30);
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 36);
+
+      // Insertar QR
+      doc.addImage(qrDataUrl, 'PNG', 150, 15, 40, 40);
+      doc.setFontSize(8);
+      doc.text("Escanee para seguimiento", 152, 58);
+
+      // Datos Cliente
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text("DATOS DEL CLIENTE", 20, 70);
+      doc.line(20, 72, 190, 72);
+      
+      doc.setFontSize(11);
+      doc.text(`Nombre: ${order.customerName}`, 20, 80);
+      doc.text(`Teléfono: ${order.customerPhone}`, 20, 88);
+      
+      // Detalles Orden
+      doc.setFontSize(14);
+      doc.text("DETALLES DEL SERVICIO", 20, 110);
+      doc.line(20, 112, 190, 112);
+      
+      doc.setFontSize(11);
+      doc.text(`Estado: ${order.status.toUpperCase()}`, 20, 120);
+      doc.text(`Entrega: ${order.deliveryDate}`, 20, 128);
+      doc.text(`Responsable: ${order.responsible}`, 20, 136);
+
+      doc.text("Servicios:", 20, 150);
+      order.services.forEach((s, i) => {
+        doc.text(`• ${s}`, 30, 158 + (i * 6));
       });
 
-      if (error) throw error;
-
-      if (data instanceof Blob) {
-        const url = window.URL.createObjectURL(data);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `Orden_${orderId}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-      } else {
-         // Some versions of supabase-js return the blob directly, 
-         // others might need handling if it comes as a base64 or similar.
-         // Usually it's a Blob if the function returns it correctly.
-         console.warn('Respuesta inesperada al generar PDF:', data);
+      if (order.notes) {
+        doc.text("Notas:", 20, 190);
+        doc.setFontSize(9);
+        doc.text(order.notes, 25, 198, { maxWidth: 160 });
       }
+
+      // Financiero
+      doc.setFontSize(14);
+      doc.text("RESUMEN FINANCIERO", 20, 230);
+      doc.line(20, 232, 190, 232);
+      doc.setFontSize(11);
+      doc.text(`Total: $${order.totalCost.toLocaleString()}`, 20, 242);
+      doc.text(`Abono: $${order.depositAmount.toLocaleString()}`, 20, 250);
+      doc.setTextColor(200, 0, 0);
+      doc.text(`Saldo Pendiente: $${order.pendingBalance.toLocaleString()}`, 20, 258);
+
+      doc.save(`Orden_GrupoMore_${orderId}.pdf`);
     } catch (err) {
-      console.error('Error invocando Edge Function:', err);
-      alert('Error al generar el PDF en el servidor.');
+      console.error('Error generando PDF local:', err);
+      alert('Error al generar el PDF. Reintente en un momento.');
     }
   };
 

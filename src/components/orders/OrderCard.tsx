@@ -11,9 +11,12 @@ import {
   ChevronUp, 
   CheckCircle2,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  QrCode
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { ServiceOrder } from '../../context/OrderContext';
+import { triggerHaptic } from '../../utils/haptics';
 import { OrderStatusPill } from './OrderStatusPill';
 import { OrderTimeline } from './OrderTimeline';
 
@@ -37,6 +40,7 @@ export function OrderCard({
   isGenerating
 }: OrderCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [obsValue, setObsValue] = useState('');
 
   const deliveryDate = new Date(order.deliveryDate);
@@ -199,6 +203,14 @@ export function OrderCard({
 
         <div className="flex gap-2">
           <button 
+            onClick={() => { triggerHaptic('light'); setShowQrModal(true); }}
+            className="p-2.5 rounded-xl bg-slate-800 text-purple-400 hover:text-purple-300 hover:bg-slate-700 transition-all border border-purple-500/10 active:scale-95 shadow-lg"
+            title="Ver Código QR de Seguimiento"
+          >
+            <QrCode size={18} />
+          </button>
+
+          <button 
             onClick={() => onDownloadPdf(order)} 
             disabled={isGenerating}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-white/5 active:scale-95 shadow-lg ${isGenerating ? 'opacity-50 cursor-wait' : ''}`}
@@ -221,6 +233,42 @@ export function OrderCard({
           </button>
         </div>
       </div>
+
+      {/* QR Modal Overlay */}
+      <AnimatePresence>
+        {showQrModal && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowQrModal(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-8 rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mx-auto mb-6">
+                <QrCode size={32} />
+              </div>
+              <h3 className="text-xl font-black text-white mb-2 leading-tight uppercase tracking-tight">Seguimiento Digital</h3>
+              <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-8">Orden #{order.id.toString().padStart(4, '0')}</p>
+              
+              <div className="bg-white p-6 rounded-[32px] inline-block shadow-xl shadow-purple-500/10 mb-8 border border-white/10">
+                <QRCodeSVG 
+                  value={`${window.location.origin}/status/${order.id}`} 
+                  size={200}
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+
+              <p className="text-[0.7rem] text-slate-400 leading-relaxed font-medium mb-8">
+                Escanee este código para que el cliente pueda seguir su <span className="text-purple-400">Estado de Orden</span> en tiempo real sin loguearse.
+              </p>
+
+              <button 
+                onClick={() => setShowQrModal(false)}
+                className="w-full py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
+              >
+                Cerrar Panel
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Creator Info Overlay (Visible on Hover) */}
       <div className="absolute top-2 left-1/2 -translate-x-1/2 -translate-y-full group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none">
