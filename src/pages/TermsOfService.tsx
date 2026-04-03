@@ -126,6 +126,20 @@ export default function TermsOfService() {
             <article className="space-y-4">
               <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-3 italic">
                 <span className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-black text-blue-500">5</span>
+                Contacto y Domicilio
+              </h2>
+              <p className="text-slate-400 leading-relaxed">
+                Para cualquier comunicación oficial, requerimiento técnico o legal, Grupo More dispone de los siguientes canales en su sede de **Barranquilla, Colombia**:
+              </p>
+              <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-sm text-slate-300">
+                <p>• Correo: morepaper2024@gmail.com</p>
+                <p>• Soporte: 304 526 7493 / 318 380 6342</p>
+              </div>
+            </article>
+
+            <article className="space-y-4">
+              <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-3 italic">
+                <span className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-black text-blue-500">6</span>
                 Legislación Aplicable
               </h2>
               <p className="text-slate-400 leading-relaxed font-bold flex items-center gap-3">

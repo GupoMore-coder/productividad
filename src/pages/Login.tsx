@@ -61,14 +61,21 @@ export default function Login() {
         className="glass-panel w-full max-w-[400px] p-8 z-10 border border-white/10 relative"
       >
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/5">
-             <ShieldCheck size={32} className="text-[#d4bc8f]" />
+          <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/5 overflow-hidden shadow-2xl shadow-amber-500/10">
+             <img 
+               src="/logo.png" 
+               alt="Grupo More Logo" 
+               className="w-full h-full object-cover"
+               onError={(e) => {
+                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=200&q=80';
+               }}
+             />
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight mb-2">
             Acceso al Sistema
           </h1>
-          <p className="text-sm text-slate-400">
-            Inteligencia Operativa del <span className="text-[#d4bc8f] font-bold">Grupo More</span>
+          <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em]">
+            <span className="text-[#d4bc8f]">Regalos auténticos</span> / Grupo More
           </p>
         </div>
 

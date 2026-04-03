@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Shield, ChevronLeft, Mail, MapPin, FileCheck, Info } from 'lucide-react';
+import { Shield, ChevronLeft, Mail, MapPin, FileCheck, Info, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Footer from '../components/Footer';
 
@@ -74,8 +74,13 @@ export default function PrivacyPolicy() {
                 </a>
                 <p className="flex items-center gap-3 text-xs text-slate-400">
                   <MapPin size={16} className="text-purple-400" />
-                  Colombia | Operación Nacional
+                  Barranquilla, Colombia | Operación Nacional
                 </p>
+                <div className="pt-1 flex flex-col gap-1">
+                  <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                    <Phone size={12} /> 304 526 7493 / 318 380 6342
+                  </p>
+                </div>
               </div>
             </div>
           </div>

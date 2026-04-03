@@ -291,12 +291,12 @@ export default function PublicOrderStatus() {
         {/* Footer */}
         <footer className="pt-10 pb-20 text-center space-y-4">
           <div className="text-[0.65rem] font-black uppercase tracking-[0.3em] text-[#d4bc8f] opacity-50">
-            Grupo More — Calidad y Seguridad
+            Grupo More — Personalizar es identidad
           </div>
           <div className="text-[0.6rem] text-slate-600 font-bold uppercase tracking-widest space-y-1">
-            <p>© {new Date().getFullYear()} Bogotá, Colombia</p>
+            <p>© {new Date().getFullYear()} Barranquilla, Colombia</p>
             <p className="flex items-center justify-center gap-2">
-              <Phone size={10} /> Soporte: +57 {order.customer_phone?.slice(0, 3)} *** **
+              <Phone size={10} /> Soporte: 304 526 7493 / 318 380 6342
             </p>
           </div>
         </footer>

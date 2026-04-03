@@ -154,7 +154,11 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onFormSubmit as any)} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar pb-32">
+            <form 
+              id="create-order-form"
+              onSubmit={handleSubmit(onFormSubmit as any)} 
+              className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar pb-32"
+            >
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Cliente</label>
@@ -251,7 +255,12 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
 
             <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl flex gap-3 shrink-0">
               <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 px-6 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-black text-[0.65rem] uppercase tracking-widest">Cancelar</button>
-              <button type="submit" disabled={isSubmitting || uploadingPhotos} className="flex-[2] px-6 py-3.5 rounded-2xl bg-[#d4bc8f] text-slate-900 font-black text-[0.65rem] uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2">
+              <button 
+                type="submit" 
+                form="create-order-form"
+                disabled={isSubmitting || uploadingPhotos} 
+                className="flex-[2] px-6 py-3.5 rounded-2xl bg-[#d4bc8f] text-slate-900 font-black text-[0.65rem] uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2"
+              >
                 {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : (initialOrder ? <Save size={16} /> : <Plus size={16} />)}
                 {isSubmitting ? 'Guardando...' : (initialOrder ? 'Guardar' : 'Generar')}
               </button>

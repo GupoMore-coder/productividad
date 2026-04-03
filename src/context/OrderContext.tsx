@@ -265,7 +265,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const { error } = await supabase.from('service_orders').update(dbUpdate).eq('id', id);
         if (error) throw error;
 
-        // History and alerts...
         if (updates.status && updates.status !== existingOrder.status) {
           await supabase.from('order_history').insert({ 
             order_id: id, type: 'cambio_estado', user_name: uName, 
@@ -273,7 +272,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
         }
       } else {
-        // Mock update logic not strictly needed if we invalidate, but good for local-only
+        const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
+        const index = mockOrders.findIndex(o => o.id === id);
+        if (index !== -1) {
+          const updatedOrder = { ...mockOrders[index], ...updates, pendingBalance: computedBalance };
+          mockOrders[index] = updatedOrder;
+          await mockStorage.setItem('mock_orders', mockOrders);
+        }
       }
     },
     onSuccess: () => {
@@ -297,7 +302,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateOrder = async (id: string, updates: any): Promise<ServiceOrder> => {
     await updateOrderMutation.mutateAsync({ id, updates });
-    return (queryClient.getQueryData(['orders']) as ServiceOrder[]).find(o => o.id === id)!;
+    // Refetch or return expected data to ensure UI sync
+    const currentOrders = queryClient.getQueryData(['orders']) as ServiceOrder[] || [];
+    const updated = currentOrders.find(o => o.id === id);
+    if (!updated) {
+       // if refetch hasn't completed, construct best effort
+       const existing = orders.find(o => o.id === id)!;
+       return { ...existing, ...updates };
+    }
+    return updated;
   };
 
   const downloadOrderPdf = async (orderId: string) => {

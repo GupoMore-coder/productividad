@@ -25,7 +25,7 @@ export default function Footer() {
             </div>
             <div>
               <h4 className="text-lg font-black text-white tracking-tight uppercase">Grupo More</h4>
-              <p className="text-[0.6rem] text-slate-500 font-bold tracking-[0.2em] uppercase">Excelencia & Gestión</p>
+              <p className="text-[0.6rem] text-[#d4bc8f] font-black tracking-[0.2em] uppercase">Personalizar es identidad</p>
             </div>
           </motion.div>
           <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
@@ -55,9 +55,15 @@ export default function Footer() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <div className="p-2 rounded-lg bg-white/5">
+                <Globe size={16} />
+              </div>
+              Barranquilla, Colombia
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <div className="p-2 rounded-lg bg-white/5">
                 <Shield size={16} />
               </div>
-              NIT: 72345510-8
+              Tel: 304 526 7493 / 318 380 6342
             </li>
           </ul>
         </div>
@@ -92,10 +98,10 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">
           <Copyright size={12} />
-          {currentYear} Grupo More | More Paper 2024. All rights reserved.
+          {currentYear} Grupo More | Barranquilla, Colombia.
         </div>
         <div className="text-[0.65rem] text-slate-600 font-medium">
-          Matrícula: 899.897 | Built with Elite Architecture
+          Matrícula: 899.897 | NIT: 72345510-8
         </div>
       </div>
 

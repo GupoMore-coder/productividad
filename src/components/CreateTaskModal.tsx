@@ -137,7 +137,11 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onFormSubmit as any)} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-24">
+            <form 
+              id="create-task-form"
+              onSubmit={handleSubmit(onFormSubmit as any)} 
+              className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-24"
+            >
               <div className="space-y-2">
                 <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Type size={12}/> Título</label>
                 <input 
@@ -261,6 +265,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
               </button>
               <button 
                 type="submit"
+                form="create-task-form"
                 disabled={isSubmitting || uploading}
                 className="flex-[2] px-6 py-3.5 rounded-2xl bg-[#d4bc8f] text-slate-900 font-black text-[0.65rem] uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
               >
