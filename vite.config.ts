@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@lib": path.resolve(__dirname, "./src/lib"),
     },
   },
   plugins: [
@@ -30,16 +31,18 @@ export default defineConfig({
         type: 'module',
       },
 
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
 
       manifest: {
-        name: 'FamiliaAgenda — Gestor de Actividades',
-        short_name: 'FamiliaAgenda',
-        description: 'PWA para gestionar actividades diarias personales y de trabajo en grupo con recordatorios inteligentes',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        name: 'Productividad GrupoMore',
+        short_name: 'GrupoMore',
+        description: 'Sistema inteligente de gestión operativa y productividad para equipos de trabajo de Grupo More.',
+        theme_color: '#1a1622',
+        background_color: '#1a1622',
         display: 'standalone',
         orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -58,7 +61,52 @@ export default defineConfig({
             purpose: 'any maskable',
           },
         ],
+        screenshots: [
+          {
+            src: 'screenshot-desktop.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Escritorio Productividad GrupoMore'
+          },
+          {
+            src: 'screenshot-mobile.png',
+            sizes: '750x1334',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Móvil Productividad GrupoMore'
+          }
+        ],
+        shortcuts: [
+          {
+            name: 'Nueva Orden',
+            url: '/?createOrder=true',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Mis Tareas',
+            url: '/tasks',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Mi Perfil',
+            url: '/profile',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+          }
+        ]
       },
     }),
   ],
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['framer-motion', 'lucide-react', 'clsx', 'tailwind-merge'],
+          'vendor-supabase': ['@supabase/supabase-js']
+        }
+      }
+    }
+  }
 })

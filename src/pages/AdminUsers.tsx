@@ -7,7 +7,6 @@ import { Task } from '../context/TaskContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, 
-  UserPlus, 
   Search, 
   Trash2, 
   Lock, 
@@ -16,13 +15,10 @@ import {
   Calendar,
   Mail,
   Phone,
-  CreditCard,
   Cake,
-  Eye,
-  CheckCircle2,
   XCircle,
   AlertOctagon,
-  User
+  Bell
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';

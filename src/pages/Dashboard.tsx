@@ -1,15 +1,13 @@
 import { useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
   Wallet, 
   CreditCard, 
-  Target, 
   BarChart2, 
   Users, 
-  PieChart, 
   Activity,
   ArrowUpRight,
   ShieldCheck,

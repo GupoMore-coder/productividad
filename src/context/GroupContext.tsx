@@ -26,6 +26,7 @@ interface GroupContextType {
   inviteUser: (groupId: string, userEmail: string) => Promise<void>;
   acceptInvitation: (groupId: string) => Promise<void>;
   rejectInvitation: (groupId: string) => Promise<void>;
+  loading: boolean;
 }
 
 const GroupContext = createContext<GroupContextType>({} as GroupContextType);
@@ -34,21 +35,25 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [memberships, setMemberships] = useState<GroupMembership[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // 1. Initial Load & Real-time Sync
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setGroups(JSON.parse(localStorage.getItem('mock_groups') || '[]'));
       setMemberships(JSON.parse(localStorage.getItem('mock_memberships') || '[]'));
+      setLoading(false);
       return;
     }
 
     const loadGroups = async () => {
+      setLoading(true);
       const { data: gData } = await supabase.from('groups').select('*');
       const { data: mData } = await supabase.from('group_memberships').select('*');
       
       if (gData) setGroups(gData.map(g => ({ id: g.id, name: g.name, creatorId: g.creator_id })));
       if (mData) setMemberships(mData.map(m => ({ groupId: m.group_id, userId: m.user_id, status: m.status })));
+      setLoading(false);
     };
 
     loadGroups();
@@ -147,7 +152,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <GroupContext.Provider value={{ groups, memberships, createGroup, requestJoin, approveJoin, rejectJoin, leaveGroup, removeUser, inviteUser, acceptInvitation, rejectInvitation }}>
+    <GroupContext.Provider value={{ groups, memberships, createGroup, requestJoin, approveJoin, rejectJoin, leaveGroup, removeUser, inviteUser, acceptInvitation, rejectInvitation, loading }}>
       {children}
     </GroupContext.Provider>
   );

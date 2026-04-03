@@ -14,7 +14,6 @@ import {
   Trash2, 
   Mail, 
   ShieldCheck, 
-  ShieldAlert,
   ArrowLeft,
   UserPlus
 } from 'lucide-react';

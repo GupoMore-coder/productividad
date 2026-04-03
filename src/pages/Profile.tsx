@@ -39,8 +39,8 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrentPass, setShowCurrentPass] = useState(false);
-  const [showNewPass, setShowNewPass] = useState(false);
-  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const showNewPass = false;
+  const showConfirmPass = false;
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
