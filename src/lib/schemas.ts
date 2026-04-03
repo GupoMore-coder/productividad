@@ -9,23 +9,23 @@ export const OrderSchema = z.object({
     return true; 
   }, { message: 'Para Colombia (+57), el número debe comenzar por 3 y tener 10 dígitos.' }),
   services: z.array(z.string()).min(1, 'Debes seleccionar al menos un servicio'),
-  notes: z.string().catch(''),
+  notes: z.string(),
   deliveryDate: z.string().min(1, 'La fecha de entrega es obligatoria'),
-  totalCost: z.number().min(0).catch(0),
-  depositAmount: z.number().min(0).catch(0),
-  paymentStatus: z.enum(['pendiente', 'abono', 'pagado']).default('pendiente'),
-  photos: z.array(z.string()).catch([]),
+  totalCost: z.number().min(0),
+  depositAmount: z.number().min(0),
+  paymentStatus: z.enum(['pendiente', 'abono', 'pagado']),
+  photos: z.array(z.string()),
 });
 
 export const TaskSchema = z.object({
   title: z.string().min(3, 'El título debe tener al menos 3 caracteres'),
-  description: z.string().catch(''),
+  description: z.string(),
   date: z.string().min(1, 'La fecha es obligatoria'),
   time: z.string().min(1, 'La hora es obligatoria'),
-  priority: z.enum(['alta', 'media', 'baja']).default('media'),
-  group_ids: z.array(z.string()).catch([]),
-  isShared: z.boolean().catch(false),
-  imageUrl: z.string().nullable().optional().catch(''),
+  priority: z.enum(['alta', 'media', 'baja']),
+  group_ids: z.array(z.string()),
+  isShared: z.boolean(),
+  imageUrl: z.string().nullable(),
 });
 
 export type OrderFormData = z.infer<typeof OrderSchema>;
