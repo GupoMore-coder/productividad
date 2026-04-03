@@ -206,6 +206,8 @@ export default function SetupProfile() {
                   type="button"
                   onClick={() => { setAvatar(e); triggerHaptic('light'); }}
                   className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all active:scale-90 border-2 ${avatar === e ? 'border-[#d4bc8f] bg-[#d4bc8f]/10 shadow-lg shadow-amber-500/10' : 'border-white/5 bg-white/5 hover:border-white/10'}`}
+                  aria-label={`Seleccionar avatar ${e}`}
+                  title={`Avatar ${e}`}
                 >
                   {e}
                 </button>
@@ -217,8 +219,9 @@ export default function SetupProfile() {
             type="submit" 
             disabled={loading}
             className="w-full py-4 bg-[#d4bc8f] text-slate-900 font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-amber-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-4"
+            aria-label={loading ? 'Procesando registro' : 'Finalizar configuración de perfil'}
           >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+            {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} aria-hidden="true" />}
             {loading ? 'Finalizando...' : 'Completar Registro Vital'}
           </button>
         </form>

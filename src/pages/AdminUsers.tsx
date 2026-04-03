@@ -400,16 +400,25 @@ export default function AdminUsers() {
                           const isSuperValue = val === 'Administrador maestro';
                           handleAction('warning');
                           if (isSupabaseConfigured) {
-                              await supabase.from('profiles').update({ role: val, is_super_admin: isSuperValue }).eq('id', u.id);
+                              const { error } = await supabase.from('profiles').update({ role: val, is_super_admin: isSuperValue }).eq('id', u.id);
+                              if (error) {
+                                handleAction('error');
+                                const isBypass = !supabase.auth.getSession();
+                                alert(`Error al actualizar rol: ${error.message}${isBypass ? '\n\n⚠️ Nota: El acceso por BYPASS es solo de lectura. Por favor, inicia sesión con tu contraseña real para realizar cambios.' : ''}`);
+                              } else {
+                                handleAction('success');
+                                loadUsers();
+                              }
                           } else {
                               const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
                               const i = db.findIndex((x: any) => x.id === u.id);
                               if (i !== -1) { db[i].role = val; db[i].is_super_admin = isSuperValue; await mockStorage.setItem('mock_users_db', db); }
+                              handleAction('success');
+                              loadUsers();
                           }
-                          handleAction('success');
-                          loadUsers();
                       }}
                       className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[0.7rem] font-bold text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 appearance-none cursor-pointer hover:border-purple-500/30 transition-all uppercase tracking-tight"
+                      aria-label={`Cambiar rol de @${u.username}`}
                     >
                         {Object.keys(ROLE_HIERARCHY).map(role => (
                           <option key={role} className="bg-[#1a1622]" value={role}>{role}</option>
@@ -434,16 +443,16 @@ export default function AdminUsers() {
 
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button onClick={() => { handleAction('light'); setSelectedAuditUser(u); }} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-purple-400 hover:bg-purple-500/10 transition-all" aria-label="Ver Agenda">
-                        <Calendar size={16} />
+                      <button onClick={() => { handleAction('light'); setSelectedAuditUser(u); }} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-purple-400 hover:bg-purple-500/10 transition-all font-bold" aria-label={`Ver Agenda de @${u.username}`}>
+                        <Calendar size={16} aria-hidden="true" />
                       </button>
                       {!u.is_super_admin && (
                         <>
-                          <button onClick={() => toggleBlock(u)} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${u.blocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'}`} aria-label={u.blocked ? "Desbloquear" : "Bloquear"}>
-                            {u.blocked ? <Unlock size={16} /> : <Lock size={16} />}
+                          <button onClick={() => toggleBlock(u)} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${u.blocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'}`} aria-label={`${u.blocked ? "Desbloquear" : "Bloquear"} usuario @${u.username}`}>
+                            {u.blocked ? <Unlock size={16} aria-hidden="true" /> : <Lock size={16} aria-hidden="true" />}
                           </button>
-                          <button onClick={() => setConfirmDelete(u)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-slate-700 hover:bg-red-500/20 hover:text-red-500 transition-all" aria-label="Eliminar Usuario">
-                            <Trash2 size={16} />
+                          <button onClick={() => setConfirmDelete(u)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-slate-700 hover:bg-red-500/20 hover:text-red-500 transition-all" aria-label={`Eliminar colaborador @${u.username}`}>
+                            <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </>
                       )}

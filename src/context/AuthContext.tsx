@@ -123,9 +123,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'Administrador maestro', 
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true // Added flag
-
+        isBypass: true // Marcador de acceso sin sesión real
       };
+      
+      console.warn('⚠️ MODO BYPASS ACTIVO: Tienes acceso total a la interfaz, pero las operaciones de escritura en base de datos (RLS) fallarán. Para realizar cambios, usa tu contraseña real.');
+      
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
