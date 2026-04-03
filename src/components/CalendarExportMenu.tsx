@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Task } from './TaskCard';
 import {
   getGoogleCalendarUrl,
   getOutlookWebUrl,
   downloadICSFile,
 } from '../services/CalendarService';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, ChevronRight, Check } from 'lucide-react';
+import { triggerHaptic } from '../utils/haptics';
 
 // ── Icons ────────────────────────────────────────────────────
 
@@ -61,27 +64,21 @@ interface CalendarExportMenuProps {
 }
 
 export default function CalendarExportMenu({ task, onClose }: CalendarExportMenuProps) {
-  const [visible, setVisible] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Slide-in animation on mount
-  useEffect(() => {
-    const t = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(t);
-  }, []);
-
   const handleClose = () => {
-    setVisible(false);
-    setTimeout(onClose, 300);
+    onClose();
   };
 
   const openLink = (url: string, label: string) => {
+    triggerHaptic('light');
     globalThis.open(url, '_blank', 'noopener,noreferrer');
     setFeedback(`✓ Abriendo ${label}…`);
     setTimeout(handleClose, 1200);
   };
 
   const handleICS = () => {
+    triggerHaptic('light');
     downloadICSFile(task);
     setFeedback('✓ Descargando archivo .ics…');
     setTimeout(handleClose, 1200);
@@ -91,12 +88,12 @@ export default function CalendarExportMenu({ task, onClose }: CalendarExportMenu
     task.priority === 'alta' ? '🔴' : task.priority === 'media' ? '🟡' : '🟢';
   const priorityLabel =
     task.priority === 'alta' ? 'Alta' : task.priority === 'media' ? 'Media' : 'Baja';
-  const priorityColor =
+  const priorityColorClass =
     task.priority === 'alta'
-      ? 'var(--danger-color)'
+      ? 'text-red-400'
       : task.priority === 'media'
-      ? 'var(--warning-color)'
-      : 'var(--success-color)';
+      ? 'text-amber-400'
+      : 'text-emerald-400';
 
   const options: Array<{
     icon: React.ReactNode;
@@ -129,162 +126,110 @@ export default function CalendarExportMenu({ task, onClose }: CalendarExportMenu
   ];
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={handleClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.55)',
-          backdropFilter: 'blur(4px)',
-          zIndex: 200,
-          opacity: visible ? 1 : 0,
-          transition: 'opacity 0.3s ease',
-        }}
-      />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={handleClose}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
 
-      {/* Bottom Sheet */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 201,
-          background: 'linear-gradient(135deg, #1a2235 0%, #0f172a 100%)',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '20px 20px 0 0',
-          padding: '0 0 env(safe-area-inset-bottom, 16px)',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',
-          transform: visible ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          maxWidth: '600px',
-          margin: '0 auto',
-        }}
-      >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
-        </div>
+        {/* Bottom Sheet / Modal */}
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className="relative w-full max-w-lg bg-[#1a1622] rounded-t-[32px] sm:rounded-3xl border-t border-white/10 sm:border shadow-2xl overflow-hidden pb-[env(safe-area-inset-bottom,16px)]"
+        >
+          {/* Drag handle (Mobile only) */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="w-10 h-1 bg-white/10 rounded-full" />
+          </div>
 
-        {/* Header */}
-        <div style={{ padding: '16px 20px 12px' }}>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Agregar al calendario
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '1.2rem' }}>{priorityEmoji}</span>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                {task.title}
-              </h3>
-              <span style={{ fontSize: '0.8rem', color: priorityColor, fontWeight: 600 }}>
-                Prioridad {priorityLabel} · {task.time} · {task.date}
-              </span>
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-white/5">
+            <div className="flex justify-between items-start mb-1">
+               <p className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black">
+                Sincronización de Agenda
+              </p>
+              <button 
+                onClick={handleClose}
+                className="p-1 rounded-full hover:bg-white/5 text-slate-500 transition-colors"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0 20px' }} />
-
-        {/* Feedback overlay */}
-        {feedback && (
-          <div style={{
-            margin: '12px 20px',
-            padding: '10px 16px',
-            borderRadius: 10,
-            background: 'rgba(46, 160, 67, 0.15)',
-            border: '1px solid rgba(46, 160, 67, 0.3)',
-            color: 'var(--success-color)',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            textAlign: 'center',
-            animation: 'fadeIn 0.2s ease',
-          }}>
-            {feedback}
-          </div>
-        )}
-
-        {/* Options list */}
-        <div style={{ padding: '8px 12px 8px' }}>
-          {options.map((opt) => (
-            <button
-              key={opt.label}
-              onClick={opt.action}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                padding: '14px 12px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 12,
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-                textAlign: 'left',
-                transition: 'background 0.15s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                background: `${opt.color}18`,
-                border: `1px solid ${opt.color}30`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                {opt.icon}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-xl">
+                {priorityEmoji}
               </div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{opt.label}</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                  {opt.sublabel}
-                </div>
+                <h3 className="text-white font-bold tracking-tight line-clamp-1">
+                  {task.title}
+                </h3>
+                <p className={`text-[0.7rem] font-bold uppercase tracking-tight ${priorityColorClass}`}>
+                  Prioridad {priorityLabel} · {task.time} · {task.date}
+                </p>
               </div>
-              <div style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '1.2rem' }}>›</div>
-            </button>
-          ))}
-        </div>
+            </div>
+          </div>
 
-        {/* Cancel button */}
-        <div style={{ padding: '4px 20px 20px' }}>
-          <button
-            onClick={handleClose}
-            style={{
-              width: '100%',
-              padding: '13px',
-              borderRadius: 12,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: 'var(--text-secondary)',
-              fontSize: '0.95rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-            }}
-          >
-            Cancelar
-          </button>
-        </div>
+          {/* Content */}
+          <div className="p-4 space-y-2">
+            {feedback && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mx-2 mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center flex items-center justify-center gap-2"
+              >
+                <Check size={14} />
+                {feedback}
+              </motion.div>
+            )}
+
+            <div className="space-y-1">
+              {options.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={opt.action}
+                  className="w-full flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-transparent hover:border-white/10 hover:bg-white/[0.05] transition-all group active:scale-[0.98]"
+                  aria-label={`Exportar a ${opt.label}`}
+                >
+                  <div 
+                    className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border transition-all"
+                    style={{ 
+                      backgroundColor: `${opt.color}15`,
+                      borderColor: `${opt.color}30`
+                    }}
+                  >
+                    {opt.icon}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="text-sm font-bold text-white tracking-tight">{opt.label}</div>
+                    <div className="text-[0.7rem] text-slate-500 font-medium">{opt.sublabel}</div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-700 group-hover:text-slate-400 transition-colors" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-white/5 bg-black/20">
+            <button
+              onClick={handleClose}
+              className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-[0.7rem] font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
+            >
+              Cerrar Menú
+            </button>
+          </div>
+        </motion.div>
       </div>
-    </>
+    </AnimatePresence>
   );
 }

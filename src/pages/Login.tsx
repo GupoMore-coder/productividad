@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate } from 'react-router-dom';
-import { Fingerprint, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { HoneypotField } from '../components/HoneypotField';
+import { motion } from 'framer-motion';
+import { triggerHaptic } from '../utils/haptics';
 
 export default function Login() {
-  const { user, signInWithEmail, signInWithUsername, signInWithPasskey } = useAuth();
+  const { user, signInWithEmail, signInWithUsername } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const [hpValue, setHpValue] = useState('');
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -18,8 +21,17 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    
     setLoading(true);
     setError('');
+
+    // Honeypot check
+    if (hpValue) {
+      console.warn('Honeypot triggered');
+      setTimeout(() => setLoading(false), 2000); // Fake delay
+      return;
+    }
     
     try {
       if (identifier.includes('@')) {
@@ -28,7 +40,9 @@ export default function Login() {
       } else {
         await signInWithUsername(identifier, password);
       }
+      triggerHaptic('success');
     } catch (err: any) {
+      triggerHaptic('error');
       setError(err.message || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
@@ -36,101 +50,102 @@ export default function Login() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '16px' }} className="animate-fade-in relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#1a1622] relative overflow-hidden animate-fade-in">
       
       {/* Dynamic Background Glow */}
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80vw', height: '80vh', background: 'var(--accent-glow)', borderRadius: '50%', filter: 'blur(100px)', pointerEvents: 'none', zIndex: -10, opacity: 0.5 }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vh] bg-[var(--accent-glow)] rounded-full blur-[100px] pointer-events-none z-0 opacity-40" />
 
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', padding: '32px', zIndex: 10 }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }} className="animate-fade-in">
-          <img 
-            src="/logo.png" 
-            alt="Grupo More" 
-            style={{ height: '70px', margin: '0 auto 16px', display: 'block', objectFit: 'contain' }} 
-            onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-          />
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 700, margin: '0 0 10px 0', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-            Sistema de gestión
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-panel w-full max-w-[400px] p-8 z-10 border border-white/10 relative"
+      >
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+             <ShieldCheck size={32} className="text-[#d4bc8f]" />
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight mb-2">
+            Acceso al Sistema
           </h1>
-          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.88rem', lineHeight: 1.55 }}>
-            para actividades personales y Operatividad del{' '}
-            <strong style={{ color: 'var(--accent-color)' }}>Grupo More</strong>
+          <p className="text-sm text-slate-400">
+            Inteligencia Operativa del <span className="text-[#d4bc8f] font-bold">Grupo More</span>
           </p>
         </div>
 
         {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={16} />
+          <motion.div 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mb-6 flex items-center gap-3 text-sm text-red-500"
+          >
+            <AlertCircle size={18} className="shrink-0" />
             <span>{error}</span>
-          </div>
+          </motion.div>
         )}
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Correo o Usuario</label>
-            <div style={{ position: 'relative' }}>
-              <Mail style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} size={16} />
+        <form onSubmit={handleLogin} className="space-y-5">
+          <HoneypotField value={hpValue} onChange={(e) => setHpValue(e.target.value)} />
+          
+          <div className="space-y-2">
+            <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Correo o Usuario</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 id="identifier"
                 type="text" 
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value.toLowerCase())}
-                placeholder="Ej: pablo22 o correo"
-                style={{ width: '100%', padding: '12px 12px 12px 36px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
+                placeholder="pablo22 o correo..."
+                className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
                 required 
               />
             </div>
           </div>
           
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: 'var(--text-secondary)' }}>Contraseña</label>
-            <div style={{ position: 'relative' }}>
-              <Lock style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} size={16} />
+          <div className="space-y-2">
+            <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Contraseña</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 id="password"
                 type={showPassword ? 'text' : 'password'} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                style={{ width: '100%', padding: '12px 40px 12px 36px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
+                className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
                 required 
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px' }} disabled={loading}>
-            {loading ? 'Ingresando...' : 'Iniciar Sesión'}
+          <button 
+            type="submit" 
+            className="w-full bg-[#d4bc8f] text-slate-900 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/10 disabled:opacity-50 mt-4 flex items-center justify-center gap-2" 
+            disabled={loading}
+          >
+            {loading ? (
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                <ShieldCheck size={18} />
+              </motion.div>
+            ) : 'Iniciar Sesión'}
+            {loading ? 'Validando...' : ''}
           </button>
         </form>
 
-        <div style={{ position: 'relative', margin: '24px 0', textAlign: 'center' }}>
-          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'var(--glass-border)', zIndex: 1 }}></div>
-          <span style={{ position: 'relative', zIndex: 2, background: 'var(--bg-color)', padding: '0 12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Opcional
-          </span>
+        <div className="mt-8 pt-6 border-t border-white/5 text-center">
+          <p className="text-xs text-slate-500">
+            ¿No tienes cuenta? <Link to="/register" className="text-[#d4bc8f] font-black uppercase tracking-widest hover:underline ml-1">Regístrate</Link>
+          </p>
         </div>
-
-        <button 
-          type="button" 
-          onClick={signInWithPasskey}
-          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
-          className="hover:bg-white/5"
-        >
-          <Fingerprint size={16} />
-          Ingresar con Huella / FaceID
-        </button>
-
-        <p style={{ marginTop: '24px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-          ¿No tienes cuenta? <Link to="/register" style={{ color: 'var(--accent-color)', fontWeight: '500' }}>Regístrate</Link>
-        </p>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export interface Task {
   isShared?: boolean;
   failureReason?: string;
   isGroupTask?: boolean; // Label for UI
+  imageUrl?: string;
 }
 
 interface TaskContextType {
@@ -26,6 +27,8 @@ interface TaskContextType {
   updateTask: (id: string, updates: Partial<Task>) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
   loading: boolean;
+  hasMore: boolean;
+  loadMore: () => Promise<void>;
   refreshTasks: () => Promise<void>;
 }
 
@@ -35,19 +38,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
 
   // 1. Initial Load & Real-time Sync
-  const loadTasks = async () => {
+  const loadTasks = async (isLoadMore = false) => {
     if (!user) return;
     if (!isSupabaseConfigured) {
       const saved = localStorage.getItem('mock_tasks');
-      if (saved) setTasks(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setTasks(parsed);
+        setHasMore(false);
+      }
       setLoading(false);
       return;
     }
 
     try {
-      // Fetch my memberships first to know which groups I'm in
+      if (!isLoadMore) {
+        setLoading(true);
+        setPage(0);
+      }
+      
+      const currentPage = isLoadMore ? page + 1 : 0;
+
+      // Fetch my memberships
       const { data: myMemberships } = await supabase
         .from('group_memberships')
         .select('group_id')
@@ -56,10 +73,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const myGroupIds = myMemberships?.map(m => m.group_id) || [];
 
-      // Query: Tasks where I am the owner OR it is shared with one of my groups
       let query = supabase
         .from('tasks')
-        .select('*');
+        .select('*', { count: 'exact' });
 
       if (myGroupIds.length > 0) {
         query = query.or(`user_id.eq.${user.id},group_ids.overlap.{${myGroupIds.join(',')}}`);
@@ -67,17 +83,32 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query = query.eq('user_id', user.id);
       }
 
-      const { data, error } = await query.order('date', { ascending: true });
+      const { data, error, count } = await query
+        .order('date', { ascending: false }) // Newer tasks first for better infinite scroll UX
+        .order('time', { ascending: false })
+        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
       
       if (data) {
-        setTasks(data.map(t => ({
+        const mappedData = data.map(t => ({
           ...t,
           userId: t.user_id,
           isShared: t.is_shared,
           createdBy: t.created_by,
           failureReason: t.failure_reason,
+          imageUrl: t.image_url,
           isGroupTask: t.user_id !== user.id
-        })));
+        }));
+
+        if (isLoadMore) {
+          setTasks(prev => [...prev, ...mappedData]);
+        } else {
+          setTasks(mappedData);
+        }
+        
+        if (count !== null) {
+          setHasMore((isLoadMore ? tasks.length + mappedData.length : mappedData.length) < count);
+        }
+        if (isLoadMore) setPage(currentPage);
       }
       if (error) console.error('Error fetching tasks:', error);
     } catch (err) {
@@ -139,7 +170,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...data,
         userId: data.user_id,
         isShared: data.is_shared,
-        createdBy: data.created_by
+        createdBy: data.created_by,
+        imageUrl: data.image_url
       };
     } else {
       const mockTask = { ...newTask, id: Math.random().toString(36).substring(7) } as Task;
@@ -162,7 +194,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...data,
         userId: data.user_id,
         isShared: data.is_shared,
-        createdBy: data.created_by
+        createdBy: data.created_by,
+        imageUrl: data.image_url
       };
     } else {
       let updatedTask: Task | undefined;
@@ -187,7 +220,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <TaskContext.Provider value={{ tasks, addTask, updateTask, deleteTask, loading, refreshTasks: loadTasks }}>
+    <TaskContext.Provider value={{ tasks, addTask, updateTask, deleteTask, loading, hasMore, loadMore: () => loadTasks(true), refreshTasks: () => loadTasks(false) }}>
       {children}
     </TaskContext.Provider>
   );

@@ -1,29 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { uploadFile, base64ToBlob } from '@/lib/supabase';
 import { compressImage } from '../utils/imageCompressor';
-import { Eye, EyeOff } from 'lucide-react';
+import { 
+  Eye, 
+  EyeOff, 
+  ChevronLeft, 
+  Save, 
+  Camera, 
+  User, 
+  BadgeCheck, 
+  Loader2, 
+  KeyRound, 
+  AlertCircle, 
+  CheckCircle2,
+  Settings,
+  Mail,
+  ShieldCheck
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { triggerHaptic } from '../utils/haptics';
+import { Skeleton } from '../components/ui/Skeleton';
 
 export default function Profile() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, updatePassword, signInWithEmail } = useAuth();
   const navigate = useNavigate();
   
   const [email, setEmail] = useState(user?.email || '');
-  const [fullName, setFullName] = useState(user?.full_name || user?.user_metadata?.fullName || '');
-  const [password, setPassword] = useState(user?.password || '');
-  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState(user?.full_name || '');
   const [cedula, setCedula] = useState(user?.cedula || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [birthDate, setBirthDate] = useState(user?.birth_date || '');
-
   const [avatar, setAvatar] = useState(user?.avatar || '👤');
+
+  // Password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const emoticons = ['👤', '👔', '👩‍💼', '👨‍💻', '👩‍🎨', '👷', '👨‍⚕️', '👸', '🤴', '🚀', '⭐', '🌈'];
+
+  useEffect(() => {
+    if (user) {
+      setEmail(user.email || '');
+      setFullName(user.full_name || '');
+      setCedula(user.cedula || '');
+      setPhone(user.phone || '');
+      setBirthDate(user.birth_date || '');
+      setAvatar(user.avatar || '👤');
+    }
+  }, [user]);
+
+  const handleAction = (type: 'success' | 'light' | 'warning' | 'error') => triggerHaptic(type);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -36,15 +73,16 @@ export default function Profile() {
         const fileName = `avatar-${user.id}-${Date.now()}.jpg`;
         const publicUrl = await uploadFile('avatars', fileName, blob);
         setAvatar(publicUrl);
-      } catch (err) {
+        handleAction('success');
+      } catch (err: any) {
         console.error('Avatar upload error:', err);
         setError('Error al subir el avatar.');
+        handleAction('error');
       } finally {
         setUploadingAvatar(false);
       }
     }
   };
-
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,179 +91,258 @@ export default function Profile() {
     setSuccess('');
 
     try {
-      const isSuper = user?.isSuperAdmin || user?.role === 'Administrador maestro';
-      if (!isSuper && password.length < 8) {
-        throw new Error('La contraseña debe tener al menos 8 caracteres.');
+      if (!fullName || !cedula || !phone) {
+        throw new Error('Todos los campos básicos son obligatorios.');
+      }
+
+      if (newPassword) {
+        if (!currentPassword) {
+          throw new Error('Debes ingresar tu contraseña actual para realizar cambios de seguridad.');
+        }
+        if (newPassword !== confirmPassword) {
+          throw new Error('La nueva contraseña y su confirmación no coinciden.');
+        }
+        if (newPassword.length < 8) {
+          throw new Error('La nueva contraseña debe tener al menos 8 caracteres.');
+        }
+
+        try {
+          await signInWithEmail(user.email, currentPassword);
+        } catch (err) {
+          throw new Error('La contraseña actual es incorrecta.');
+        }
+
+        await updatePassword(newPassword);
       }
       
       await updateProfile({ 
         email, 
-        password, 
         fullName, 
         cedula, 
         phone, 
         birth_date: birthDate, 
         avatar 
       });
+
+      handleAction('success');
       setSuccess('¡Perfil actualizado con éxito!');
-      setTimeout(() => setSuccess(''), 3000);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setSuccess(''), 4000);
     } catch (err: any) {
-      setError(err.message);
+      handleAction('error');
+      setError(err.message || 'Error al actualizar el perfil.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!user) return null;
+  if (!user) return <ProfileSkeleton />;
 
   return (
-    <div style={{ padding: '24px 16px 180px 16px', maxWidth: '500px', margin: '0 auto' }} className="animate-fade-in padding-safe">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Tu Perfil</h2>
-          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>Gestiona tu información personal</p>
-        </div>
-        <button onClick={() => navigate(-1)} style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
-          Volver
+    <div className="min-h-screen bg-[#1a1622] pb-32 animate-in fade-in duration-700 relative overflow-x-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[400px] bg-purple-500/5 blur-[120px] pointer-events-none" />
+      
+      <header className="sticky top-0 z-40 bg-[#1a1622]/80 backdrop-blur-xl border-b border-white/5 px-6 py-5 safe-top flex items-center justify-between">
+        <button 
+          onClick={() => { handleAction('light'); navigate(-1); }} 
+          className="p-2 rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95"
+          aria-label="Volver"
+        >
+          <ChevronLeft size={20} />
         </button>
+        <div className="text-center">
+          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-white">Mi Perfil</h2>
+          <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest mt-0.5 flex items-center justify-center gap-1">
+            <Settings size={10} className="text-purple-500" /> Configuración Global
+          </p>
+        </div>
+        <div className="w-10 h-10" />
       </header>
 
-      <div className="glass-panel" style={{ padding: '24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-           <div style={{ width: '100px', height: '100px', background: 'rgba(255,255,255,0.05)', borderRadius: '50px', border: '2px solid var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', margin: '0 auto 16px', color: 'var(--accent-color)', overflow: 'hidden' }}>
-              {avatar.length > 10 ? <img src={avatar} style={{width: '100%', height: '100%', objectFit: 'cover'}} /> : avatar}
-           </div>
-           <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>{user.username}</h3>
-           <p style={{ color: 'var(--accent-color)', fontSize: '0.85rem', margin: '4px 0 0', fontWeight: 600 }}>{user.role || 'Colaborador'}</p>
-        </div>
-
-        {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={{ backgroundColor: 'rgba(74, 222, 128, 0.1)', color: 'var(--success-color)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px', border: '1px solid rgba(74, 222, 128, 0.3)' }}>
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Cédula</label>
-              <input 
-                type="text" 
-                value={cedula}
-                onChange={e => setCedula(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Celular</label>
-              <input 
-                type="text" 
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Nombre Completo</label>
-            <input 
-              type="text" 
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
-              required 
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Correo Electrónico</label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
-              required 
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Fecha de Nacimiento</label>
-            <input 
-              type="date" 
-              value={birthDate}
-              onChange={e => setBirthDate(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', colorScheme: 'dark' }}
-              required 
-            />
+      <div className="max-w-xl mx-auto p-6 space-y-10 relative z-10">
+        
+        {/* Avatar Section */}
+        <section className="flex flex-col items-center">
+          <div className="relative group">
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-32 h-32 bg-black/40 rounded-[40px] border-4 border-purple-500/30 flex items-center justify-center text-6xl shadow-2xl overflow-hidden shadow-purple-500/10 group-hover:border-purple-500 transition-colors"
+            >
+              {avatar.length > 10 ? (
+                <img src={avatar} alt={user.username} className="w-full h-full object-cover" />
+              ) : (
+                <span>{avatar}</span>
+              )}
+            </motion.div>
+            <label className="absolute -bottom-2 -right-2 p-3 bg-purple-500 text-slate-900 rounded-2xl shadow-xl cursor-pointer hover:scale-110 active:scale-90 transition-all border-4 border-[#1a1622]">
+              {uploadingAvatar ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
+              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploadingAvatar} />
+            </label>
           </div>
           
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>Contraseña</label>
-            <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassword ? 'text' : 'password'} 
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '10px 40px 10px 10px', borderRadius: '8px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+          <div className="mt-6 text-center">
+            <h3 className="text-2xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+              @{user.username}
+              <BadgeCheck size={24} className="text-purple-400" />
+            </h3>
+            <span className="inline-block px-4 py-1.5 bg-white/5 text-slate-400 rounded-full text-[0.6rem] font-black uppercase tracking-widest mt-2 border border-white/5">
+              {user.role || 'Colaborador Grupo More'}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2.5 mt-8 max-w-[280px]">
+            {emoticons.map(e => (
+              <button 
+                key={e} 
+                onClick={() => { setAvatar(e); handleAction('light'); }}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90 border-2 ${avatar === e ? 'border-purple-500 bg-purple-500/20 shadow-lg shadow-purple-500/10' : 'border-white/5 bg-white/5 hover:border-white/20'}`}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {e}
               </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Notifications */}
+        <AnimatePresence mode="wait">
+          {error && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-5 bg-red-500/5 border border-red-500/20 rounded-[28px] flex items-center gap-4 text-red-500 text-xs font-bold shadow-xl">
+              <AlertCircle size={24} className="shrink-0" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+          {success && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-5 bg-emerald-500/5 border border-emerald-500/20 rounded-[28px] flex items-center gap-4 text-emerald-500 text-xs font-bold shadow-xl">
+              <CheckCircle2 size={24} className="shrink-0" />
+              <span>{success}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <form onSubmit={handleUpdate} className="space-y-10">
+          
+          <div className="space-y-4">
+            <h4 className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-600 font-black ml-1 flex items-center gap-2">
+              <User size={14} className="text-purple-500" /> Perfil del Profesional
+            </h4>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Cédula</label>
+                <div className="relative">
+                  <input type="text" value={cedula} onChange={e => setCedula(e.target.value)} required 
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Celular</label>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required 
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Nombre Completo</label>
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required 
+                className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Correo Electrónico Corporativo</label>
+              <div className="relative">
+                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" size={18} />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required 
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-12 pr-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+              </div>
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>Avatar</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-              {emoticons.map(e => (
-                <button 
-                  key={e} 
-                  type="button"
-                  onClick={() => setAvatar(e)}
-                  style={{ width: '36px', height: '36px', borderRadius: '8px', border: avatar === e ? '2px solid var(--accent-color)' : '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  {e}
-                </button>
-              ))}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <h4 className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-600 font-black ml-1 flex items-center gap-2">
+              <KeyRound size={14} className="text-purple-500" /> Seguridad Crítica
+            </h4>
+
+            <div className="flex flex-col gap-4">
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Contraseña Actual *</label>
+                <div className="relative group">
+                  <ShieldCheck className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700 group-focus-within:text-purple-500 transition-colors" size={18} />
+                  <input 
+                    type={showCurrentPass ? 'text' : 'password'} 
+                    value={currentPassword} 
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="Confirma para aplicar cambios..." 
+                    className="w-full bg-black/40 border border-white/10 rounded-[24px] pl-12 pr-12 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-all placeholder:text-slate-800 font-medium" 
+                  />
+                  <button type="button" onClick={() => setShowCurrentPass(!showCurrentPass)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-700 hover:text-white transition-colors">
+                    {showCurrentPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white/[0.02] p-8 rounded-[40px] space-y-6 border border-white/5">
+                <p className="text-[0.65rem] font-black text-purple-400 uppercase tracking-widest text-center">Protocolo de Cambio de Clave</p>
+                
+                <div className="grid gap-4">
+                  <input 
+                    type={showNewPass ? 'text' : 'password'} 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Nueva Contraseña..." 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500/40" 
+                  />
+                  <input 
+                    type={showConfirmPass ? 'text' : 'password'} 
+                    value={confirmPassword} 
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Confirmar Nueva..." 
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500/40" 
+                  />
+                </div>
+              </div>
             </div>
-            <input 
-              type="file" 
-              accept="image/*"
-              onChange={handleFileChange}
-              style={{ width: '100%', fontSize: '12px' }}
-            />
           </div>
 
           <button 
             type="submit" 
-            className="btn-primary" 
-            style={{ 
-              marginTop: '24px', 
-              padding: '16px', 
-              boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-              fontWeight: 700,
-              letterSpacing: '0.5px'
-            }} 
             disabled={loading || uploadingAvatar}
+            className="w-full py-5 rounded-[24px] bg-purple-500 text-slate-950 font-black text-xs uppercase tracking-[0.25em] hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-3"
           >
-            {loading ? 'Actualizando...' : (uploadingAvatar ? 'Subiendo imagen...' : 'Guardar Cambios')}
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+            {loading ? 'Procesando...' : 'Guardar Cambios'}
           </button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#1a1622] p-8 space-y-12 animate-pulse">
+      <div className="flex justify-between items-center">
+        <Skeleton width={44} height={44} className="rounded-2xl" />
+        <Skeleton width={120} height={20} />
+        <div className="w-11" />
+      </div>
+      <div className="flex flex-col items-center space-y-6">
+        <Skeleton width={128} height={128} className="rounded-[40px]" />
+        <div className="space-y-2 flex flex-col items-center">
+           <Skeleton width={180} height={32} />
+           <Skeleton width={120} height={16} />
+        </div>
+      </div>
+      <div className="space-y-8 pt-6">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="space-y-3">
+            <Skeleton width={100} height={12} />
+            <Skeleton width="100%" height={56} className="rounded-2xl" />
+          </div>
+        ))}
       </div>
     </div>
   );

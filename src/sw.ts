@@ -1,7 +1,7 @@
 // ============================================================
-// sw.ts — Custom Service Worker for FamiliaAgenda PWA.
+// sw.ts — Custom Service Worker for Productividad GrupoMore PWA.
 // Built by vite-plugin-pwa (injectManifest strategy).
-// Handles: precaching, background alarm checks, notification clicks.
+// Handles: precaching, background sync, alarm checks, notification clicks.
 // ============================================================
 /// <reference no-default-lib="true"/>
 /// <reference lib="esnext" />
@@ -9,6 +9,9 @@
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
+import { registerRoute } from 'workbox-routing';
+import { NetworkOnly } from 'workbox-strategies';
+import { BackgroundSyncPlugin } from 'workbox-background-sync';
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -22,10 +25,37 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// ── Inline IndexedDB helpers ─────────────────────────────────
-// (Cannot tree-shake / import modules inside a SW in all browsers,
-//  so we replicate the minimal DB logic inline.)
+// ── Background Sync ──────────────────────────────────────────
+// Retries failed Supabase requests (POST/PATCH/DELETE) when connection returns
+const bgSyncPlugin = new BackgroundSyncPlugin('supabase-queue', {
+  maxRetentionTime: 24 * 60, // Retry for max 24 hours
+});
 
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/rest/v1/'),
+  new NetworkOnly({
+    plugins: [bgSyncPlugin],
+  }),
+  'POST'
+);
+
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/rest/v1/'),
+  new NetworkOnly({
+    plugins: [bgSyncPlugin],
+  }),
+  'PATCH'
+);
+
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/rest/v1/'),
+  new NetworkOnly({
+    plugins: [bgSyncPlugin],
+  }),
+  'DELETE'
+);
+
+// ── Inline IndexedDB helpers ─────────────────────────────────
 interface Alarm {
   id: string;
   taskId: string;
@@ -73,7 +103,12 @@ async function markFiredInDB(db: IDBDatabase, alarm: Alarm): Promise<void> {
 
 // ── Core: check & fire due alarms ────────────────────────────
 
+let isCheckingAlarms = false;
+
 async function checkAndFireAlarms(): Promise<void> {
+  if (isCheckingAlarms) return;
+  isCheckingAlarms = true;
+  
   try {
     const db = await openAlarmDB();
     const alarms = await getAllAlarms(db);
@@ -92,6 +127,7 @@ async function checkAndFireAlarms(): Promise<void> {
         badge: '/pwa-192x192.png',
         tag: alarm.id,
         requireInteraction: true,
+        vibrate: [200, 100, 200],
         silent: false,
         data: { url: '/', taskId: alarm.taskId },
       } as NotificationOptions);
@@ -100,24 +136,23 @@ async function checkAndFireAlarms(): Promise<void> {
     }
   } catch (err) {
     console.error('[SW] checkAndFireAlarms error:', err);
+  } finally {
+    isCheckingAlarms = false;
   }
 }
 
 // ── Service Worker event listeners ───────────────────────────
 
-/** Check alarms every time the SW becomes active (browser-triggered) */
 self.addEventListener('activate', (event) => {
   event.waitUntil(checkAndFireAlarms());
 });
 
-/** Main app can ping the SW to check alarms via postMessage */
 self.addEventListener('message', (event) => {
   if ((event as MessageEvent).data?.type === 'CHECK_ALARMS') {
     checkAndFireAlarms();
   }
 });
 
-/** Opening the PWA when tapping a notification */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url: string = (event.notification.data?.url as string) ?? '/';
@@ -126,11 +161,9 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Focus an already-open window
         for (const client of clientList) {
           if ('focus' in client) return (client as WindowClient).focus();
         }
-        // Open a new window
         if (self.clients.openWindow) return self.clients.openWindow(url);
       })
   );

@@ -1,8 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { motion } from 'framer-motion';
+import { 
+  Package, 
+  Calendar, 
+  Clock, 
+  User, 
+  Phone, 
+  ChevronLeft, 
+  CheckCircle2, 
+  Clock4, 
+  History, 
+  Info,
+  ShieldCheck,
+  Zap,
+  AlertCircle
+} from 'lucide-react';
 
 export default function PublicOrderStatus() {
   const { orderId } = useParams();
@@ -21,10 +37,18 @@ export default function PublicOrderStatus() {
           .single();
 
         if (error) throw error;
+        
+        // Sort history by date descending
+        if (data.order_history) {
+          data.order_history.sort((a: any, b: any) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        }
+        
         setOrder(data);
       } catch (err: any) {
         console.error('Error fetching public order:', err);
-        setError('No pudimos encontrar la orden solicitada. Verifica el código o escanea el QR nuevamente.');
+        setError('No pudimos localizar la orden. Verifica el código o escanea el QR nuevamente.');
       } finally {
         setLoading(false);
       }
@@ -35,10 +59,26 @@ export default function PublicOrderStatus() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff' }}>
-        <div className="animate-pulse" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
-          <p>Localizando tu pedido...</p>
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6">
+        <div className="text-center space-y-4">
+          <motion.div 
+            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+            className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center text-amber-500 mx-auto"
+          >
+            <Package size={40} />
+          </motion.div>
+          <div className="space-y-2">
+            <p className="text-white font-black uppercase tracking-[0.2em] text-xs">Localizando Pedido</p>
+            <div className="w-32 h-1 bg-white/5 rounded-full overflow-hidden mx-auto">
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                className="w-full h-full bg-amber-500"
+              />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -46,30 +86,36 @@ export default function PublicOrderStatus() {
 
   if (error || !order) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#fff', padding: '20px' }}>
-        <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
-          <h2 style={{ color: '#f87171' }}>Orden no encontrada</h2>
-          <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>{error}</p>
-          <Link to="/" style={{ background: '#a855f7', color: '#fff', padding: '12px 24px', borderRadius: '12px', textDecoration: 'none', fontWeight: 600 }}>Volver al Inicio</Link>
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6 text-center">
+        <div className="max-w-md space-y-6">
+          <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center text-red-500 mx-auto">
+            <Info size={40} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-white">Orden no Encontrada</h2>
+            <p className="text-slate-500 text-sm">{error}</p>
+          </div>
+          <Link to="/" className="inline-flex items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+            <ChevronLeft size={16} /> Volver al Inicio
+          </Link>
         </div>
       </div>
     );
   }
 
-  const getStatusData = (status: string) => {
-    const data: Record<string, { label: string, color: string, icon: string, step: number }> = {
-      'recibida': { label: 'Recibida', color: '#3b82f6', icon: '📩', step: 1 },
-      'en_proceso': { label: 'En Elaboración', color: '#eab308', icon: '⚙️', step: 2 },
-      'pendiente_entrega': { label: 'Lista para Entrega', color: '#a855f7', icon: '🎁', step: 3 },
-      'completada': { label: 'Entregada', color: '#22c55e', icon: '✅', step: 4 },
-      'cancelada': { label: 'Cancelada', color: '#ef4444', icon: '❌', step: 0 },
-      'vencida': { label: 'Vencida', color: '#ff4d4d', icon: '⚠️', step: 1.5 }
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { label: string, color: string, icon: any, step: number }> = {
+      'recibida': { label: 'Recibida', color: 'text-blue-500', icon: Clock4, step: 1 },
+      'en_proceso': { label: 'En Elaboración', color: 'text-amber-500', icon: Zap, step: 2 },
+      'pendiente_entrega': { label: 'Lista para Entrega', color: 'text-purple-500', icon: Package, step: 3 },
+      'completada': { label: 'Entregada', color: 'text-emerald-500', icon: CheckCircle2, step: 4 },
+      'cancelada': { label: 'Cancelada', color: 'text-red-500', icon: Info, step: 0 },
+      'vencida': { label: 'Vencida', color: 'text-red-400', icon: AlertCircle, step: 1.5 }
     };
-    return data[status] || { label: status, color: '#94a3b8', icon: '📌', step: 0 };
+    return configs[status] || { label: status, color: 'text-slate-500', icon: Info, step: 0 };
   };
 
-  const statusInfo = getStatusData(order.status);
+  const statusCfg = getStatusConfig(order.status);
   const steps = [
     { label: 'Recibida', step: 1 },
     { label: 'Elaboración', step: 2 },
@@ -78,77 +124,159 @@ export default function PublicOrderStatus() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0f', color: '#fff', padding: '40px 20px' }} className="animate-fade-in">
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+    <div className="min-h-screen bg-[#0a0a0f] text-white pb-20 animate-fade-in relative overflow-x-hidden">
+      {/* Glow Effect */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-amber-500/5 blur-[120px] pointer-events-none" />
+
+      <div className="max-w-xl mx-auto px-6 pt-12 space-y-10 relative z-10">
         
         {/* Branding */}
-        <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px', color: '#d4bc8f' }}>Grupo More</h1>
-          <p style={{ color: '#94a3b8', letterSpacing: '2px', fontSize: '0.9rem' }}>PORTAL DE SEGUIMIENTO</p>
+        <header className="text-center space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-4">
+            <ShieldCheck size={14} className="text-[#d4bc8f]" />
+            <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#d4bc8f]">Seguimiento Seguro</span>
+          </div>
+          <h1 className="text-3xl font-black tracking-tighter text-white">Productividad <span className="text-[#d4bc8f]">GrupoMore</span></h1>
+          <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em]">Portal de Cliente v2.0</p>
         </header>
 
-        {/* Order Identifier */}
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', textAlign: 'center', marginBottom: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
-          <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600 }}>CÓDIGO DE ORDEN</span>
-          <h2 style={{ fontSize: '2.5rem', margin: '8px 0', color: '#fff' }}>#{order.id}</h2>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 20px', borderRadius: '20px', background: `${statusInfo.color}22`, border: `1px solid ${statusInfo.color}44`, color: statusInfo.color, fontWeight: 700, marginTop: '16px' }}>
-            <span>{statusInfo.icon}</span>
-            <span>{statusInfo.label.toUpperCase()}</span>
+        {/* Order Main Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[40px] p-8 text-center shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-6 opacity-5 rotate-12">
+            <Package size={120} />
           </div>
-        </div>
+          
+          <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-slate-500">Número de Orden</span>
+          <h2 className="text-5xl font-black text-white mt-1 mb-6 tracking-tight">#{order.id.toString().padStart(4, '0')}</h2>
+          
+          <div className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/5 border border-white/10 ${statusCfg.color} font-black text-xs uppercase tracking-widest`}>
+            <statusCfg.icon size={16} />
+            {statusCfg.label}
+          </div>
+        </motion.div>
 
         {/* Progress Tracker */}
         {order.status !== 'cancelada' && (
-          <div style={{ marginBottom: '40px', padding: '0 10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', marginBottom: '10px' }}>
-              {/* Connector Line */}
-              <div style={{ position: 'absolute', top: '15px', left: '10%', right: '10%', height: '2px', background: 'rgba(255,255,255,0.1)', zIndex: 1 }} />
-              <div style={{ position: 'absolute', top: '15px', left: '10%', width: `${Math.min(100, Math.max(0, (statusInfo.step - 1) * 26.6 + 10))}%`, height: '2px', background: statusInfo.color, zIndex: 2, transition: 'width 1s ease' }} />
+          <section className="px-2">
+            <div className="flex justify-between relative">
+              {/* Background Line */}
+              <div className="absolute top-4 left-[10%] right-[10%] h-1 bg-white/5 rounded-full" />
+              {/* Active Line */}
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, Math.max(0, (statusCfg.step - 1) * 33 + 1))}%` }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                className={`absolute top-4 left-[10%] h-1 ${statusCfg.color.replace('text', 'bg')} rounded-full shadow-[0_0_15px_rgba(212,188,143,0.3)]`}
+              />
               
-              {steps.map((s, i) => (
-                <div key={i} style={{ zIndex: 3, textAlign: 'center', width: '25%' }}>
-                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: statusInfo.step >= s.step ? statusInfo.color : '#1e1e2e', border: `3px solid ${statusInfo.step >= s.step ? statusInfo.color : '#333'}`, margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: statusInfo.step >= s.step ? '#000' : '#666', fontWeight: 800, transition: '0.3s' }}>
-                    {statusInfo.step >= s.step ? '✓' : i + 1}
+              {steps.map((s, i) => {
+                const isActive = statusCfg.step >= s.step;
+                const IconComp = isActive ? CheckCircle2 : Clock;
+                return (
+                  <div key={i} className="z-10 text-center w-1/4 space-y-3">
+                    <div className={`w-8 h-8 rounded-[10px] mx-auto flex items-center justify-center border-2 transition-all duration-700 ${isActive ? `${statusCfg.color.replace('text', 'bg')} border-transparent text-slate-900` : 'bg-[#1a1a24] border-white/10 text-slate-600'}`}>
+                      <IconComp size={14} />
+                    </div>
+                    <span className={`text-[0.55rem] font-black uppercase tracking-tighter block ${isActive ? 'text-white' : 'text-slate-600'}`}>{s.label}</span>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: statusInfo.step >= s.step ? '#fff' : '#666', fontWeight: 600 }}>{s.label}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Info Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-          <div className="glass-panel" style={{ padding: '20px' }}>
-            <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>CLIENTE</span>
-            <span style={{ fontWeight: 600 }}>{order.customer_name}</span>
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-5 flex items-start gap-4 shadow-xl">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
+              <User size={20} />
+            </div>
+            <div>
+              <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest mb-0.5">Cliente</p>
+              <p className="text-sm font-bold text-white leading-tight">{order.customer_name}</p>
+            </div>
           </div>
-          <div className="glass-panel" style={{ padding: '20px' }}>
-            <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>ENTREGA ESTIMADA</span>
-            <span style={{ fontWeight: 600 }}>{format(new Date(order.delivery_date), 'dd MMM, HH:mm', { locale: es })}</span>
+          <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-5 flex items-start gap-4 shadow-xl">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shrink-0">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest mb-0.5">Entrega Estimada</p>
+              <p className="text-sm font-bold text-white leading-tight">
+                {format(parseISO(order.delivery_date), 'dd MMMM, yyyy', { locale: es })}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Services List */}
-        <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '0.9rem', color: '#d4bc8f', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>DETALLES DEL TRABAJO</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {order.services.map((s: string, i: number) => (
-              <span key={i} style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '12px', fontSize: '0.8rem', border: '1px solid rgba(255,255,255,0.1)' }}>{s}</span>
-            ))}
+        {/* Services & History - New Audit Requirement */}
+        <div className="space-y-6">
+          <div className="bg-white/[0.03] border border-white/5 rounded-[32px] p-8 shadow-xl relative group overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 font-black text-[4rem] text-white/[0.02] select-none uppercase tracking-tighter">Specs</div>
+            <h3 className="text-[0.65rem] font-black text-[#d4bc8f] uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+              <Zap size={14} /> Servicios Contratados
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {order.services.map((s: string, i: number) => (
+                <span key={i} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-slate-300">
+                  {s}
+                </span>
+              ))}
+            </div>
+            {order.notes && (
+              <div className="mt-8 p-4 bg-black/40 rounded-2xl border-l-4 border-[#d4bc8f] italic text-xs text-slate-400 leading-relaxed font-medium">
+                "{order.notes}"
+              </div>
+            )}
           </div>
-          {order.notes && (
-            <p style={{ marginTop: '20px', color: '#94a3b8', fontSize: '0.85rem', fontStyle: 'italic', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '12px' }}>
-              "{order.notes}"
+
+          {/* New Timeline History Section */}
+          <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-6">
+            <h3 className="text-[0.65rem] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+              <History size={14} /> Historial de Operación
+            </h3>
+            
+            <div className="space-y-6 border-l-2 border-white/5 ml-2 pl-6">
+              {order.order_history && order.order_history.length > 0 ? (
+                order.order_history.map((h: any, i: number) => (
+                  <div key={i} className="relative">
+                    {/* Dot */}
+                    <div className="absolute -left-[31px] top-1 w-3 h-3 rounded-full bg-[#d4bc8f] border-4 border-[#0a0a0f]" />
+                    <div className="space-y-1">
+                      <p className="text-[0.65rem] text-[#d4bc8f] font-black uppercase tracking-widest">
+                        {format(new Date(h.created_at), 'dd MMM, HH:mm', { locale: es })}
+                      </p>
+                      <p className="text-xs font-bold text-white tracking-tight">{h.action}</p>
+                      {h.notes && <p className="text-[0.65rem] text-slate-500 font-medium italic">{h.notes}</p>}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 opacity-30">
+                  <p className="text-[0.6rem] font-bold uppercase tracking-widest">Iniciando seguimiento...</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Footer */}
+        <footer className="pt-10 pb-20 text-center space-y-4">
+          <div className="text-[0.65rem] font-black uppercase tracking-[0.3em] text-[#d4bc8f] opacity-50">
+            Grupo More — Calidad y Seguridad
+          </div>
+          <div className="text-[0.6rem] text-slate-600 font-bold uppercase tracking-widest space-y-1">
+            <p>© {new Date().getFullYear()} Bogotá, Colombia</p>
+            <p className="flex items-center justify-center gap-2">
+              <Phone size={10} /> Soporte: +57 {order.customer_phone?.slice(0, 3)} *** **
             </p>
-          )}
-        </div>
-
-        {/* Footer info */}
-        <footer style={{ textAlign: 'center', padding: '40px 0', color: '#4b5563', fontSize: '0.8rem' }}>
-          <p>© {new Date().getFullYear()} Grupo More - Diseño & Calidad</p>
-          <p style={{ marginTop: '8px' }}>Para cualquier duda, contacta al +57 {order.customer_phone}</p>
+          </div>
         </footer>
+
       </div>
     </div>
   );

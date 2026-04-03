@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { GroupProvider } from './context/GroupContext';
@@ -9,18 +9,20 @@ import {
   initAlarmChecker,
 } from './services/NotificationsService';
 
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Tasks from './pages/Tasks';
-import FamilyGroup from './pages/FamilyGroup';
-import Orders from './pages/Orders';
-import SetupProfile from './pages/SetupProfile';
-import AdminUsers from './pages/AdminUsers';
-import PublicOrderStatus from './pages/PublicOrderStatus';
-import Dashboard from './pages/Dashboard';
-import Profile from './pages/Profile';
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Tasks = lazy(() => import('./pages/Tasks'));
+const FamilyGroup = lazy(() => import('./pages/FamilyGroup'));
+const Orders = lazy(() => import('./pages/Orders'));
+const SetupProfile = lazy(() => import('./pages/SetupProfile'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
+const PublicOrderStatus = lazy(() => import('./pages/PublicOrderStatus'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Profile = lazy(() => import('./pages/Profile'));
+
 import Navigation from './components/Navigation';
 import GlobalNotificationManager from './components/GlobalNotificationManager';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -28,8 +30,9 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--accent-color)' }}>
-        Cargando sesión…
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4 shadow-xl shadow-purple-500/20"></div>
+        <p className="text-slate-400 font-medium animate-pulse">Sincronizando con la nube...</p>
       </div>
     );
   }
@@ -90,22 +93,31 @@ function NotificationBootstrap() {
 // ── Routes ────────────────────────────────────────────────────
 
 function AppRoutes() {
+  const GlobalLoader = (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4 shadow-xl shadow-purple-500/20"></div>
+      <p className="text-slate-400 font-medium animate-pulse">Cargando módulo...</p>
+    </div>
+  );
+
   return (
     <Router>
       <NotificationBootstrap />
       <GlobalNotificationManager />
-      <Routes>
-        <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-        <Route path="/setup"    element={<SetupProfile />} />
-        <Route path="/"         element={<PrivateRoute><Tasks /></PrivateRoute>} />
-        <Route path="/group"    element={<PrivateRoute><FamilyGroup /></PrivateRoute>} />
-        <Route path="/orders"   element={<PrivateRoute><Orders /></PrivateRoute>} />
-        <Route path="/profile"  element={<PrivateRoute><Profile /></PrivateRoute>} />
-        <Route path="/admin"    element={<AdminRoute><AdminUsers /></AdminRoute>} />
-        <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
-        <Route path="/status/:orderId" element={<PublicOrderStatus />} />
-      </Routes>
+      <Suspense fallback={GlobalLoader}>
+        <Routes>
+          <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/setup"    element={<SetupProfile />} />
+          <Route path="/"         element={<PrivateRoute><Tasks /></PrivateRoute>} />
+          <Route path="/group"    element={<PrivateRoute><FamilyGroup /></PrivateRoute>} />
+          <Route path="/orders"   element={<PrivateRoute><Orders /></PrivateRoute>} />
+          <Route path="/profile"  element={<PrivateRoute><Profile /></PrivateRoute>} />
+          <Route path="/admin"    element={<AdminRoute><AdminUsers /></AdminRoute>} />
+          <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
+          <Route path="/status/:orderId" element={<PublicOrderStatus />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }
@@ -114,14 +126,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <GroupProvider>
-        <OrderProvider>
-          <TaskProvider>
-            <AppRoutes />
-          </TaskProvider>
-        </OrderProvider>
-      </GroupProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <GroupProvider>
+          <OrderProvider>
+            <TaskProvider>
+              <AppRoutes />
+            </TaskProvider>
+          </OrderProvider>
+        </GroupProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

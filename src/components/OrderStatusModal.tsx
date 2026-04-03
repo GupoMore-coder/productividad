@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { ServiceOrder } from '../context/OrderContext';
 
 interface OrderStatusModalProps {
@@ -29,78 +31,84 @@ export default function OrderStatusModal({ isOpen, onClose, order, targetStatus,
   const isCancel = targetStatus === 'cancelada';
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      animation: 'fadeIn 0.2s ease-out'
-    }}>
-      <div style={{
-        background: 'var(--bg-color-secondary)',
-        border: `1px solid ${isCancel ? 'var(--danger-color)' : 'var(--success-color)'}`,
-        borderRadius: '24px', width: '90%', maxWidth: '400px',
-        padding: '24px', boxShadow: 'var(--shadow-lg)',
-        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        textAlign: 'center'
-      }}>
-        <div style={{ marginBottom: '16px' }}>
-          {isCancel ? (
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--danger-color)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          ) : (
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          )}
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+          />
 
-        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: 600 }}>
-          {isCancel ? 'Cancelar Orden' : 'Completar Orden'}
-        </h3>
-        <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          ¿Estás seguro que deseas mover la orden <strong>{order.id}</strong> a {isCancel ? 'Cancelada' : 'Completada'}?<br/>
-          Esta acción la volverá inactiva.
-        </p>
+          {/* Modal Panel */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className={`relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-3xl p-6 shadow-2xl overflow-hidden ${isCancel ? 'ring-1 ring-red-500/20' : 'ring-1 ring-emerald-500/20'}`}
+          >
+            {/* Background Decoration */}
+            <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 ${isCancel ? 'bg-red-500' : 'bg-emerald-500'}`} />
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {isCancel && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
-               <label style={{ fontSize: '0.85rem', color: 'var(--danger-color)' }}>Motivo de la cancelación *</label>
-               <textarea 
-                 value={reason} onChange={e => setReason(e.target.value)} required
-                 placeholder="Ej. El cliente ya no la necesita..." rows={3}
-                 style={{ padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--danger-color)', color: 'var(--text-primary)', fontSize: '0.95rem', resize: 'vertical' }}
-               />
+            <div className="text-center">
+              <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${isCancel ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                {isCancel ? <AlertTriangle size={32} /> : <CheckCircle2 size={32} />}
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-2">
+                {isCancel ? '¿Confirmar Cancelación?' : '¿Marcar como Completada?'}
+              </h3>
+              <p className="text-sm text-slate-400 leading-relaxed mb-6">
+                Estás a punto de mover la orden <span className="text-slate-200 font-bold">{order.id}</span> a un estado inactivo.
+                Esta acción se notificará al equipo.
+              </p>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {isCancel && (
+                  <div className="text-left space-y-2">
+                    <label className="text-[0.65rem] uppercase tracking-widest text-red-400 font-black ml-1">Motivo Obligatorio</label>
+                    <textarea 
+                      value={reason} 
+                      onChange={e => setReason(e.target.value)} 
+                      required
+                      placeholder="Ej. El cliente canceló el evento..." 
+                      rows={3}
+                      className="w-full bg-black/40 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/40 transition-all resize-none"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={onClose}
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 font-bold py-3 rounded-2xl border border-white/5 transition-all active:scale-95"
+                  >
+                    Volver
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isCancel && !reason.trim()}
+                    className={`flex-1 font-bold py-3 rounded-2xl transition-all active:scale-95 shadow-lg shadow-black/20 ${isCancel ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-500 text-slate-900 hover:bg-emerald-400'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
             <button 
-              type="button" onClick={onClose}
-              style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', cursor: 'pointer' }}
+              onClick={onClose}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors"
             >
-              Cerrar
+              <X size={20} />
             </button>
-            <button 
-              type="submit"
-              disabled={isCancel && !reason.trim()}
-              style={{
-                 flex: 1, padding: '12px', borderRadius: '12px',
-                 background: isCancel ? 'var(--danger-color)' : 'var(--success-color)',
-                 color: isCancel ? 'white' : 'black', fontWeight: 600, border: 'none', cursor: (isCancel && !reason.trim()) ? 'not-allowed' : 'pointer', opacity: (isCancel && !reason.trim()) ? 0.5 : 1
-              }}
-            >
-              Confirmar
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <style>
-        {`
-          @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-        `}
-      </style>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }

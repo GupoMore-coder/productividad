@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Camera, User, ChevronLeft } from 'lucide-react';
-import { uploadFile, base64ToBlob } from '@/lib/supabase';
-import { compressImage } from '../utils/imageCompressor';
+import { Eye, EyeOff, ChevronLeft, UserPlus, Mail, User, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
+import { HoneypotField } from '../components/HoneypotField';
+import { motion } from 'framer-motion';
+import { triggerHaptic } from '../utils/haptics';
 
 export default function Register() {
   const { signUp } = useAuth();
@@ -12,31 +13,24 @@ export default function Register() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [cedula, setCedula] = useState('');
-  const [phone, setPhone] = useState('');
-  
-  // Storage for local preview only
-  const [avatarPreview, setAvatarPreview] = useState('');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      // Create local preview URL - works without Supabase
-      setAvatarPreview(URL.createObjectURL(file));
-      setError('');
-    }
-  };
+  const [hpValue, setHpValue] = useState('');
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError('');
+
+    // Honeypot check
+    if (hpValue) {
+      console.warn('Bot detected');
+      setTimeout(() => setLoading(false), 2000);
+      return;
+    }
     
     try {
       const cleanUsername = username.trim().toLowerCase();
@@ -61,38 +55,21 @@ export default function Register() {
         throw new Error('La contraseña debe tener al menos 8 caracteres.');
       }
 
-      // 1. SIGN UP (Auth)
-      const res = await signUp(cleanEmail, password, cleanUsername, {
-        fullName,
-        cedula,
-        phone,
+      // SIGN UP (Auth) - Minimal data
+      await signUp(cleanEmail, password, cleanUsername, {
         role: isSuper ? 'Administrador maestro' : 'Colaborador',
-        isSuperAdmin: isSuper
+        isSuperAdmin: isSuper,
+        needsSetup: true // Enforce setup on first login
       });
 
-      // 2. NOW THAT WE HAVE AN AUTH SESSION, UPLOAD AVATAR (if chosen)
-      if (avatarFile && res?.user) {
-        try {
-          const compressedBase64 = await compressImage(avatarFile);
-          const blob = base64ToBlob(compressedBase64);
-          const fileName = `avatar-${res.user.id}.jpg`;
-          const publicUrl = await uploadFile('avatars', fileName, blob);
-          
-          // Update the profile with the URL
-          const { supabase } = await import('@/lib/supabase');
-          await supabase.from('profiles').update({ avatar: publicUrl }).eq('id', res.user.id);
-        } catch (uploadErr) {
-          console.warn('Silent avatar upload error:', uploadErr);
-          // Don't fail registration if only the photo fails
-        }
-      }
-
+      triggerHaptic('success');
       alert(isSuper 
         ? '¡Bienvenido Fernando! Tu cuenta de Administrador Maestro ha sido creada. Ya puedes iniciar sesión.' 
-        : 'Registro exitoso. Tu cuenta ha sido creada con el rol de Colaborador.'
+        : 'Registro exitoso. Tu cuenta ha sido creada. Por favor inicia sesión para completar tu perfil.'
       );
       navigate('/login');
     } catch (err: any) {
+      triggerHaptic('error');
       if (err.message?.includes('already registered')) {
         setError('Este correo o usuario ya está registrado. Por favor intenta Iniciar Sesión.');
       } else {
@@ -104,146 +81,121 @@ export default function Register() {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '40px 16px' }} className="animate-fade-in relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#1a1622] relative overflow-hidden animate-fade-in">
       
       {/* Background Decor */}
-      <div style={{ position: 'absolute', top: '10%', right: '10%', width: '300px', height: '300px', background: 'var(--accent-glow)', borderRadius: '50%', filter: 'blur(100px)', zIndex: -1, opacity: 0.3 }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vh] bg-[var(--accent-glow)] rounded-full blur-[100px] pointer-events-none z-0 opacity-40" />
       
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', padding: '32px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px', position: 'relative' }}>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="glass-panel w-full max-w-[460px] p-8 z-10 border border-white/10 relative"
+      >
+        <div className="text-center mb-8 relative">
           <button 
             type="button" 
             onClick={() => navigate('/login')}
-            style={{ position: 'absolute', left: 0, top: 0, background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem' }}
+            className="absolute left-0 top-0 text-slate-500 hover:text-white transition-colors flex items-center gap-1 text-[0.65rem] font-black uppercase tracking-widest"
+            aria-label="Volver al inicio"
           >
-            <ChevronLeft size={16} /> Volver
+            <ChevronLeft size={14} /> Volver
           </button>
-          <img 
-            src="/logo.png" 
-            alt="Grupo More" 
-            style={{ height: '50px', margin: '0 auto 12px', display: 'block', objectFit: 'contain' }} 
-            onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-          />
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 700, margin: '0 0 4px 0' }}>Crear Cuenta</h1>
-          <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>Únete al equipo de <strong style={{color: 'var(--accent-color)'}}>Grupo More</strong></p>
+          
+          <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+             <UserPlus size={28} className="text-[#d4bc8f]" />
+          </div>
+          
+          <h1 className="text-2xl font-black text-white tracking-tight mb-2">Crear Cuenta</h1>
+          <p className="text-sm text-slate-400">Únete al equipo de <span className="text-[#d4bc8f] font-bold">Grupo More</span></p>
         </div>
 
         {error && (
-          <div style={{ backgroundColor: 'rgba(248,81,73,0.1)', color: 'var(--danger-color)', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.85rem', border: '1px solid rgba(248,81,73,0.2)' }}>
-            {error}
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl mb-6 text-xs text-red-500 flex items-start gap-3"
+          >
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </motion.div>
         )}
 
-        <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleRegister} className="space-y-5">
+          <HoneypotField value={hpValue} onChange={(e) => setHpValue(e.target.value)} />
           
-          {/* Avatar Upload (PREVIEW ONLY) */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '40px', background: 'rgba(255,255,255,0.05)', border: '2px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {avatarPreview ? (
-                <img src={avatarPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <User size={40} style={{ color: 'var(--text-secondary)' }} />
-              )}
-            </div>
-            <label style={{ marginTop: '8px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Camera size={14} /> {avatarPreview ? 'Cambiar foto' : 'Escoger foto (opcional)'}
-              <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-            </label>
-            {avatarPreview && <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '4px' }}>La foto se subirá al finalizar el registro.</p>}
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Nombre Completo</label>
-            <input 
-              type="text" 
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Ej: Fernando Marulanda"
-              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
-              required 
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Cédula</label>
-              <input 
-                type="text" 
-                value={cedula}
-                onChange={(e) => setCedula(e.target.value)}
-                placeholder="ID / CC"
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Teléfono</label>
-              <input 
-                type="tel" 
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Móvil"
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Alias o Usuario</label>
-              <input 
-                type="text" 
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Ej: pablo22"
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
-                required 
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Correo</label>
+          <div className="space-y-2">
+            <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Correo Electrónico</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="correo@ejemplo.com"
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
+                className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
                 required 
               />
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Contraseña</label>
-            <div style={{ position: 'relative' }}>
+          <div className="space-y-2">
+            <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Alias o Usuario</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+              <input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Ej: pablo22"
+                className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
+                required 
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Contraseña</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
               <input 
                 type={showPassword ? 'text' : 'password'} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                style={{ width: '100%', padding: '12px 40px 12px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', backgroundColor: 'var(--bg-color-secondary)', color: 'white', outline: 'none', boxSizing: 'border-box' }}
+                className="w-full bg-black/20 border border-white/10 rounded-2xl px-12 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
                 required 
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
           
-          <button type="submit" className="btn-primary" style={{ marginTop: '8px', padding: '14px' }} disabled={loading}>
-            {loading ? 'Creando cuenta...' : 'Finalizar Registro'}
+          <button 
+            type="submit" 
+            className="w-full bg-[#d4bc8f] text-slate-900 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/10 disabled:opacity-50 mt-4 flex items-center justify-center gap-2" 
+            disabled={loading}
+          >
+            {loading ? (
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
+                <ShieldCheck size={18} />
+              </motion.div>
+            ) : 'Finalizar Registro'}
+            {loading ? 'Procesando...' : ''}
           </button>
         </form>
         
-        <p style={{ marginTop: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-          ¿Ya tienes cuenta? <Link to="/login" style={{ color: 'var(--accent-color)', fontWeight: '500' }}>Inicia sesión</Link>
-        </p>
-      </div>
+        <div className="mt-8 pt-6 border-t border-white/5 text-center">
+          <p className="text-xs text-slate-500">
+            ¿Ya tienes cuenta? <Link to="/login" className="text-[#d4bc8f] font-black uppercase tracking-widest hover:underline ml-1">Inicia sesión</Link>
+          </p>
+        </div>
+      </motion.div>
     </div>
   );
 }

@@ -4,6 +4,28 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
 import { Task } from '../context/TaskContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  ShieldCheck, 
+  UserPlus, 
+  Search, 
+  Trash2, 
+  Lock, 
+  Unlock, 
+  ChevronLeft,
+  Calendar,
+  Mail,
+  Phone,
+  CreditCard,
+  Cake,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  AlertOctagon,
+  User
+} from 'lucide-react';
+import { Skeleton } from '../components/ui/Skeleton';
+import { triggerHaptic } from '../utils/haptics';
 
 interface AppUser {
   id: string;
@@ -56,36 +78,61 @@ function AdminUserAgendaModal({ userId, username, onClose }: { userId: string; u
   }, [userId]);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="glass-panel" style={{ maxWidth: '600px', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0 }}>Agenda de @{username}</h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-xl" 
+      />
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+        className="relative w-full max-w-xl bg-[#1a1622] rounded-[32px] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-black/20">
+          <div className="flex items-center gap-3">
+             <Calendar className="text-purple-400" size={20} />
+             <h3 className="text-white font-bold tracking-tight">Agenda de @{username}</h3>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-slate-500 transition-colors">
+            <XCircle size={20} />
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {loading ? <p>Cargando actividades...</p> : (
-            userTasks.length === 0 ? <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Sin actividades agendadas.</p> : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {userTasks.map(t => (
-                  <div key={t.id} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.title}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>📅 {t.date} | 🕒 {t.time} | <strong>{t.completed ? '✅ Completada' : '⏳ Pendiente'}</strong></div>
-                  </div>
-                ))}
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-3 no-scrollbar">
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton width="100%" height={60} className="rounded-2xl" />
+              <Skeleton width="100%" height={60} className="rounded-2xl" />
+              <Skeleton width="100%" height={60} className="rounded-2xl" />
+            </div>
+          ) : userTasks.length === 0 ? (
+            <div className="text-center py-12">
+               <Calendar className="mx-auto mb-4 text-slate-700 opacity-20" size={48} />
+               <p className="text-sm font-medium text-slate-500">Sin actividades agendadas.</p>
+            </div>
+          ) : (
+            userTasks.map(t => (
+              <div key={t.id} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                <div className="text-sm font-bold text-white mb-1">{t.title}</div>
+                <div className="text-[0.7rem] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
+                  <span>📅 {t.date}</span>
+                  <span>•</span>
+                  <span>🕒 {t.time}</span>
+                  <span className="ml-auto text-purple-400">{t.completed ? '✅ Completada' : '⏳ Pendiente'}</span>
+                </div>
               </div>
-            )
+            ))
           )}
         </div>
-        <div style={{ marginTop: '20px', padding: '12px', borderRadius: '8px', background: 'rgba(212,188,143,0.1)', color: 'var(--accent-color)', fontSize: '0.8rem', textAlign: 'center' }}>
-          ⚠️ Vista de supervisión (Solo lectura).
+
+        <div className="p-4 bg-purple-500/5 border-t border-white/5 text-center">
+            <p className="text-[0.65rem] font-black text-purple-500 uppercase tracking-widest">⚠️ Vista de supervisión (Solo lectura)</p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
+// ── Main Page ────────────────────────────────────────────────────────
 export default function AdminUsers() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -137,7 +184,10 @@ export default function AdminUsers() {
     setLoading(false);
   }
 
+  const handleAction = (type: 'success' | 'light' | 'warning' | 'error') => triggerHaptic(type);
+
   const startEdit = (userId: string, field: keyof AppUser, currentValue: string) => {
+    handleAction('light');
     setEditingField({ userId, field });
     setEditValue(currentValue || '');
   };
@@ -148,8 +198,8 @@ export default function AdminUsers() {
     
     if (isSupabaseConfigured) {
       const { error } = await supabase.from('profiles').update({ [field]: editValue }).eq('id', userId);
-      if (error) alert(error.message);
-      else loadUsers();
+      if (error) { handleAction('error'); alert(error.message); }
+      else { handleAction('success'); loadUsers(); }
     } else {
       const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
       const index = db.findIndex((u: any) => u.id === userId);
@@ -157,6 +207,7 @@ export default function AdminUsers() {
         if (field === 'username') {
           const val = editValue.trim().toLowerCase();
           if (!/^[a-zA-Z]/.test(val)) {
+            handleAction('error');
             alert('El nombre de usuario debe iniciar obligatoriamente con una letra.');
             setEditingField(null);
             return;
@@ -167,14 +218,15 @@ export default function AdminUsers() {
         else if (field === 'password') db[index].password = editValue;
         else (db[index] as any)[field] = editValue;
         await mockStorage.setItem('mock_users_db', db);
+        handleAction('success');
         loadUsers();
       }
     }
     setEditingField(null);
   };
 
-
   const deletePhoto = async (targetUser: AppUser) => {
+    handleAction('warning');
     if (!confirm('¿Deseas eliminar la foto de perfil?')) return;
     if (isSupabaseConfigured) {
       await supabase.from('profiles').update({ avatar: null }).eq('id', targetUser.id);
@@ -186,10 +238,12 @@ export default function AdminUsers() {
         await mockStorage.setItem('mock_users_db', db);
       }
     }
+    handleAction('success');
     loadUsers();
   };
 
   const deleteUser = async (targetUser: AppUser) => {
+    handleAction('error');
     if (isSupabaseConfigured) {
       alert('Eliminación en Supabase requiere llamar a auth.admin.deleteUser.');
     } else {
@@ -202,6 +256,7 @@ export default function AdminUsers() {
   };
 
   const toggleBlock = async (targetUser: AppUser) => {
+    handleAction('warning');
     if (targetUser.is_super_admin) return;
     if (isSupabaseConfigured) {
       await supabase.from('profiles').update({ blocked: !targetUser.blocked }).eq('id', targetUser.id);
@@ -213,188 +268,227 @@ export default function AdminUsers() {
         await mockStorage.setItem('mock_users_db', db);
       }
     }
+    handleAction('success');
     loadUsers();
-  };
-
-  const clearNotifications = () => {
-      localStorage.removeItem('admin_notifications');
-      setNotifications([]);
   };
 
   const filtered = users.filter(u =>
     (u.username || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.full_name || '').toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a, b) => {
-    const weightA = getRoleWeight(a.role);
-    const weightB = getRoleWeight(b.role);
-    if (weightA !== weightB) return weightA - weightB;
-    return (a.username || '').localeCompare(b.username || '');
-  });
-
-  const TH = (label: string) => (
-    <th style={{ padding: '12px 14px', textAlign: 'left', color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', borderBottom: '1px solid var(--glass-border)' }}>{label}</th>
   );
 
-  const EditableCell = ({ userId, field, value, type = 'text' }: { userId: string; field: keyof AppUser; value: string; type?: string }) => {
-    const isEditing = editingField?.userId === userId && editingField?.field === field;
-    return isEditing ? (
-      <td style={{ padding: '8px 14px' }}>
-        <input autoFocus type={type} value={editValue} onChange={e => setEditValue(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingField(null); }}
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--accent-color)', color: 'var(--text-primary)', borderRadius: 6, padding: '4px 8px', fontSize: '0.85rem', width: '100%', boxSizing: 'border-box' }}
-        />
-      </td>
-    ) : (
-      <td style={{ padding: '8px 14px', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }} onClick={() => startEdit(userId, field, value)}>
-        <span style={{ borderBottom: '1px dashed var(--glass-border)' }}>{value || '—'}</span>
-      </td>
-    );
-  };
-
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Sincronizando con base de datos...</div>;
+  if (loading) return (
+    <div className="max-w-7xl mx-auto px-4 pt-8 pb-32 space-y-8 animate-pulse">
+       <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <Skeleton width={300} height={32} />
+            <Skeleton width={200} height={16} />
+          </div>
+          <Skeleton width={100} height={40} className="rounded-xl" />
+       </div>
+       <Skeleton width="100%" height={50} className="rounded-2xl" />
+       <div className="border border-white/5 rounded-[32px] overflow-hidden">
+          <Skeleton width="100%" height={400} />
+       </div>
+    </div>
+  );
 
   return (
-    <div style={{ padding: '24px 16px 100px', maxWidth: 1200, margin: '0 auto' }} className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>👥 Gestión de Personal</h2>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0', fontSize: '0.88rem' }}>Panel de Control Total de Usuarios</p>
+    <div className="max-w-7xl mx-auto px-4 pt-8 pb-32 animate-in fade-in duration-700">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <ShieldCheck className="text-slate-900" size={32} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-white tracking-tight">Gestión de Personal</h1>
+            <p className="text-sm text-slate-500 font-medium">Panel de Control de Acceso y Roles</p>
+          </div>
         </div>
-        <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', borderRadius: 10, padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem' }}>← Volver</button>
-      </div>
+        <button 
+          onClick={() => { handleAction('light'); navigate(-1); }}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
+          aria-label="Volver"
+        >
+          <ChevronLeft size={16} /> Volver
+        </button>
+      </header>
 
       {notifications.length > 0 && (
-          <div style={{ marginBottom: 24, padding: 16, background: 'rgba(212, 188, 143, 0.05)', borderRadius: 16, border: '1px solid var(--accent-color)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--accent-color)' }}>🔔 Notificaciones de Cambios</h3>
-                  <button onClick={clearNotifications} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}>Limpiar</button>
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-6 bg-purple-500/5 border border-purple-500/20 rounded-[32px] relative overflow-hidden"
+          >
+              <div className="flex justify-between items-center mb-4 relative z-10">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-purple-400 flex items-center gap-2">
+                    <Bell className="animate-bounce" size={14} /> Alertas Administrativas
+                  </h3>
+                  <button onClick={() => { handleAction('light'); localStorage.removeItem('admin_notifications'); setNotifications([]); }} className="text-[0.65rem] font-bold text-slate-500 uppercase hover:text-purple-400 transition-colors">Limpiar Base</button>
               </div>
-              <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="max-h-[120px] overflow-y-auto space-y-2 no-scrollbar relative z-10">
                   {notifications.map(n => (
-                      <div key={n.id} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', borderBottom: '1px solid var(--glass-border)', paddingBottom: 4 }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>@{n.user}</strong> | {n.details} <span style={{ float: 'right', fontSize: '0.7rem' }}>{n.timestamp.split('T')[1].substring(0, 5)}</span>
+                      <div key={n.id} className="text-xs text-slate-400 border-b border-white/5 pb-2 flex justify-between">
+                          <span className="font-medium"><strong className="text-white">@{n.user}</strong> | {n.details}</span>
+                          <span className="text-[0.6rem] font-black text-slate-600 uppercase ml-4">{n.timestamp.split('T')[1].substring(0, 5)}</span>
                       </div>
                   ))}
               </div>
-          </div>
+          </motion.div>
       )}
 
-      <div style={{ marginBottom: 20 }}>
-        <input type="text" placeholder="🔍  Buscar por nombre, usuario, rol o correo..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+      {/* Search Bar */}
+      <div className="relative mb-8 group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-purple-500 transition-colors" size={20} />
+        <input 
+          type="text" 
+          placeholder="Buscar por nombre, usuario, rol o correo..." 
+          value={searchQuery} 
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full bg-white/[0.02] border border-white/10 rounded-[24px] pl-14 pr-6 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-all placeholder:text-slate-700 font-medium shadow-inner"
+          aria-label="Buscar usuarios"
         />
       </div>
 
-      <div style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid var(--glass-border)', background: 'var(--glass-bg)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1000 }}>
-          <thead>
-            <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-              {TH('Avatar')}
-              {TH('Usuario / ID')}
-              {TH('Nombre')}
-              {TH('Contacto')}
-              {TH('Admin')}
-              {TH('Bday')}
-              {TH('Pass')}
-              {TH('Acciones')}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((u, idx) => (
-              <tr key={u.id} style={{ background: idx % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent', borderBottom: '1px solid var(--glass-border)', opacity: u.blocked ? 0.55 : 1 }}>
-                <td style={{ padding: '8px 14px' }}>
-                   <div onClick={() => deletePhoto(u)} title="Eliminar Foto" style={{ width: 40, height: 40, borderRadius: 20, overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', fontSize: 20, cursor: 'pointer' }}>
-                      {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.avatar || u.username.charAt(0).toUpperCase())}
-                   </div>
-                </td>
-                <td style={{ padding: '8px 14px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>@{u.username}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>ID: {u.cedula || '—'}</div>
-                    <div style={{ fontSize: '0.7rem', color: u.blocked ? 'var(--danger-color)' : 'var(--success-color)', fontWeight: 700 }}>{u.blocked ? 'BLOQUEADO' : 'ACTIVO'}</div>
-                </td>
-                <EditableCell userId={u.id} field="full_name" value={u.full_name || ''} />
-                <td style={{ padding: '8px 14px' }}>
-                    <div style={{ fontSize: '0.85rem' }}>📞 {u.phone || '—'}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{u.email}</div>
-                </td>
-                <td style={{ padding: '8px 14px' }}>
-                  <select 
-                    value={u.role || (u.is_super_admin ? 'Administrador' : 'Colaborador')} 
-                    onChange={async (e) => {
-                        const val = e.target.value;
-                        const isSuperValue = val === 'Administrador maestro';
-                        if (isSupabaseConfigured) {
-                            await supabase.from('profiles').update({ role: val, is_super_admin: isSuperValue }).eq('id', u.id);
-                        } else {
-                            const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
-                            const i = db.findIndex((x: any) => x.id === u.id);
-                            if (i !== -1) {
-                                db[i].role = val;
-                                db[i].is_super_admin = isSuperValue;
-                                await mockStorage.setItem('mock_users_db', db);
-                            }
-                        }
-                        loadUsers();
-                    }}
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '4px', fontSize: '0.8rem' }}
-                  >
-                      <option style={{color:'black'}} value="Administrador maestro">Administrador maestro</option>
-                      <option style={{color:'black'}} value="Director General (CEO)">Director General (CEO)</option>
-                      <option style={{color:'black'}} value="Gestor Administrativo">Gestor Administrativo</option>
-                      <option style={{color:'black'}} value="Supervisora Puntos de Venta">Supervisora Puntos de Venta</option>
-                      <option style={{color:'black'}} value="Consultora de Ventas">Consultora de Ventas</option>
-                      <option style={{color:'black'}} value="Analista Contable">Analista Contable</option>
-                      <option style={{color:'black'}} value="Colaborador">Colaborador</option>
-                  </select>
-                </td>
-                <EditableCell userId={u.id} field="birth_date" value={u.birth_date || ''} type="date" />
-                <EditableCell userId={u.id} field="password" value={u.password || '******'} />
-                <td style={{ padding: '8px 14px' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => setSelectedAuditUser(u)} title="Ver Agenda" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, padding: '6px 10px', color: 'var(--accent-color)', cursor: 'pointer' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    </button>
-                    {!u.is_super_admin && (
-                      <>
-                        <button onClick={() => toggleBlock(u)} title={u.blocked ? "Activar" : "Bloquear"} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, padding: '6px 10px', color: u.blocked ? 'var(--success-color)' : 'var(--danger-color)', cursor: 'pointer' }}>
-                          {u.blocked ? '🔓' : '🔒'}
-                        </button>
-                        <button onClick={() => setConfirmDelete(u)} title="Eliminar" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, padding: '6px 10px', color: 'var(--danger-color)', cursor: 'pointer' }}>
-                          🗑️
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
+      <div className="bg-[#1a1622]/50 border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full border-collapse min-w-[1000px]">
+            <thead>
+              <tr className="bg-black/40 border-b border-white/5">
+                {['Avatar', 'Usuario', 'Nombre Completo', 'Contacto', 'Nivel de Acceso', 'Nacimiento', 'Clave', 'Acciones'].map(h => (
+                  <th key={h} className="px-6 py-5 text-left text-[0.65rem] font-black uppercase tracking-[0.15em] text-slate-500">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-white/5 font-medium">
+              {filtered.map((u) => (
+                <tr key={u.id} className={`group hover:bg-white/[0.02] transition-colors ${u.blocked ? 'opacity-40 grayscale' : ''}`}>
+                  <td className="px-6 py-4">
+                     <button 
+                       onClick={() => deletePhoto(u)} 
+                       className="w-12 h-12 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-xl text-purple-400 overflow-hidden group-hover:border-purple-500/40 transition-all font-black"
+                       aria-label="Ver o quitar foto"
+                     >
+                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" /> : (u.avatar || u.username.charAt(0).toUpperCase())}
+                     </button>
+                  </td>
+                  <td className="px-6 py-4">
+                      <div className="text-sm font-black text-white tracking-tight">@{u.username}</div>
+                      <div className="text-[0.65rem] text-slate-600 font-bold uppercase tracking-widest mt-1">ID: {u.cedula || '—'}</div>
+                      <div className={`text-[0.6rem] font-black uppercase tracking-tighter mt-1 flex items-center gap-1 ${u.blocked ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {u.blocked ? <Lock size={10} /> : <Unlock size={10} />} {u.blocked ? 'BLOQUEADO' : 'ACTIVO'}
+                      </div>
+                  </td>
+                  
+                  <td className="px-6 py-4">
+                    <button 
+                      onClick={() => startEdit(u.id, 'full_name', u.full_name || '')}
+                      className="text-sm text-slate-300 hover:text-purple-400 transition-colors border-b border-dashed border-white/10"
+                    >
+                      {editingField?.userId === u.id && editingField?.field === 'full_name' ? (
+                        <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && commitEdit()} onBlur={() => setEditingField(null)} className="bg-purple-500/20 border border-purple-500/50 rounded-lg px-2 text-white outline-none w-full" />
+                      ) : (u.full_name || 'Sin nombre')}
+                    </button>
+                  </td>
+
+                  <td className="px-6 py-4">
+                      <div className="text-xs text-slate-400 flex items-center gap-1.5"><Phone size={12} className="text-slate-600" /> {u.phone || '—'}</div>
+                      <div className="text-[0.65rem] text-slate-600 flex items-center gap-1.5 mt-1 truncate max-w-[160px]"><Mail size={12} className="text-slate-700" /> {u.email}</div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <select 
+                      value={u.role || (u.is_super_admin ? 'Administrador maestro' : 'Colaborador')} 
+                      onChange={async (e) => {
+                          const val = e.target.value;
+                          const isSuperValue = val === 'Administrador maestro';
+                          handleAction('warning');
+                          if (isSupabaseConfigured) {
+                              await supabase.from('profiles').update({ role: val, is_super_admin: isSuperValue }).eq('id', u.id);
+                          } else {
+                              const db = await mockStorage.getItem<any[]>('mock_users_db') || [];
+                              const i = db.findIndex((x: any) => x.id === u.id);
+                              if (i !== -1) { db[i].role = val; db[i].is_super_admin = isSuperValue; await mockStorage.setItem('mock_users_db', db); }
+                          }
+                          handleAction('success');
+                          loadUsers();
+                      }}
+                      className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[0.7rem] font-bold text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 appearance-none cursor-pointer hover:border-purple-500/30 transition-all uppercase tracking-tight"
+                    >
+                        {Object.keys(ROLE_HIERARCHY).map(role => (
+                          <option key={role} className="bg-[#1a1622]" value={role}>{role}</option>
+                        ))}
+                    </select>
+                  </td>
+
+                  <td className="px-6 py-4">
+                      <div className="text-[0.7rem] text-slate-500 flex items-center gap-1.5">
+                        <Cake size={14} className="text-slate-700" />
+                        {u.birth_date || '—'}
+                      </div>
+                  </td>
+
+                  <td className="px-6 py-4 font-mono text-[0.65rem] text-slate-600">
+                    <button onClick={() => startEdit(u.id, 'password', u.password || '')} className="hover:text-purple-400 transition-colors">
+                       {editingField?.userId === u.id && editingField?.field === 'password' ? (
+                          <input autoFocus value={editValue} onChange={e => setEditValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && commitEdit()} onBlur={() => setEditingField(null)} className="bg-purple-500/20 border border-purple-500/50 rounded-lg px-2 text-white outline-none w-20" />
+                       ) : '••••••'}
+                    </button>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button onClick={() => { handleAction('light'); setSelectedAuditUser(u); }} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-purple-400 hover:bg-purple-500/10 transition-all" aria-label="Ver Agenda">
+                        <Calendar size={16} />
+                      </button>
+                      {!u.is_super_admin && (
+                        <>
+                          <button onClick={() => toggleBlock(u)} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${u.blocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'}`} aria-label={u.blocked ? "Desbloquear" : "Bloquear"}>
+                            {u.blocked ? <Unlock size={16} /> : <Lock size={16} />}
+                          </button>
+                          <button onClick={() => setConfirmDelete(u)} className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-slate-700 hover:bg-red-500/20 hover:text-red-500 transition-all" aria-label="Eliminar Usuario">
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {selectedAuditUser && (
-        <AdminUserAgendaModal 
-          userId={selectedAuditUser.id} 
-          username={selectedAuditUser.username} 
-          onClose={() => setSelectedAuditUser(null)} 
-        />
-      )}
+      <AnimatePresence>
+        {selectedAuditUser && (
+          <AdminUserAgendaModal 
+            userId={selectedAuditUser.id} 
+            username={selectedAuditUser.username} 
+            onClose={() => setSelectedAuditUser(null)} 
+          />
+        )}
+      </AnimatePresence>
 
-      {confirmDelete && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ padding: 28, maxWidth: 380, width: '90%', textAlign: 'center' }}>
-            <div style={{ fontSize: '3rem', marginBottom: 12 }}>⚠️</div>
-            <h3>Eliminar Usuario</h3>
-            <p>¿Estás completamente seguro de eliminar a <strong>@{confirmDelete.username}</strong>? Esta acción no se puede deshacer.</p>
-            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <button onClick={() => deleteUser(confirmDelete)} style={{ flex: 1, padding: '12px', borderRadius: 12, background: 'var(--danger-color)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Eliminar Definivamente</button>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}>Bajar</button>
-            </div>
+      <AnimatePresence>
+        {confirmDelete && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDelete(null)} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm bg-[#1a1622] border border-red-500/30 rounded-[32px] p-8 text-center shadow-2xl">
+              <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 mx-auto mb-6 border border-red-500/20">
+                <AlertOctagon size={40} className="animate-pulse" />
+              </div>
+              <h3 className="text-xl font-black text-white tracking-tight mb-2">Eliminar Colaborador</h3>
+              <p className="text-sm text-slate-400 leading-relaxed font-medium">¿Estás seguro de eliminar a <strong className="text-white">@{confirmDelete.username}</strong>? Esta acción es irreversible y borrará todo su historial.</p>
+              
+              <div className="grid grid-cols-2 gap-3 mt-8">
+                <button onClick={() => deleteUser(confirmDelete)} className="py-4 rounded-2xl bg-red-500 text-white font-black text-[0.65rem] uppercase tracking-[0.15em] hover:brightness-110 active:scale-95 transition-all">Eliminar</button>
+                <button onClick={() => setConfirmDelete(null)} className="py-4 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-black text-[0.65rem] uppercase tracking-[0.15em] hover:bg-white/10 active:scale-95 transition-all">Cancelar</button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-

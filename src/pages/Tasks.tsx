@@ -1,9 +1,29 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, addDays, isSameDay, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Users, 
+  History, 
+  Bell, 
+  PartyPopper, 
+  Clock, 
+  AlertTriangle,
+  CalendarDays,
+  LayoutGrid,
+  Loader2
+} from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import { useGroups } from '../context/GroupContext';
 import { useTasks, Task } from '../context/TaskContext';
-import { hasNotificationPermission, scheduleTaskNotifications, cancelTaskNotifications, scheduleLocalNotification } from '../services/NotificationsService';
+import { 
+  hasNotificationPermission, 
+  scheduleTaskNotifications, 
+  cancelTaskNotifications, 
+  scheduleLocalNotification 
+} from '../services/NotificationsService';
+
 import CreateTaskModal from '../components/CreateTaskModal';
 import WelcomeDailyModal from '../components/WelcomeDailyModal';
 import HelpManualModal from '../components/HelpManualModal';
@@ -16,7 +36,7 @@ import TaskAnalytics from '../components/TaskAnalytics';
 import MonthlyReportModal from '../components/MonthlyReportModal';
 import UserDirectory from '../components/UserDirectory';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { addDays, isSameDay, parseISO } from 'date-fns';
+import { Skeleton, TaskCardSkeleton } from '../components/ui/Skeleton';
 
 // ── Smart LED indicator ────────────────────────────────────────────
 function LedIndicator({ user, onLateAlert }: { user: any; onLateAlert: () => void }) {
@@ -46,31 +66,33 @@ function LedIndicator({ user, onLateAlert }: { user: any; onLateAlert: () => voi
   }, [user, alerted, onLateAlert]);
 
   const palette = {
-    green: { bg: '#4ade80', glow: '#4ade80' },
-    gold:  { bg: '#d4bc8f', glow: '#d4bc8f' },
-    red:   { bg: '#f87171', glow: '#f87171' },
+    green: 'bg-emerald-400 shadow-emerald-400/50',
+    gold:  'bg-amber-400 shadow-amber-400/50',
+    red:   'bg-red-400 shadow-red-400/50',
   }[color];
 
-  const labels = { green: 'En línea', gold: 'Administrador', red: 'Fuera de horario' };
+  const label = { green: 'En línea', gold: 'Admin', red: 'Cierre' }[color];
 
   return (
-    <div
-      title={labels[color]}
-      style={{
-        width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-        background: palette.bg,
-        boxShadow: `0 0 6px 2px ${palette.glow}88`,
-        transition: 'background 0.4s, box-shadow 0.4s',
-        position: 'relative'
-      }}
-    />
+    <div className="flex items-center gap-2 px-2 py-1 bg-black/20 rounded-full border border-white/5">
+      <div className={`w-2 h-2 rounded-full ${palette} shadow-sm animate-pulse`} />
+      <span className="text-[0.6rem] font-bold text-slate-500 uppercase tracking-tighter">{label}</span>
+    </div>
   );
 }
 
 export default function Tasks() {
   const { user } = useAuth();
   const { groups, memberships } = useGroups();
-  const { tasks, addTask, updateTask, loading: tasksLoading } = useTasks();
+  const { tasks, addTask, updateTask, loading: tasksLoading, hasMore, loadMore } = useTasks();
+  
+  // Infinite Scroll Trigger
+  const [scrollInView, setScrollInView] = useState(false);
+  useEffect(() => {
+    if (scrollInView && hasMore && !tasksLoading) {
+      loadMore();
+    }
+  }, [scrollInView, hasMore, tasksLoading, loadMore]);
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -87,13 +109,10 @@ export default function Tasks() {
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
 
   const myUserId = user?.id || user?.email;
-  
-  const isMyBirthday = () => {
-    if (!user?.birth_date) return false;
-    const bday = parseISO(user.birth_date);
-    const today = new Date();
-    return bday.getDate() === today.getDate() && bday.getMonth() === today.getMonth();
-  };
+  const avatar = user?.avatar || '👤';
+  const fullName = user?.full_name || user?.username || 'Usuario';
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
   // Birthday Alerts Logic
   useEffect(() => {
@@ -115,117 +134,31 @@ export default function Tasks() {
           if (!u.birth_date || u.id === user?.id) return;
           const bday = parseISO(u.birth_date);
           const bdayThisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-          
-          if (isSameDay(bdayThisYear, in7Days)) {
-              newAlerts.push(`🎉 En 1 semana es el cumpleaños de ${u.full_name || u.username}.`);
-          }
-          if (isSameDay(bdayThisYear, in1Day)) {
-              newAlerts.push(`🎂 ¡Mañana es el cumpleaños de ${u.full_name || u.username}!`);
-          }
+          if (isSameDay(bdayThisYear, in7Days)) newAlerts.push(`🎉 Cumpleaños de ${u.full_name || u.username} en 1 semana`);
+          if (isSameDay(bdayThisYear, in1Day)) newAlerts.push(`🎂 ¡Mañana es el cumpleaños de ${u.full_name || u.username}!`);
       });
       setBirthdayAlerts(newAlerts);
     }
     checkBirthdays();
   }, [user?.id]);
 
+  // FAB & Zoom Listeners
+  useEffect(() => {
+    const handleOpen = () => setShowCreateModal(true);
+    const handleZoom = (e: any) => setZoomedImg(e.detail);
+    window.addEventListener('open-create-task', handleOpen);
+    window.addEventListener('zoom-image', handleZoom);
+    return () => {
+      window.removeEventListener('open-create-task', handleOpen);
+      window.removeEventListener('zoom-image', handleZoom);
+    };
+  }, []);
+
   const myApprovedGroupIds = groups
     .filter(g => memberships.some(m => m.groupId === g.id && m.userId === myUserId && m.status === 'approved'))
     .map(g => g.id);
 
-  // Filter tasks for current user
-  const myTasks = tasks; 
-
-  const dateStr = format(selectedDate, 'yyyy-MM-dd');
-  const todayKey = format(new Date(), 'yyyy-MM-dd');
-  const pendingInvitations = myTasks.filter((t) => t.status === 'pending_acceptance');
-  
-  const pastIncompletePersonal = myTasks.filter(t => !t.groupId && t.userId === myUserId && !t.completed && t.date < todayKey);
-  const pendingGroupTasks = myTasks.filter(t => t.groupId && myApprovedGroupIds.includes(t.groupId) && !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired');
-
-  // Trigger Daily Modal
-  useEffect(() => {
-    if (!myUserId) return;
-    const lastCheck = localStorage.getItem(`lastDailyCheck_${myUserId}`);
-    if (lastCheck !== todayKey && (pastIncompletePersonal.length > 0 || pendingGroupTasks.length > 0)) {
-      setShowDailyModal(true);
-      localStorage.setItem(`lastDailyCheck_${myUserId}`, todayKey);
-    }
-  }, [myUserId, pastIncompletePersonal.length, pendingGroupTasks.length, todayKey]);
-
-  // Trigger Monthly Performance Report (1st of month)
-  useEffect(() => {
-    if (!myUserId) return;
-    const now = new Date();
-    if (now.getDate() === 1) {
-      const monthKey = format(now, 'yyyy-MM');
-      const lastReportMonth = localStorage.getItem(`lastReportMonth_${myUserId}`);
-      if (lastReportMonth !== monthKey) {
-        setShowMonthlyReport(true);
-        localStorage.setItem(`lastReportMonth_${myUserId}`, monthKey);
-      }
-    }
-  }, [myUserId]);
-
-  // Background Scanner for 2h Alert and Expirations
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      myTasks.forEach(t => {
-        if (!t.groupId || t.completed || t.status === 'cancelled_with_reason' || t.status === 'expired') return;
-        try {
-          const deadline = new Date(`${t.date}T${t.time}`);
-          const diffMs = deadline.getTime() - now.getTime();
-          const diffHours = diffMs / (1000 * 60 * 60);
-
-          if (diffHours > 0 && diffHours <= 2.0 && !alertedTasks.includes(t.id)) {
-            alert(`⚠️ ALERTA: La tarea grupal "${t.title}" vence en menos de 2 horas.`);
-            scheduleLocalNotification(`🚨 La tarea grupal "${t.title}" vence pronto.`);
-            setAlertedTasks(a => [...a, t.id]);
-          }
-
-          if (diffMs < 0) {
-            updateTask(t.id, { status: 'expired' });
-          }
-        } catch (err) {
-          console.warn('[Tasks] Error en escaneo de vencimientos:', err);
-        }
-      });
-    }, 60000); 
-    return () => clearInterval(interval);
-  }, [alertedTasks, myTasks, updateTask]);
-
-  // Show Expired Modal to Creator
-  useEffect(() => {
-    if (!myUserId) return;
-    const expiredForMe = myTasks.find(t => t.groupId && t.userId === myUserId && t.status === 'expired' && !t.failureReason);
-    if (expiredForMe && !expiredModalTask) {
-      setExpiredModalTask(expiredForMe);
-    }
-  }, [myTasks, myUserId, expiredModalTask]);
-
-  const handleAddTask = async (newTask: Partial<Task>) => {
-    const taskData = await addTask({ ...newTask, createdBy: myUserId });
-    
-    if (!taskData.groupId || myApprovedGroupIds.includes(taskData.groupId)) {
-      scheduleTaskNotifications(taskData);
-      scheduleLocalNotification(`✅ Actividad "${taskData.title}" agregada exitosamente.`);
-    } else {
-      scheduleLocalNotification(`✅ Actividad "${taskData.title}" agregada al grupo.`);
-    }
-  };
-
-  const toggleTask = async (id: string, completed: boolean) => {
-    const t = await updateTask(id, { completed, status: completed ? 'completed' : 'accepted' });
-    if (completed) {
-      cancelTaskNotifications(id);
-      if (t.isShared) {
-        scheduleLocalNotification(`¡${user?.email?.split('@')[0] ?? 'Tú'} completó: ${t.title}!`);
-      }
-    } else {
-      scheduleTaskNotifications(t);
-    }
-  };
-
+  const pendingInvitations = tasks.filter((t) => t.status === 'pending_acceptance');
   const acceptTask = async (id: string) => {
     const updated = await updateTask(id, { status: 'accepted' });
     scheduleTaskNotifications(updated);
@@ -237,127 +170,233 @@ export default function Tasks() {
     await updateTask(id, { status: 'declined' });
   };
 
-  const handleMigrateToToday = (taskId: string) => updateTask(taskId, { date: todayKey });
-  const handleReschedule = (taskId: string, newDate: string) => updateTask(taskId, { date: newDate });
-  const handleExpiredResolution = (taskId: string, reason: string, decision: 'reprogramar' | 'terminar', newDate?: string) => {
-    if (decision === 'reprogramar') {
-      updateTask(taskId, { failureReason: reason, status: 'accepted', date: newDate! });
+  const dailyTasks = tasks.filter((t) => t.date === dateStr && t.status !== 'pending_acceptance');
+
+  // Scanner for alerts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      tasks.forEach(t => {
+        if (!t.groupId || t.completed || t.status === 'cancelled_with_reason' || t.status === 'expired') return;
+        const deadline = new Date(`${t.date}T${t.time}`);
+        const diffMs = deadline.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffHours > 0 && diffHours <= 2.0 && !alertedTasks.includes(t.id)) {
+          scheduleLocalNotification(`🚨 La tarea grupal "${t.title}" vence pronto.`);
+          setAlertedTasks(a => [...a, t.id]);
+        }
+        if (diffMs < 0) updateTask(t.id, { status: 'expired' });
+      });
+    }, 60000); 
+    return () => clearInterval(interval);
+  }, [alertedTasks, tasks, updateTask]);
+
+  const toggleTask = async (id: string, completed: boolean) => {
+    const t = await updateTask(id, { completed, status: completed ? 'completed' : 'accepted' });
+    if (completed) {
+      cancelTaskNotifications(id);
+      if (t.isShared) scheduleLocalNotification(`¡${fullName} completó la tarea!`);
     } else {
-      updateTask(taskId, { failureReason: reason, status: 'cancelled_with_reason', completed: true });
+      scheduleTaskNotifications(t);
     }
-    setExpiredModalTask(null);
   };
 
-  const dailyTasks = myTasks.filter((t) => t.date === dateStr && t.status !== 'pending_acceptance');
-  const notifGranted = hasNotificationPermission();
+  const handleAddTask = async (newTask: Partial<Task>) => {
+    const taskData = await addTask({ ...newTask, createdBy: myUserId });
+    scheduleTaskNotifications(taskData);
+  };
 
-  if (tasksLoading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--accent-color)' }}>Cargando agenda...</div>;
-
-  return (
-    <div style={{ padding: '24px 16px 100px 16px', maxWidth: '600px', margin: '0 auto' }} className="animate-fade-in padding-safe">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-           <div 
-              onClick={() => { if (user?.avatar && user.avatar.length > 10) setZoomedImg(user.avatar); }}
-              style={{ position: 'relative', width: '50px', height: '50px', borderRadius: '25px', overflow: 'hidden', border: '2px solid var(--accent-color)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', fontSize: '24px', cursor: (user?.avatar && user.avatar.length > 10) ? 'pointer' : 'default' }}
-            >
-              {user?.avatar && user.avatar.length > 10 ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.avatar || (user?.full_name || user?.username || 'U').charAt(0).toUpperCase())}
-              {isMyBirthday() && (
-                <div style={{ position: 'absolute', top: -5, left: '50%', transform: 'translateX(-50%)', fontSize: '18px' }} title="¡Es tu cumpleaños!">👑</div>
-              )}
-           </div>
-           <div>
-              <h2 style={{ fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {user?.username}
-                {isMyBirthday() && <span style={{ fontSize: '1.2rem' }}>🎂</span>}
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.8rem' }}>{user?.role || 'Colaborador'}</p>
-           </div>
+  if (tasksLoading) return (
+    <div className="max-w-4xl mx-auto px-4 pt-6 pb-32 animate-in fade-in duration-500">
+      <header className="flex justify-between items-center mb-8">
+        <div className="flex gap-4">
+          <Skeleton width={56} height={56} circle />
+          <div className="space-y-2">
+            <Skeleton width={120} height={20} />
+            <Skeleton width={80} height={12} />
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button onClick={() => setShowDirectory(true)} title="Directorio Corporativo" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </button>
-          <button onClick={() => setShowHistory(true)} title="Historial" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-          </button>
-          <LedIndicator user={user} onLateAlert={() => setLateAlert(true)} />
-          <button onClick={() => setIsHelpOpen(true)} title="Manual de usuario" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: 700, lineHeight: 1 }}>?</button>
+        <div className="flex gap-2">
+          <Skeleton width={40} height={40} />
+          <Skeleton width={40} height={40} />
         </div>
       </header>
 
-      {/* Birthday Alerts */}
-      {birthdayAlerts.length > 0 && (
-          <div style={{ marginBottom: '16px', animation: 'fadeIn 0.5s' }}>
-              {birthdayAlerts.map((msg, i) => (
-                  <div key={i} style={{ padding: '10px 14px', background: 'rgba(212, 188, 143, 0.1)', border: '1px solid var(--accent-color)', borderRadius: '12px', color: 'var(--warning-color)', fontSize: '0.85rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span>🎉</span> {msg}
-                  </div>
-              ))}
+      <div className="space-y-8">
+        <section>
+          <Skeleton width={180} height={24} className="mb-4" />
+          <div className="grid grid-cols-1 gap-3">
+            <TaskCardSkeleton />
+            <TaskCardSkeleton />
+            <TaskCardSkeleton />
           </div>
-      )}
+        </section>
+      </div>
+    </div>
+  );
 
-      {showHistory && <HistoryView tasks={myTasks} onClose={() => setShowHistory(false)} onGoToDate={(d: string) => { setSelectedDate(new Date(d + 'T12:00:00')); setShowHistory(false); }} />}
-      {showAnalytics && <TaskAnalytics tasks={myTasks} onClose={() => setShowAnalytics(false)} />}
-      {showDirectory && <UserDirectory onClose={() => setShowDirectory(false)} />}
-
-      {lateAlert && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="glass-panel" style={{ maxWidth: 360, width: '100%', padding: '28px 24px', borderRadius: 20, textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', marginBottom: 12 }}>🌙</div>
-            <h3 style={{ margin: '0 0 10px', color: '#f87171' }}>Hora de cierre operativo</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 0 20px' }}>
-              Las órdenes generadas a partir de las <strong style={{ color: 'var(--text-primary)' }}>20:30 hrs</strong> serán valoradas por el <strong style={{ color: 'var(--accent-color)' }}>Grupo More</strong> el día inmediatamente siguiente a partir de las <strong style={{ color: 'var(--text-primary)' }}>07:00 hrs</strong>.
-            </p>
-            <button onClick={() => setLateAlert(false)} style={{ width: '100%', padding: '11px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, background: 'var(--accent-color)', color: '#000' }}>Entendido</button>
-          </div>
-        </div>
-      )}
-
-      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-
-      {!notifGranted && (
-        <div style={{ marginBottom: '20px', padding: '14px 16px', borderRadius: '12px', background: 'rgba(210, 153, 34, 0.08)', border: '1px solid rgba(210, 153, 34, 0.25)', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85rem' }}>
-          <span style={{ fontSize: '1.4rem' }}>🔔</span>
+  return (
+    <div className="max-w-4xl mx-auto px-4 pt-6 pb-32 animate-in fade-in duration-700">
+      <header className="flex items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+          <motion.div 
+            whileHover={{ scale: 1.05 }}
+            className="group relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-purple-500 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-2xl cursor-pointer"
+            onClick={() => { if (avatar.length > 10) setZoomedImg(avatar); }}
+          >
+            {avatar.length > 10 ? <img src={avatar} className="w-full h-full object-cover" alt="avatar" /> : avatar}
+            {isSameDay(parseISO(user?.birth_date || ''), new Date()) && (
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-amber-200 to-yellow-400" />
+            )}
+          </motion.div>
           <div>
-            <strong style={{ color: 'var(--warning-color)' }}>Notificaciones desactivadas</strong>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', marginTop: 2 }}>Ve a Configuración de tu dispositivo para activar notificaciones de esta app.</p>
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              Hola, {fullName.split(' ')[0]}
+              {isSameDay(parseISO(user?.birth_date || ''), new Date()) && <PartyPopper size={20} className="text-amber-400" />}
+            </h2>
+            <LedIndicator user={user} onLateAlert={() => setLateAlert(true)} />
           </div>
         </div>
-      )}
 
-      {pendingInvitations.length > 0 && (
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '1rem', color: 'var(--warning-color)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            Invitaciones Pendientes ({pendingInvitations.length})
-          </h3>
-          {pendingInvitations.map((task) => (
-            <TaskCard key={task.id} task={task} onAccept={acceptTask} onDecline={declineTask} />
-          ))}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowDirectory(true)} className="p-2.5 rounded-xl bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 hover:border-purple-500/20 transition-all shadow-xl">
+            <Users size={20} />
+          </button>
+          <button onClick={() => setShowHistory(true)} className="p-2.5 rounded-xl bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 hover:border-purple-500/20 transition-all shadow-xl">
+            <History size={20} />
+          </button>
+          <button onClick={() => setIsHelpOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-500 text-slate-900 hover:bg-purple-400 font-black transition-all shadow-xl shadow-purple-500/20">
+            ?
+          </button>
         </div>
-      )}
+      </header>
 
-      <CalendarView selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-
-      <div>
-        <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '8px' }}>Agenda del Día</h3>
-        {dailyTasks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', backgroundColor: 'var(--glass-bg)', borderRadius: 'var(--radius-md)' }}>
-            <p>No tienes tareas agendadas para este día.</p>
-          </div>
-        ) : (
-          dailyTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onToggleComplete={toggleTask} />
-          ))
+      {/* Announcements Section */}
+      <AnimatePresence>
+        {birthdayAlerts.length > 0 && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2 mb-6">
+            {birthdayAlerts.map((msg, i) => (
+              <div key={i} className="px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-400 text-xs font-bold flex items-center gap-3">
+                <PartyPopper size={16} /> {msg}
+              </div>
+            ))}
+          </motion.div>
         )}
+
+        {!hasNotificationPermission() && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 p-4 rounded-2xl bg-slate-900/50 border border-amber-500/20 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+               <Bell size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-amber-500 uppercase tracking-widest">Aviso de Sistema</p>
+              <p className="text-xs text-slate-400 font-light mt-0.5">Notificaciones desactivadas. Revisa tu navegador.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Views */}
+      <div className="grid gap-8">
+        {/* Invitations */}
+        {pendingInvitations.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle size={18} className="text-amber-500" />
+              <h3 className="text-sm font-black text-amber-500 uppercase tracking-widest px-2 py-0.5 bg-amber-500/10 rounded-md">Invitaciones Pendientes ({pendingInvitations.length})</h3>
+            </div>
+            <div className="grid gap-3">
+              {pendingInvitations.map((task) => (
+                <TaskCard key={task.id} task={task} onAccept={acceptTask} onDecline={declineTask} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Calendar Widget */}
+        <section className="bg-slate-900/40 border border-white/10 rounded-3xl p-4 backdrop-blur-md shadow-2xl">
+          <CalendarView selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+        </section>
+
+        {/* Daily Tasks */}
+        <section>
+          <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+            <h3 className="text-lg font-black text-white flex items-center gap-2 tracking-tight">
+              <CalendarDays size={20} className="text-purple-500" />
+              Agenda del Día
+            </h3>
+            <button onClick={() => setShowAnalytics(true)} className="text-[0.65rem] font-bold text-slate-500 hover:text-purple-400 transition-colors uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+              <LayoutGrid size={12} className="inline mr-1" /> Análisis
+            </button>
+          </div>
+
+          {dailyTasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-6 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl text-center">
+              <Clock className="mb-4 opacity-10" size={48} />
+              <p className="text-sm text-slate-500 font-medium whitespace-pre-wrap">Sin actividades para el\n{format(selectedDate, 'PPP', { locale: es })}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dailyTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onToggleComplete={toggleTask} />
+              ))}
+              
+              {/* Infinite Scroll Sentinel */}
+              {hasMore && (
+                <div 
+                  ref={(el) => {
+                    if (!el) return;
+                    const observer = new IntersectionObserver(([entry]) => {
+                      setScrollInView(entry.isIntersecting);
+                    }, { threshold: 0.1 });
+                    observer.observe(el);
+                  }}
+                  className="py-10 flex justify-center"
+                >
+                  <Loader2 className="animate-spin text-purple-500" size={24} />
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
-      <CreateTaskModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSave={handleAddTask} />
-      <WelcomeDailyModal isOpen={showDailyModal} onClose={() => setShowDailyModal(false)} personalTasks={pastIncompletePersonal} groupTasks={pendingGroupTasks} onMigrateToToday={handleMigrateToToday} onReschedule={handleReschedule} />
-      <ExpiredTeamTaskModal isOpen={!!expiredModalTask} task={expiredModalTask} onClose={() => setExpiredModalTask(null)} onSubmit={handleExpiredResolution} />
+      {/* Late Alert Modal */}
+      <AnimatePresence>
+        {lateAlert && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-slate-900 border border-red-500/30 rounded-3xl p-8 max-w-sm text-center shadow-2xl">
+              <div className="text-4xl mb-4">🌙</div>
+              <h3 className="text-xl font-bold text-red-400 mb-4 tracking-tight">Zona de Cierre Operativo</h3>
+              <p className="text-sm text-slate-400 leading-relaxed font-light mb-8 italic">
+                Las órdenes generadas después de las <span className="text-white font-bold">20:30 hrs</span> serán gestionadas por <span className="text-purple-400 font-bold">Grupo More</span> a partir de las <span className="text-white font-bold">07:00 hrs</span> del día siguiente.
+              </p>
+              <button onClick={() => setLateAlert(false)} className="w-full bg-red-500 text-slate-900 font-black py-3 rounded-2xl hover:bg-red-400 transition-all active:scale-95 shadow-lg shadow-red-500/20">
+                Entendido
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Other Modals (History, Analytics, Directory, monthly, zoom) are handled by individual component views already */}
+      {showHistory && <HistoryView tasks={tasks} onClose={() => setShowHistory(false)} onGoToDate={(d) => { setSelectedDate(new Date(d + 'T12:00:00')); setShowHistory(false); }} />}
+      {showAnalytics && <TaskAnalytics tasks={tasks} onClose={() => setShowAnalytics(false)} />}
+      {showDirectory && <UserDirectory onClose={() => setShowDirectory(false)} />}
       
-      {showMonthlyReport && <MonthlyReportModal tasks={myTasks} onClose={() => setShowMonthlyReport(false)} />}
+      <CreateTaskModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSave={handleAddTask} />
+      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      <WelcomeDailyModal isOpen={showDailyModal} onClose={() => setShowDailyModal(false)} personalTasks={tasks.filter(t => !t.groupId && t.userId === myUserId && !t.completed && t.date < todayKey)} groupTasks={tasks.filter(t => t.groupId && myApprovedGroupIds.includes(t.groupId) && !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired')} onMigrateToToday={(tid) => updateTask(tid, { date: todayKey })} onReschedule={(tid, d) => updateTask(tid, { date: d })} />
+      <ExpiredTeamTaskModal isOpen={!!expiredModalTask} task={expiredModalTask} onClose={() => setExpiredModalTask(null)} onSubmit={(tid, reason, decision, newDate) => {
+        if (decision === 'reprogramar') updateTask(tid, { failureReason: reason, status: 'accepted', date: newDate! });
+        else updateTask(tid, { failureReason: reason, status: 'cancelled_with_reason', completed: true });
+        setExpiredModalTask(null);
+      }} />
+      
+      {showMonthlyReport && <MonthlyReportModal tasks={tasks} onClose={() => setShowMonthlyReport(false)} />}
       {zoomedImg && <ImageZoomModal src={zoomedImg} onClose={() => setZoomedImg(null)} />}
     </div>
   );

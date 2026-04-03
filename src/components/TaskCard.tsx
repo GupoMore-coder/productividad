@@ -1,5 +1,15 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { 
+  Calendar as CalendarIcon, 
+  Bell, 
+  Users, 
+  CheckCircle2, 
+  Circle, 
+  Clock
+} from 'lucide-react';
 import CalendarExportMenu from './CalendarExportMenu';
+import { triggerHaptic } from '../utils/haptics';
 
 export interface Task {
   id: string;
@@ -9,14 +19,13 @@ export interface Task {
   date: string; // ISO date yyyy-MM-dd
   priority: 'alta' | 'media' | 'baja';
   completed?: boolean;
-
-  // Collaborative fields
   isShared?: boolean;
   groupId?: string;
   userId?: string;
   createdBy?: string;
   status?: 'pending_acceptance' | 'accepted' | 'completed' | 'expired' | 'cancelled_with_reason' | 'declined';
   failureReason?: string;
+  imageUrl?: string;
 }
 
 interface TaskCardProps {
@@ -27,24 +36,6 @@ interface TaskCardProps {
   isReadOnly?: boolean;
 }
 
-// Calendar icon
-const CalendarIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-
-// Bell icon
-const BellIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-);
-
 export default function TaskCard({
   task,
   onToggleComplete,
@@ -54,214 +45,141 @@ export default function TaskCard({
 }: TaskCardProps) {
   const [showCalendar, setShowCalendar] = useState(false);
 
-  const getPriorityColor = () => {
+  const getPriorityColors = () => {
     switch (task.priority) {
-      case 'alta':  return 'var(--danger-color)';
-      case 'media': return 'var(--warning-color)';
-      case 'baja':  return 'var(--success-color)';
-      default:      return 'var(--text-secondary)';
+      case 'alta':  return { border: 'border-red-500/50', text: 'text-red-400', bg: 'bg-red-500/5' };
+      case 'media': return { border: 'border-amber-500/50', text: 'text-amber-400', bg: 'bg-amber-500/5' };
+      case 'baja':  return { border: 'border-emerald-500/50', text: 'text-emerald-400', bg: 'bg-emerald-500/5' };
+      default:      return { border: 'border-slate-500/50', text: 'text-slate-400', bg: 'bg-slate-500/5' };
     }
   };
 
+  const colors = getPriorityColors();
   const isCompleted = task.completed || task.status === 'completed';
   const isPending   = task.status === 'pending_acceptance';
   const isAccepted  = task.status === 'accepted' || (!task.status && !isPending);
-
-  // Whether the "Schedule" action row should be shown
   const showActions = !isPending && !isReadOnly && isAccepted && !isCompleted;
 
   return (
     <>
-      <div
-        className="glass-panel animate-fade-in"
-        style={{
-          padding: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden',
-          marginBottom: '12px',
-          opacity: isCompleted && !isPending ? 0.6 : 1,
-          transition: 'var(--transition-fast)',
-          border: isPending
-            ? '1px solid var(--warning-color)'
-            : '1px solid var(--glass-border)',
-        }}
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: isCompleted && !isPending ? 0.5 : 1, y: 0 }}
+        className={`group relative overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 backdrop-blur-md mb-3 transition-all duration-300 hover:border-purple-500/30 shadow-lg ${isPending ? 'ring-1 ring-amber-500/30' : ''}`}
       >
-        {/* Priority side-bar */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0, top: 0, bottom: 0,
-            width: '4px',
-            backgroundColor: getPriorityColor(),
-          }}
-        />
+        {/* Priority Side Bar */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${colors.bg.replace('bg-', 'bg-opacity-100 bg-')}`} />
 
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-          {/* Checkbox */}
+        <div className="p-4 flex gap-4">
+          {/* Checkbox Icon */}
           {!isPending && !isReadOnly && (
-            <div style={{ marginRight: '16px', paddingTop: '4px' }}>
-              <input
-                type="checkbox"
-                checked={isCompleted}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onToggleComplete?.(task.id, e.target.checked)}
-                style={{ width: '20px', height: '20px', accentColor: 'var(--accent-color)', cursor: 'pointer' }}
-              />
-            </div>
+            <button 
+              onClick={() => {
+                triggerHaptic(isCompleted ? 'light' : 'success');
+                onToggleComplete?.(task.id, !isCompleted);
+              }}
+              className="mt-1 shrink-0 transition-transform active:scale-90"
+            >
+              {isCompleted ? (
+                <CheckCircle2 size={22} className="text-purple-400" />
+              ) : (
+                <Circle size={22} className="text-slate-600 hover:text-purple-500/50 transition-colors" />
+              )}
+            </button>
           )}
 
-          <div style={{ flex: 1 }}>
-            {/* Title row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <h4 style={{
-                margin: 0,
-                fontSize: '1rem',
-                textDecoration: isCompleted && !isPending ? 'line-through' : 'none',
-                color: isCompleted && !isPending ? 'var(--text-secondary)' : 'var(--text-primary)',
-              }}>
+          <div className="flex-1 min-w-0">
+            {/* Title & Shared Icon */}
+            <div className="flex items-start justify-between gap-2">
+              <h4 className={`text-sm font-bold transition-all ${isCompleted && !isPending ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
                 {task.title}
               </h4>
-
-              {/* Shared task icon */}
               {task.isShared && (
-                <span title="Tarea de Equipo" style={{ color: 'var(--accent-color)', display: 'flex' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </span>
+                <Users size={14} className="text-purple-400 shrink-0 mt-0.5" />
               )}
             </div>
 
             {task.description && (
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                 {task.description}
               </p>
             )}
 
-            {/* Creator label */}
-            {task.isShared && task.createdBy && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--accent-color)', marginTop: '4px', fontStyle: 'italic' }}>
-                Asignada por: @{task.createdBy}
-              </div>
+            {/* Evidence Image */}
+            {task.imageUrl && (
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="mt-3 w-20 h-20 rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group/img"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  (window as any).dispatchEvent(new CustomEvent('zoom-image', { detail: task.imageUrl }));
+                }}
+              >
+                <img src={task.imageUrl} alt="evidencia" className="w-full h-full object-cover group-hover/img:opacity-80 transition-opacity" />
+              </motion.div>
             )}
 
-            {/* Meta row: time + priority */}
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              marginTop: '12px', gap: '8px',
-              fontSize: '0.8rem', color: 'var(--text-secondary)',
-            }}>
-              <span style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
-                backgroundColor: 'rgba(255,255,255,0.05)',
-                padding: '4px 8px', borderRadius: '4px',
-              }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+            {/* Meta Info */}
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <div className="flex items-center gap-1.5 text-[0.65rem] font-bold text-slate-500 bg-black/20 px-2 py-1 rounded-lg border border-white/5 uppercase tracking-tight">
+                <Clock size={10} className="text-purple-500/70" />
                 {task.time}
-              </span>
-              <span style={{ textTransform: 'capitalize', color: getPriorityColor(), fontWeight: 600 }}>
+              </div>
+              <div className={`text-[0.65rem] font-black uppercase tracking-widest ${colors.text}`}>
                 {task.priority}
-              </span>
-              {isReadOnly && isCompleted && (
-                <span style={{ color: 'var(--success-color)', marginLeft: 'auto', fontWeight: 600 }}>
-                  Completada
-                </span>
+              </div>
+              {task.isShared && task.createdBy && (
+                <div className="text-[0.65rem] text-purple-400 font-medium ml-auto">
+                   @{task.createdBy.split('@')[0]}
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── Action buttons: Schedule + Calendar ── */}
+        {/* Schedule Action Row */}
         {showActions && (
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            marginTop: '14px',
-            paddingTop: '12px',
-            borderTop: '1px solid rgba(255,255,255,0.05)',
-          }}>
-            {/* Notification badge — shows active scheduling */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '0.74rem',
-              color: 'var(--text-secondary)',
-              padding: '6px 10px',
-              borderRadius: '8px',
-              background: 'rgba(255,255,255,0.04)',
-              flex: 1,
-            }}>
-              <BellIcon />
-              <span style={{ color: getPriorityColor(), fontWeight: 600 }}>
-                {task.priority === 'alta' ? '6' : task.priority === 'media' ? '3' : '2'} recordatorios
-              </span>
-              &nbsp;programados
+          <div className="px-4 py-2 bg-white/[0.02] border-t border-white/5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-medium">
+              <Bell size={12} className={colors.text} />
+              <span>{task.priority === 'alta' ? '6' : task.priority === 'media' ? '3' : '2'} alertas activas</span>
             </div>
-
-            {/* Add to calendar button */}
             <button
-              id={`calendar-btn-${task.id}`}
               onClick={() => setShowCalendar(true)}
-              title="Agregar al calendario"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                background: 'rgba(88, 166, 255, 0.1)',
-                border: '1px solid rgba(88, 166, 255, 0.25)',
-                color: 'var(--accent-color)',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(88, 166, 255, 0.2)';
-                e.currentTarget.style.boxShadow = '0 0 12px rgba(88,166,255,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(88, 166, 255, 0.1)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
+              className="flex items-center gap-1.5 text-[0.68rem] font-bold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-xl border border-purple-500/20 transition-all active:scale-95"
             >
-              <CalendarIcon />
+              <CalendarIcon size={12} />
               Agendar
             </button>
           </div>
         )}
 
-        {/* ── Invitation buttons (if pending_acceptance) ── */}
+        {/* Acceptance Actions */}
         {isPending && !isReadOnly && (
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderTop: '1px solid var(--glass-border)', paddingTop: '12px' }}>
+          <div className="px-4 py-3 bg-white/[0.02] border-t border-white/5 flex gap-2">
             <button
-              onClick={() => onAccept?.(task.id)}
-              style={{ flex: 1, backgroundColor: 'var(--success-color)', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              onClick={() => {
+                triggerHaptic('success');
+                onAccept?.(task.id);
+              }}
+              className="flex-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 py-2 rounded-xl text-xs font-bold hover:bg-emerald-500/30 transition-all active:scale-95"
             >
               Aceptar
             </button>
             <button
-              onClick={() => onDecline?.(task.id)}
-              style={{ flex: 1, backgroundColor: 'transparent', color: 'var(--danger-color)', border: '1px solid var(--danger-color)', padding: '8px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              onClick={() => {
+                triggerHaptic('light');
+                onDecline?.(task.id);
+              }}
+              className="flex-1 bg-slate-800/50 text-slate-400 border border-white/5 py-2 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all active:scale-95"
             >
               Rechazar
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
 
-      {/* Calendar export bottom sheet */}
       {showCalendar && (
         <CalendarExportMenu task={task} onClose={() => setShowCalendar(false)} />
       )}

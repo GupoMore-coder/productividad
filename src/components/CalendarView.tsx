@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { format, addDays, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { triggerHaptic } from '../utils/haptics';
 
 interface CalendarViewProps {
   selectedDate: Date;
@@ -16,100 +18,116 @@ export default function CalendarView({ selectedDate, onSelectDate }: CalendarVie
     setViewDate(selectedDate);
   }, [selectedDate]);
 
-  // Generate 7 days starting from viewDate's week start or centered
-  // Let's center it: [v-3, v-2, v-1, v, v+1, v+2, v+3]
+  // Generate 7 days centered: [v-3, v-2, v-1, v, v+1, v+2, v+3]
   const days = Array.from({ length: 7 }, (_, i) => addDays(subDays(viewDate, 3), i));
 
   const navigateWeek = (direction: 'prev' | 'next') => {
+    triggerHaptic('light');
     const newView = direction === 'prev' ? subDays(viewDate, 7) : addDays(viewDate, 7);
     setViewDate(newView);
   };
 
   const handleDatePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
+      triggerHaptic('medium');
       const d = new Date(e.target.value + 'T12:00:00');
       onSelectDate(d);
       setViewDate(d);
     }
   };
 
+  const handleSelectDay = (day: Date) => {
+    triggerHaptic('light');
+    onSelectDate(day);
+  };
+
+  const goToToday = () => {
+    triggerHaptic('medium');
+    const today = new Date();
+    onSelectDate(today);
+    setViewDate(today);
+  };
+
   return (
-    <div style={{ marginBottom: '24px' }} className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div className="mb-6 animate-fade-in select-none">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => navigateWeek('prev')}
-            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', borderRadius: '8px', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}
+            className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-colors active:scale-90"
             title="Semana Anterior"
+            aria-label="Ver semana anterior"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            <ChevronLeft size={20} />
           </button>
           
-          <div style={{ position: 'relative' }}>
-            <h3 style={{ textTransform: 'capitalize', fontSize: '1.25rem', margin: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => (document.getElementById('native-date-picker') as any)?.showPicker?.()}>
-              {format(viewDate, "MMMM yyyy", { locale: es })}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </h3>
+          <div className="relative group">
+            <button 
+              onClick={() => (document.getElementById('native-date-picker') as any)?.showPicker?.()}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors"
+              aria-label="Abrir selector de fecha"
+            >
+              <h3 className="text-lg font-bold text-white capitalize tracking-tight group-hover:text-purple-400 transition-colors">
+                {format(viewDate, "MMMM yyyy", { locale: es })}
+              </h3>
+              <CalendarIcon size={16} className="text-slate-500 group-hover:text-purple-400 transition-colors" />
+            </button>
             <input 
               id="native-date-picker"
               type="date" 
               onChange={handleDatePickerChange}
-              style={{ position: 'absolute', top: 0, left: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', visibility: 'hidden' }}
+              className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none"
+              tabIndex={-1}
             />
           </div>
 
           <button 
             onClick={() => navigateWeek('next')}
-            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', borderRadius: '8px', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}
+            className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-colors active:scale-90"
             title="Siguiente Semana"
+            aria-label="Ver siguiente semana"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <ChevronRight size={20} />
           </button>
         </div>
 
         <button 
-          onClick={() => {
-            const today = new Date();
-            onSelectDate(today);
-            setViewDate(today);
-          }}
-          style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--accent-color)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, padding: '6px 12px', borderRadius: '10px' }}
+          onClick={goToToday}
+          className="px-4 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold hover:bg-purple-500/20 transition-all active:scale-95 shadow-lg shadow-purple-500/5"
         >
-          Ir a Hoy
+          Hoy
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="flex gap-2.5 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x">
         {days.map((day, idx) => {
           const isSelected = format(day, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
           const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
           return (
-            <div 
+            <button 
               key={idx}
-              onClick={() => onSelectDate(day)}
-              style={{ 
-                minWidth: '60px', 
-                height: '75px', 
-                borderRadius: 'var(--radius-md)', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                backgroundColor: isSelected ? 'var(--accent-color)' : 'var(--glass-bg)',
-                color: isSelected ? 'var(--bg-color)' : 'var(--text-primary)',
-                border: isToday && !isSelected ? '1px solid var(--accent-color)' : '1px solid transparent',
-                cursor: 'pointer',
-                transition: 'var(--transition-fast)'
-              }}
+              onClick={() => handleSelectDay(day)}
+              className={`
+                min-w-[64px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center
+                ${isSelected 
+                  ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10' 
+                  : 'bg-white/[0.03] border border-white/5 text-slate-400 hover:bg-white/[0.07] hover:border-white/10'}
+                ${isToday && !isSelected ? 'border-purple-500/50 border-dashed' : ''}
+              `}
+              aria-label={`Seleccionar ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
+              aria-pressed={isSelected}
             >
-              <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', opacity: isSelected ? 0.9 : 0.6, marginBottom: '4px' }}>
+              <span className={`text-[0.65rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
                 {format(day, "EEE", { locale: es })}
               </span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+              <span className="text-xl font-black tracking-tighter">
                 {format(day, "dd")}
               </span>
-            </div>
+              {isToday && !isSelected && (
+                <div className="w-1 h-1 bg-purple-500 rounded-full mt-1" />
+              )}
+            </button>
           )
         })}
       </div>

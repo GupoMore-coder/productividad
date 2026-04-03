@@ -3,26 +3,6 @@ import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStorage } from '@/lib/storageService';
 
-export const SERVICE_TYPES = [
-  'Sublimado de camisetas',
-  'DTF',
-  'Vinilo adhesivo',
-  'UV DTF',
-  'Vinilo textil',
-  'Sublimación de tazas',
-  'Bordado',
-  'Otros'
-];
-
-export const RESPONSIBLE_PERSONS = [
-  'Shaira Mendez',
-  'Nayelis Puerta',
-  'Maidi Sarmiento',
-  'Fernando Marulanda',
-  'Florangellys Vilarete',
-  'Miguel A Marulanda'
-];
-
 export interface ServiceOrder {
   id: string;
   customerName: string;
@@ -74,8 +54,12 @@ export interface ArchivedOrderRecord {
 interface OrderContextType {
   orders: ServiceOrder[];
   archivedOrders: ArchivedOrderRecord[];
+  serviceTypes: string[];
+  teamMembers: string[];
+  loading: boolean;
   createOrder: (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'createdBy' | 'status' | 'pendingBalance' | 'history'>) => Promise<ServiceOrder>;
   updateOrder: (id: string, updates: Partial<ServiceOrder> & { newObservation?: string }) => Promise<ServiceOrder>;
+  downloadOrderPdf: (orderId: string) => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextType>({} as OrderContextType);
@@ -132,15 +116,28 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   return result;
 };
 
-// ── Storage helpers (LOCAL FALLBACK REMOVED - Using mockStorage) ─────────────────────────
-
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [archivedOrders, setArchivedOrders] = useState<ArchivedOrderRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
 
-  // 1. Initial Load & Real-time Subscription
+  // 1. Initial Load & Dynamic Configuration
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data: st } = await supabase.from('config_service_types').select('name').order('name');
+        if (st) setServiceTypes(st.map(i => i.name));
+        
+        const { data: tm } = await supabase.from('config_team_members').select('full_name').order('full_name');
+        if (tm) setTeamMembers(tm.map(i => i.full_name));
+      } catch (err) {
+        console.error('Error fetching config:', err);
+      }
+    };
+
     const initMock = async () => {
       await mockStorage.syncFromLocalStorage('mock_orders');
       await mockStorage.syncFromLocalStorage('mock_orders_archive');
@@ -158,15 +155,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const loadData = async () => {
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(`*, order_history(*)`)
-        .order('created_at', { ascending: false });
-      
-      if (data) setOrders(data.map(mapOrderFromDB));
-      if (error) console.error('Error fetching orders:', error);
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('service_orders')
+          .select(`*, order_history(*)`)
+          .order('created_at', { ascending: false });
+        
+        if (data) setOrders(data.map(mapOrderFromDB));
+        if (error) console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
+    fetchConfig();
     loadData();
 
     const channel = supabase
@@ -189,62 +192,41 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [orders, isSupabaseConfigured]);
 
-  const generateConsecutive = async (currentOrders: ServiceOrder[]): Promise<string> => {
-    let maxNum = 0;
-    
-    const extractNum = (id?: string) => {
-      if (!id) return 0;
-      const match = id.match(/^ORDEN\s+(\d+)$/i);
-      return match && match[1] ? parseInt(match[1], 10) : 0;
-    };
-
-    if (isSupabaseConfigured) {
-      const { data } = await supabase.from('service_orders').select('id');
-      if (data) data.forEach(d => { maxNum = Math.max(maxNum, extractNum(d.id)); });
-    } else {
-      currentOrders.forEach(o => { maxNum = Math.max(maxNum, extractNum(o.id)); });
-    }
-    
-    return `ORDEN ${String(maxNum + 1).padStart(6, '0')}`;
-  };
-
   const createOrder = async (orderData: any) => {
     if (!user) throw new Error('Usuario no autenticado');
     const computedBalance = orderData.totalCost - (orderData.depositAmount || 0);
-    const id = await generateConsecutive(orders);
-    const uName = user?.user_metadata?.fullName || user?.username || user?.email || 'Sistema';
+    const uName = user?.full_name || user?.username || user?.email || 'Sistema';
 
-    const newOrder: ServiceOrder = {
+    const newOrderPayload: any = {
       ...orderData,
-      id,
       createdAt: new Date().toISOString(),
       createdBy: user.id || user.email,
       createdByRole: user.role || 'Colaborador',
       status: 'recibida',
       pendingBalance: Math.max(0, computedBalance),
-      photos: orderData.photos || [],
-      history: [{
-        id: Math.random().toString(36).substring(7),
-        timestamp: new Date().toISOString(),
-        type: 'creacion',
-        userName: uName,
-        description: `Orden generada por ${uName}`
-      }]
+      photos: orderData.photos || []
     };
 
     if (isSupabaseConfigured) {
       const dbOrder = { 
-        ...mapOrderToDB(newOrder), 
-        id, 
+        ...mapOrderToDB(newOrderPayload), 
         created_by: user.id,
-        created_at: newOrder.createdAt,
-        created_by_role: newOrder.createdByRole
+        created_at: newOrderPayload.createdAt,
+        created_by_role: newOrderPayload.createdByRole
       };
-      const { error: orderError } = await supabase.from('service_orders').insert(dbOrder);
+
+      // Se omite el 'id' para que el trigger de BD lo genere atómicamente
+      const { data: created, error: orderError } = await supabase
+        .from('service_orders')
+        .insert(dbOrder)
+        .select()
+        .single();
+      
       if (orderError) throw orderError;
+      const orderId = created.id;
 
       await supabase.from('order_history').insert({
-        order_id: id,
+        order_id: orderId,
         type: 'creacion',
         user_name: uName,
         description: `Orden generada por ${uName}`
@@ -252,18 +234,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       await supabase.from('global_alerts').insert({
         type: 'creation',
-        order_id: id,
+        order_id: orderId,
         user_id: user.id,
         user_name: uName,
-        message: `✨ Se ha creado la orden No. ${id} por ${uName}`
+        message: `✨ Se ha creado la orden No. ${orderId} por ${uName}`
       });
+      
+      return mapOrderFromDB({ ...created, order_history: [] });
     } else {
-      const updatedOrders = [newOrder, ...orders];
+      const id = `ORD-MOCK-${Math.floor(Math.random()*100000)}`;
+      const completedOrder = { ...newOrderPayload, id, history: [] };
+      const updatedOrders = [completedOrder, ...orders];
       setOrders(updatedOrders);
       await mockStorage.setItem('mock_orders', updatedOrders);
+      return completedOrder;
     }
-
-    return newOrder;
   };
 
   const updateOrder = async (id: string, updates: any) => {
@@ -287,7 +272,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const isFinishing = (updates.status === 'completada' || updates.status === 'cancelada')
       && existingOrder.status !== 'completada' && existingOrder.status !== 'cancelada';
 
-    const uName = user?.user_metadata?.fullName || user?.username || user?.email || 'Sistema';
+    const uName = user?.full_name || user?.username || user?.email || 'Sistema';
     const historyEntries: any[] = [];
 
     if (updates.status && updates.status !== existingOrder.status) {
@@ -337,8 +322,42 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return existingOrder;
   };
 
+  const downloadOrderPdf = async (orderId: string) => {
+    if (!isSupabaseConfigured) {
+      alert('La generación de PDF en servidor requiere Supabase configurado.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-order-pdf', {
+        body: { orderId },
+      });
+
+      if (error) throw error;
+
+      if (data instanceof Blob) {
+        const url = window.URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Orden_${orderId}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+         // Some versions of supabase-js return the blob directly, 
+         // others might need handling if it comes as a base64 or similar.
+         // Usually it's a Blob if the function returns it correctly.
+         console.warn('Respuesta inesperada al generar PDF:', data);
+      }
+    } catch (err) {
+      console.error('Error invocando Edge Function:', err);
+      alert('Error al generar el PDF en el servidor.');
+    }
+  };
+
   return (
-    <OrderContext.Provider value={{ orders, archivedOrders, createOrder, updateOrder }}>
+    <OrderContext.Provider value={{ orders, archivedOrders, serviceTypes, teamMembers, loading, createOrder, updateOrder, downloadOrderPdf }}>
       {children}
     </OrderContext.Provider>
   );
