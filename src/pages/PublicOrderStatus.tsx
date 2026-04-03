@@ -40,10 +40,10 @@ export default function PublicOrderStatus() {
 
         if (error) throw error;
         
-        // Sort history by date descending
+        // Sort history by timestamp descending
         if (data.order_history) {
           data.order_history.sort((a: any, b: any) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
           );
         }
         
@@ -139,7 +139,7 @@ export default function PublicOrderStatus() {
         <header className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-4">
             <ShieldCheck size={14} className="text-[#d4bc8f]" />
-            <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#d4bc8f]">Seguimiento Seguro</span>
+            <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#d4bc8f]">Autenticidad Verificada</span>
           </div>
           <h1 className="text-3xl font-black tracking-tighter text-white">Productividad <span className="text-[#d4bc8f]">GrupoMore</span></h1>
           <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em]">Portal de Cliente v2.0</p>
@@ -217,7 +217,9 @@ export default function PublicOrderStatus() {
             <div>
               <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest mb-0.5">Entrega Estimada</p>
               <p className="text-sm font-bold text-white leading-tight">
-                {format(parseISO(order.delivery_date), 'dd MMMM, yyyy', { locale: es })}
+                {order.delivery_date 
+                  ? format(parseISO(order.delivery_date), 'dd MMMM, yyyy', { locale: es })
+                  : 'Fecha por confirmar'}
               </p>
             </div>
           </div>
@@ -246,25 +248,37 @@ export default function PublicOrderStatus() {
 
           {/* New Timeline History Section */}
           <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-6">
-            <h3 className="text-[0.65rem] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-              <History size={14} /> Historial de Operación
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-[0.65rem] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                <History size={14} /> Historial de Operación
+              </h3>
+              <div className="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest">En tiempo real</div>
+            </div>
             
-            <div className="space-y-6 border-l-2 border-white/5 ml-2 pl-6">
+            <div className="space-y-8 border-l-2 border-white/5 ml-2 pl-6">
               {order.order_history && order.order_history.length > 0 ? (
-                order.order_history.map((h: any, i: number) => (
-                  <div key={i} className="relative">
-                    {/* Dot */}
-                    <div className="absolute -left-[31px] top-1 w-3 h-3 rounded-full bg-[#d4bc8f] border-4 border-[#0a0a0f]" />
-                    <div className="space-y-1">
-                      <p className="text-[0.65rem] text-[#d4bc8f] font-black uppercase tracking-widest">
-                        {format(new Date(h.created_at), 'dd MMM, HH:mm', { locale: es })}
-                      </p>
-                      <p className="text-xs font-bold text-white tracking-tight">{h.action}</p>
-                      {h.notes && <p className="text-[0.65rem] text-slate-500 font-medium italic">{h.notes}</p>}
+                order.order_history.map((h: any, i: number) => {
+                  const eventType = h.type || 'cambio_estado';
+                  return (
+                    <div key={i} className="relative">
+                      {/* Dot */}
+                      <div className={`absolute -left-[31px] top-1 w-3 h-3 rounded-full border-4 border-[#0a0a0f] ${
+                        eventType === 'creacion' ? 'bg-blue-500' :
+                        eventType === 'completada' ? 'bg-emerald-500' :
+                        eventType === 'observacion' ? 'bg-purple-500' : 'bg-[#d4bc8f]'
+                      }`} />
+                      <div className="space-y-1">
+                        <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">
+                          {h.timestamp 
+                            ? format(new Date(h.timestamp), 'dd MMM, HH:mm', { locale: es })
+                            : 'Pendiente'}
+                        </p>
+                        <p className="text-xs font-bold text-white tracking-tight">{h.description || 'Actualización de sistema'}</p>
+                        {h.type === 'observacion' && <p className="text-[0.65rem] text-purple-400/80 font-medium italic mt-1">Nota: {h.description}</p>}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-4 opacity-30">
                   <p className="text-[0.6rem] font-bold uppercase tracking-widest">Iniciando seguimiento...</p>

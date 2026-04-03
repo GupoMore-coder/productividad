@@ -1,35 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus, Save, Calendar, Clock, Check, AlertTriangle, ListTodo } from 'lucide-react';
-import { Task } from './TaskCard';
+import { X, Plus, Calendar, Clock, Type, AlignLeft, Flag, Check, Camera, RefreshCw, AlertCircle } from 'lucide-react';
 import { useGroups } from '../context/GroupContext';
 import { useAuth } from '../context/AuthContext';
+import { triggerHaptic } from '../utils/haptics';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { TaskSchema, TaskFormData } from '../lib/schemas';
 import { compressImage } from '../utils/imageCompressor';
 import { uploadFile, base64ToBlob } from '@/lib/supabase';
 import { HoneypotField } from './HoneypotField';
-import { triggerHaptic } from '../utils/haptics';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (task: Partial<Task>) => void;
+  onSave: (task: any) => void;
 }
 
 export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskModalProps) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [time, setTime] = useState(format(new Date(), 'HH:mm'));
-  const [priority, setPriority] = useState<'alta' | 'media' | 'baja'>('media');
-  const [groupIds, setGroupIds] = useState<string[]>([]);
-  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
-  const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [hpValue, setHpValue] = useState('');
-
   const { groups, memberships } = useGroups();
   const { user } = useAuth();
+  const [uploading, setUploading] = useState(false);
+  const [hpValue, setHpValue] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting }
+  } = useForm<TaskFormData>({
+    resolver: zodResolver(TaskSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: format(new Date(), 'HH:mm'),
+      priority: 'media',
+      group_ids: [],
+      isShared: false,
+      imageUrl: ''
+    }
+  });
+
+  const groupIds = watch('group_ids');
+  const imageUrl = watch('imageUrl');
+  const priority = watch('priority');
 
   const myApprovedGroups = groups.filter(g => 
     memberships.some(m => m.groupId === g.id && m.userId === (user?.id || user?.email) && m.status === 'approved')
@@ -37,66 +55,53 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
 
   useEffect(() => {
     if (isOpen) {
-      setTitle('');
-      setDescription('');
-      setDate(format(new Date(), 'yyyy-MM-dd'));
-      setTime(format(new Date(), 'HH:mm'));
-      setPriority('media');
-      setGroupIds([]);
-      setImageUrl(undefined);
+      reset();
       setUploading(false);
     }
-  }, [isOpen]);
+  }, [isOpen, reset]);
 
   const toggleGroup = (id: string) => {
     triggerHaptic('light');
-    setGroupIds(prev => prev.includes(id) ? prev.filter(gid => gid !== id) : [...prev, id]);
+    const current = groupIds || [];
+    const next = current.includes(id) ? current.filter(gid => gid !== id) : [...current, id];
+    setValue('group_ids', next);
+    setValue('isShared', next.length > 0);
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !user) return;
     setUploading(true);
     try {
       const file = e.target.files[0];
       const compressedBase64 = await compressImage(file);
       const blob = base64ToBlob(compressedBase64);
-      const fileName = `task-${Date.now()}.jpg`;
+      const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
       const publicUrl = await uploadFile('task-photos', `${user.id}/${fileName}`, blob);
-      setImageUrl(publicUrl);
+      setValue('imageUrl', publicUrl);
+      triggerHaptic('success');
     } catch (err) {
       console.error('Upload Error:', err);
+      triggerHaptic('error');
       alert('Error al subir la imagen.');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || uploading || submitting) return;
-
-    // Honeypot check
+  const onFormSubmit = (data: TaskFormData) => {
     if (hpValue) {
-      console.warn('Honeypot triggered in CreateTaskModal');
       onClose();
       return;
     }
 
-    setSubmitting(true);
-
     onSave({
+      ...data,
       id: Date.now().toString(),
-      title,
-      description,
-      date,
-      time,
-      priority,
       status: 'accepted',
-      isShared: groupIds.length > 0,
-      groupId: groupIds[0] || undefined,
-      group_ids: groupIds,
-      imageUrl
-    } as any);
+      isShared: (data.group_ids || []).length > 0,
+      groupId: (data.group_ids || [])[0] || undefined,
+    });
+
     triggerHaptic('success');
     onClose();
   };
@@ -104,122 +109,88 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
-          {/* Overlay */}
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            onClick={onClose} 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
           />
-
-          {/* Content (Bottom Sheet on Mobile, Dialog on Desktop) */}
           <motion.div 
-            initial={{ y: "100%", opacity: 0.5 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="relative w-full max-w-2xl bg-[#251f30] border-t sm:border border-white/10 rounded-t-[32px] sm:rounded-3xl overflow-hidden shadow-2xl max-h-[95vh] flex flex-col"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="relative w-full max-w-lg bg-[#251f30] rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
-            {/* Handle bar for bottom sheet feel */}
-            <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-3 mb-1 sm:hidden shrink-0" aria-hidden="true" />
-
-            {/* Header */}
             <div className="p-6 border-b border-white/5 flex justify-between items-center bg-black/20 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-                  <ListTodo size={24} />
-                </div>
-                <div>
-                  <h3 id="modal-title" className="text-xl font-bold text-white tracking-tight">Nueva Actividad</h3>
-                  <p className="text-[0.65rem] text-slate-500 uppercase tracking-widest font-black mt-0.5">Gestión Personal y Grupal</p>
-                </div>
-              </div>
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Plus size={20} className="text-purple-400" />
+                Nueva Actividad
+              </h3>
               <button 
                 onClick={onClose}
                 className="p-2 rounded-xl hover:bg-white/5 text-slate-500 transition-colors"
-                aria-label="Cerrar modal"
+                type="button"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Form Body */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-32">
-              {/* Title */}
+            <form onSubmit={handleSubmit(onFormSubmit)} className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-24">
               <div className="space-y-2">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Título de la Actividad</label>
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Type size={12}/> Título</label>
                 <input 
-                  type="text" 
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Ej. Revisión técnica equipo A"
-                  required
-                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-all placeholder:text-slate-700"
+                  {...register('title')}
+                  autoFocus
+                  placeholder="¿Qué hay que hacer?"
+                  className={`w-full bg-black/30 border ${errors.title ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700`} 
                 />
+                {errors.title && <p className="text-[0.6rem] text-red-400 font-bold mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.title.message}</p>}
               </div>
 
-              {/* Description */}
               <div className="space-y-2">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Descripción / Notas</label>
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><AlignLeft size={12}/> Descripción</label>
                 <textarea 
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Detalles opcionales..."
-                  rows={2}
-                  className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-all resize-none placeholder:text-slate-700"
+                  {...register('description')}
+                  placeholder="Detalles adicionales (opcional)..." 
+                  rows={2} 
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700 resize-none" 
                 />
               </div>
 
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5">
-                    <Calendar size={12}/> Fecha
-                  </label>
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Calendar size={12}/> Fecha</label>
                   <input 
+                    {...register('date')}
                     type="date" 
-                    value={date}
-                    onChange={e => setDate(e.target.value)}
-                    required
-                    className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5">
-                    <Clock size={12}/> Hora
-                  </label>
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Clock size={12}/> Hora</label>
                   <input 
+                    {...register('time')}
                     type="time" 
-                    value={time}
-                    onChange={e => setTime(e.target.value)}
-                    required
-                    className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
                   />
                 </div>
               </div>
 
-              {/* Priority Selector */}
               <div className="space-y-3">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Prioridad Operativa</label>
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Flag size={12}/> Prioridad</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['baja', 'media', 'alta'] as const).map(p => (
+                  {(['baja', 'media', 'alta'] as const).map((p) => (
                     <button
                       key={p}
                       type="button"
-                      onClick={() => setPriority(p)}
-                      className={`
-                        py-3 px-2 rounded-xl text-[0.65rem] font-bold uppercase tracking-widest border transition-all active:scale-95
-                        ${priority === p 
-                          ? p === 'alta' ? 'bg-red-500/10 border-red-500/50 text-red-500' 
-                            : p === 'media' ? 'bg-amber-500/10 border-amber-500/50 text-amber-500'
-                            : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500'
-                          : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-400'}
-                      `}
+                      onClick={() => { setValue('priority', p); triggerHaptic('light'); }}
+                      className={`py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
+                        priority === p 
+                          ? p === 'alta' ? 'bg-red-500/20 border-red-500/50 text-red-400' : p === 'media' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                          : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'
+                      }`}
                     >
                       {p}
                     </button>
@@ -227,93 +198,75 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
                 </div>
               </div>
 
-              {/* Multi-Group Selector */}
               {myApprovedGroups.length > 0 && (
                 <div className="space-y-3">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Sincronización Grupal</label>
-                  <div className="flex flex-wrap gap-2 p-4 bg-black/20 rounded-2xl border border-white/5">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Compartir con Grupos</label>
+                  <div className="flex flex-wrap gap-2">
                     {myApprovedGroups.map(g => {
-                      const isSelected = groupIds.includes(g.id);
+                      const isSelected = groupIds?.includes(g.id);
                       return (
                         <button
                           key={g.id}
                           type="button"
                           onClick={() => toggleGroup(g.id)}
-                          className={`
-                            px-3 py-1.5 rounded-full text-[0.6rem] font-bold transition-all flex items-center gap-1.5 border
-                            ${isSelected 
-                              ? 'bg-purple-500 border-purple-500 text-slate-900 shadow-lg shadow-purple-500/20' 
-                              : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'}
-                          `}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
+                            isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500'
+                          }`}
                         >
-                          {isSelected ? <Check size={10} /> : <Plus size={10} />}
+                          <span className="text-lg">👥</span>
                           {g.name}
+                          {isSelected && <Check size={14} />}
                         </button>
                       );
                     })}
                   </div>
-                  <p className="text-[0.6rem] text-slate-500 italic ml-1 flex items-center gap-1">
-                    <AlertTriangle size={10} aria-hidden="true" /> Compartir esta actividad con los grupos seleccionados.
-                  </p>
                 </div>
               )}
 
-              {/* Photo Upload */}
               <div className="space-y-3">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Referencia Visual</label>
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Imagen de Referencia</label>
                 <div className="flex items-center gap-4">
-                  {imageUrl ? (
-                    <div className="relative group w-20 h-20 rounded-2xl overflow-hidden border border-white/10 shadow-xl">
-                      <img src={imageUrl} alt="Vista previa de tarea" className="w-full h-full object-cover" />
+                  <label className="w-20 h-20 bg-white/5 border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-white/10 transition-colors">
+                    <Camera size={24} />
+                    <span className="text-[0.5rem] font-bold mt-1 uppercase">Subir</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                  {uploading && <RefreshCw size={24} className="animate-spin text-purple-400" />}
+                  {imageUrl && !uploading && (
+                    <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-white/10">
+                      <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                       <button 
-                        type="button" 
-                        onClick={() => setImageUrl(undefined)}
-                        className="absolute inset-0 bg-red-500/80 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Eliminar imagen"
+                        type="button"
+                        onClick={() => setValue('imageUrl', '')}
+                        className="absolute inset-0 bg-red-500/80 items-center justify-center hidden group-hover:flex transition-all"
                       >
-                        <X size={20} />
+                        <X size={16} className="text-white" />
                       </button>
                     </div>
-                  ) : (
-                    <label className="w-20 h-20 rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-white/5 hover:border-white/20 transition-all text-slate-500" aria-label="Subir imagen">
-                      {uploading ? (
-                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                          <Clock size={20} aria-hidden="true" />
-                        </motion.div>
-                      ) : (
-                        <Camera size={20} aria-hidden="true" />
-                      )}
-                      <span className="text-[0.5rem] font-black uppercase tracking-tighter" aria-hidden="true">{uploading ? 'Cargando' : 'Añadir'}</span>
-                      <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploading} />
-                    </label>
                   )}
-                  <div className="flex-1">
-                    <p className="text-xs text-white font-bold">{imageUrl ? 'Imagen adjunta con éxito' : 'Adjuntar referencia'}</p>
-                    <p className="text-[0.65rem] text-slate-500 mt-0.5 leading-tight">Sube una captura o foto de la evidencia si es necesario.</p>
-                  </div>
                 </div>
               </div>
+
+              <HoneypotField value={hpValue} onChange={e => setHpValue(e.target.value)} />
             </form>
 
-            <HoneypotField value={hpValue} onChange={e => setHpValue(e.target.value)} />
-
-            {/* Footer */}
             <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl flex gap-3 shrink-0">
               <button 
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-6 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
+                disabled={isSubmitting}
+                className="flex-1 px-6 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 font-black text-[0.65rem] uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button 
-                type="button"
-                onClick={handleSubmit}
-                disabled={!title.trim() || uploading || submitting}
-                className="flex-[2] px-6 py-3.5 rounded-2xl bg-[#d4bc8f] text-slate-900 font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all active:scale-95 shadow-xl shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                type="submit"
+                onClick={handleSubmit(onFormSubmit)}
+                disabled={isSubmitting || uploading}
+                className="flex-[2] px-6 py-3.5 rounded-2xl bg-[#d4bc8f] text-slate-900 font-black text-[0.65rem] uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {uploading || submitting ? <Clock className="animate-spin" size={16} /> : <Save size={16} />}
-                {uploading || submitting ? (uploading ? 'Subiendo...' : 'Procesando...') : 'Guardar Actividad'}
+                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}
+                {isSubmitting ? 'Guardando...' : 'Crear Tarea'}
               </button>
             </div>
           </motion.div>

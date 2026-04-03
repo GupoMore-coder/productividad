@@ -22,10 +22,15 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 import { Skeleton } from '../components/ui/Skeleton';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { usePWA } from '../hooks/usePWA';
+import { Download, Smartphone } from 'lucide-react';
 
 export default function Profile() {
   const { user, updateProfile, updatePassword, signInWithEmail } = useAuth();
   const navigate = useNavigate();
+  usePageTitle('Mi Perfil');
+  const { isInstallable, installApp } = usePWA();
   
   const [email, setEmail] = useState(user?.email || '');
   const [fullName, setFullName] = useState(user?.full_name || '');
@@ -317,6 +322,43 @@ export default function Profile() {
             {loading ? 'Procesando...' : 'Guardar Cambios'}
           </button>
         </form>
+
+        {/* PWA Installation Section */}
+        {isInstallable && (
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="pt-10 border-t border-white/5 space-y-6"
+          >
+            <h4 className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-600 font-black ml-1 flex items-center gap-2">
+              <Smartphone size={14} className="text-purple-500" /> Configuración de App
+            </h4>
+            
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-[32px] p-8 flex flex-col items-center text-center space-y-6 shadow-2xl shadow-purple-500/5">
+              <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center text-purple-400">
+                <Download size={32} />
+              </div>
+              <div className="space-y-2">
+                <h5 className="text-lg font-black text-white tracking-tight">Instalar Aplicación</h5>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-[240px] mx-auto">
+                  Agrega Grupo More a tu pantalla de inicio para un acceso rápido y experiencia de pantalla completa.
+                </p>
+              </div>
+              <button 
+                onClick={() => { triggerHaptic('success'); installApp(); }}
+                className="w-full py-4 rounded-2xl bg-white text-slate-950 font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+              >
+                <Download size={16} />
+                Instalar Ahora
+              </button>
+            </div>
+          </motion.section>
+        )}
+
+        <footer className="py-10 text-center space-y-2 opacity-30">
+          <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-[0.3em]">Antigravity Project 2026</p>
+          <p className="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest">v3.0.0 — Estabilidad de Red</p>
+        </footer>
       </div>
     </div>
   );

@@ -12,7 +12,10 @@ import {
   CheckCircle2,
   MessageSquare,
   RefreshCw,
-  QrCode
+  QrCode,
+  XCircle,
+  AlertTriangle,
+  PlayCircle
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ServiceOrder } from '../../context/OrderContext';
@@ -41,6 +44,9 @@ export function OrderCard({
 }: OrderCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showCancelReason, setShowCancelReason] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [obsValue, setObsValue] = useState('');
 
   const deliveryDate = new Date(order.deliveryDate);
@@ -178,59 +184,86 @@ export function OrderCard({
       </div>
 
       {/* Bottom Actions Bar */}
-      <div className="p-4 bg-white/[0.02] border-t border-white/10 flex items-center justify-between gap-3">
-        <div className="flex gap-1">
+      <div className="p-4 bg-white/[0.02] border-t border-white/10 flex flex-col gap-4">
+        
+        {/* Status Action Buttons - Redesigned to Labels */}
+        <div className="flex flex-wrap gap-2">
           {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) ? (
             <>
-              {order.status !== 'en_proceso' && (
-                <button onClick={() => onStatusChange(order.id, 'en_proceso')} className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors" title="Pasar a Producción">
-                  <Edit3 size={18} />
+              {order.status === 'recibida' && (
+                <button 
+                  onClick={() => onStatusChange(order.id, 'en_proceso')} 
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all border border-amber-500/20 font-black text-[0.65rem] uppercase tracking-widest active:scale-95"
+                >
+                  <PlayCircle size={16} /> Producción
                 </button>
               )}
-              {order.status !== 'pendiente_entrega' && (
-                <button onClick={() => onStatusChange(order.id, 'pendiente_entrega')} className="p-2.5 rounded-xl bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 transition-colors" title="Pte Entrega">
-                  <CheckCircle2 size={18} />
+              {order.status === 'en_proceso' && (
+                <button 
+                  onClick={() => onStatusChange(order.id, 'pendiente_entrega')} 
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all border border-purple-500/20 font-black text-[0.65rem] uppercase tracking-widest active:scale-95"
+                >
+                  <CheckCircle2 size={16} /> Listo p/ Entrega
                 </button>
               )}
-              <button onClick={() => onStatusChange(order.id, 'completada')} className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors" title="Finalizar Entrega">
-                <CheckCircle2 size={18} />
+              {order.status === 'pendiente_entrega' && (
+                <button 
+                  onClick={() => onStatusChange(order.id, 'completada')} 
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20 font-black text-[0.65rem] uppercase tracking-widest active:scale-95"
+                >
+                  <CheckCircle2 size={16} /> Entregado
+                </button>
+              )}
+
+              {/* Cancel Button */}
+              <button 
+                onClick={() => { triggerHaptic('warning'); setShowCancelConfirm(true); }}
+                className="flex items-center justify-center px-4 py-2.5 rounded-xl bg-red-500/5 text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-all border border-red-500/10 font-black text-[0.65rem] uppercase tracking-widest active:scale-95"
+                title="Cancelar Orden"
+              >
+                <XCircle size={16} />
               </button>
             </>
           ) : (
-             <span className="text-[0.6rem] text-slate-500 font-bold px-2 py-1">SOLO LECTURA</span>
+             <div className="w-full text-center py-2 bg-white/5 rounded-xl border border-white/5">
+                <span className="text-[0.6rem] text-slate-500 font-black tracking-[0.2em] uppercase">Orden Finalizada - Solo Lectura</span>
+             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
-          <button 
-            onClick={() => { triggerHaptic('light'); setShowQrModal(true); }}
-            className="p-2.5 rounded-xl bg-slate-800 text-purple-400 hover:text-purple-300 hover:bg-slate-700 transition-all border border-purple-500/10 active:scale-95 shadow-lg"
-            title="Ver Código QR de Seguimiento"
-          >
-            <QrCode size={18} />
-          </button>
+        <div className="flex items-center justify-between pt-2 border-t border-white/5">
+          <div className="flex gap-2">
+            <button 
+              onClick={() => { triggerHaptic('light'); setShowQrModal(true); }}
+              className="p-2.5 rounded-xl bg-slate-800 text-purple-400 hover:text-purple-300 hover:bg-slate-700 transition-all border border-purple-500/10 active:scale-95 shadow-lg"
+              title="Ver Código QR de Seguimiento"
+            >
+              <QrCode size={18} />
+            </button>
+          </div>
 
-          <button 
-            onClick={() => onDownloadPdf(order)} 
-            disabled={isGenerating}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-white/5 active:scale-95 shadow-lg ${isGenerating ? 'opacity-50 cursor-wait' : ''}`}
-            title="Generar PDF"
-          >
-            {isGenerating ? (
-              <RefreshCw className="animate-spin" size={18} />
-            ) : (
-              <FileText size={18} />
-            )}
-            <span className="text-[0.7rem] font-bold uppercase tracking-widest md:hidden lg:inline">PDF</span>
-          </button>
-          
-          <button 
-            onClick={() => onEdit(order)} 
-            className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-white/5 active:scale-95 shadow-lg"
-            title="Editar Orden"
-          >
-            <Edit3 size={18} />
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => onDownloadPdf(order)} 
+              disabled={isGenerating}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-white/5 active:scale-95 shadow-lg ${isGenerating ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              {isGenerating ? (
+                <RefreshCw className="animate-spin" size={18} />
+              ) : (
+                <FileText size={18} />
+              )}
+              <span className="text-[0.65rem] font-black uppercase tracking-widest">PDF</span>
+            </button>
+            
+            <button 
+              onClick={() => onEdit(order)} 
+              className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all border border-white/5 active:scale-95 shadow-lg"
+              title="Editar Orden"
+            >
+              <Edit3 size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -264,6 +297,70 @@ export function OrderCard({
                 className="w-full py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
               >
                 Cerrar Panel
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancellation Confirmation Modal */}
+      <AnimatePresence>
+        {showCancelConfirm && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCancelConfirm(false)} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-8 rounded-[40px] border border-red-500/20 shadow-2xl text-center max-w-sm w-full">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500 mx-auto mb-6">
+                <AlertTriangle size={32} />
+              </div>
+              <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tight">¿Anular Orden?</h3>
+              <p className="text-[0.7rem] text-slate-400 leading-relaxed font-medium mb-8">
+                Esta acción moverá la orden al historial de canceladas. Para proceder debe justificar el motivo.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowCancelConfirm(false)} className="flex-1 py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+                  Volver
+                </button>
+                <button onClick={() => { setShowCancelConfirm(false); setShowCancelReason(true); }} className="flex-1 py-4 rounded-2xl bg-red-500 text-slate-950 font-black text-xs uppercase tracking-widest shadow-xl shadow-red-500/20 active:scale-95 transition-all">
+                  Continuar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancellation Reason Modal */}
+      <AnimatePresence>
+        {showCancelReason && (
+          <div className="fixed inset-0 z-[10002] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCancelReason(false)} className="absolute inset-0 bg-black/90 backdrop-blur-xl" />
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-[#1a1622] p-8 rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full">
+              <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tight text-left">Justificación</h3>
+              <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-6 text-left">Motivo de la cancelación de la orden</p>
+              
+              <textarea
+                autoFocus
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                placeholder="Escriba aquí los motivos..."
+                className="w-full h-32 bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-red-500/20 placeholder:text-slate-800 resize-none mb-6"
+              />
+
+              <button 
+                disabled={!cancelReason.trim()}
+                onClick={() => {
+                  onStatusChange(order.id, 'cancelada');
+                  // We also need to send the reason. Currently OrderCard only takes (id, status).
+                  // I will update the OrderContext to accept cancelReason in updateOrder.
+                  // For now, I'll update it through a custom event or update the prop if needed.
+                  (window as any).dispatchEvent(new CustomEvent('cancel-order-reason', { detail: { id: order.id, reason: cancelReason } }));
+                  setShowCancelReason(false);
+                  setCancelReason('');
+                  triggerHaptic('success');
+                }}
+                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${cancelReason.trim() ? 'bg-red-500 text-slate-950 shadow-xl shadow-red-500/20' : 'bg-white/5 text-slate-700 border border-white/5 cursor-not-allowed'}`}
+              >
+                Confirmar Cancelación
               </button>
             </motion.div>
           </div>

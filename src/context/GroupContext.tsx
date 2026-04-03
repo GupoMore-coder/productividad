@@ -26,6 +26,7 @@ interface GroupContextType {
   inviteUser: (groupId: string, userEmail: string) => Promise<void>;
   acceptInvitation: (groupId: string) => Promise<void>;
   rejectInvitation: (groupId: string) => Promise<void>;
+  fetchAllProfiles: () => Promise<{ id: string; email: string; full_name: string }[]>;
   loading: boolean;
 }
 
@@ -162,8 +163,35 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await leaveGroup(groupId);
   };
 
+  const fetchAllProfiles = async () => {
+    if (!isSupabaseConfigured) {
+      return JSON.parse(localStorage.getItem('mock_users_db') || '[]').map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        full_name: u.full_name || u.username
+      }));
+    }
+    const { data, error } = await supabase.from('profiles').select('id, email, full_name').order('full_name');
+    if (error) throw error;
+    return data || [];
+  };
+
   return (
-    <GroupContext.Provider value={{ groups, memberships, createGroup, requestJoin, approveJoin, rejectJoin, leaveGroup, removeUser, inviteUser, acceptInvitation, rejectInvitation, loading }}>
+    <GroupContext.Provider value={{ 
+      groups, 
+      memberships, 
+      createGroup, 
+      requestJoin, 
+      approveJoin, 
+      rejectJoin, 
+      leaveGroup, 
+      removeUser, 
+      inviteUser, 
+      acceptInvitation, 
+      rejectInvitation, 
+      fetchAllProfiles,
+      loading 
+    }}>
       {children}
     </GroupContext.Provider>
   );

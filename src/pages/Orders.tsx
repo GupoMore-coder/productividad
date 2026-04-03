@@ -11,9 +11,11 @@ import { OrderCard } from '../components/orders/OrderCard';
 import { OrderFilters } from '../components/orders/OrderFilters';
 import { OrderCardSkeleton, Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Orders() {
   const { user } = useAuth();
+  usePageTitle('Gestión de Órdenes');
   const { orders, updateOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
 
   const [showCreateModal, setShowCreateModal] = useState(false);

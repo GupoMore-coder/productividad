@@ -45,6 +45,25 @@ TO authenticated
 USING ( bucket_id = 'avatars' )
 WITH CHECK ( bucket_id = 'avatars' );
 
+-- 4. POLÍTICAS PARA EL BUCKET 'task-photos'
+-- Permitir lectura a usuarios autenticados
+CREATE POLICY "Lectura de fotos de tareas"
+ON storage.objects FOR SELECT
+TO authenticated
+USING ( bucket_id = 'task-photos' );
+
+-- Permitir subida a usuarios autenticados
+CREATE POLICY "Subida de fotos de tareas"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK ( bucket_id = 'task-photos' );
+
+-- Permitir borrado al dueño
+CREATE POLICY "Borrado de fotos de tareas al dueño"
+ON storage.objects FOR DELETE
+TO authenticated
+USING ( bucket_id = 'task-photos' AND owner = auth.uid() );
+
 -- ============================================================
 -- COPIA ESTO Y PÉGALO EN EL SQL EDITOR DE SUPABASE
 -- ============================================================

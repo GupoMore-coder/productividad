@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -56,6 +57,7 @@ const BarChart = ({ data, color }: { data: { label: string, value: number }[], c
 
 export default function Dashboard() {
   const { orders, loading: ordersLoading } = useOrders();
+  usePageTitle('Panel de Control');
   const { tasks, loading: tasksLoading } = useTasks();
   const { user } = useAuth();
   

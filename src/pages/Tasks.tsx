@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useGroups } from '../context/GroupContext';
 import { useTasks, Task } from '../context/TaskContext';
 import { 
@@ -83,6 +84,7 @@ function LedIndicator({ user, onLateAlert }: { user: any; onLateAlert: () => voi
 
 export default function Tasks() {
   const { user } = useAuth();
+  usePageTitle('Mi Agenda');
   const { groups, memberships } = useGroups();
   const { tasks, addTask, updateTask, loading: tasksLoading, hasMore, loadMore } = useTasks();
   

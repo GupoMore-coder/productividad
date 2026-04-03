@@ -9,6 +9,9 @@ import {
   initAlarmChecker,
 } from './services/NotificationsService';
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
+
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Tasks = lazy(() => import('./pages/Tasks'));
@@ -19,10 +22,14 @@ const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const PublicOrderStatus = lazy(() => import('./pages/PublicOrderStatus'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 
 import Navigation from './components/Navigation';
+import Footer from './components/Footer';
 import GlobalNotificationManager from './components/GlobalNotificationManager';
 import ErrorBoundary from './components/ErrorBoundary';
+import NetworkStatus from './components/NetworkStatus';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -43,7 +50,12 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <>
-      {children}
+      <div className="flex flex-col min-h-screen">
+        <main className="flex-grow">
+          {children}
+        </main>
+        <Footer />
+      </div>
       <Navigation />
     </>
   );
@@ -56,7 +68,12 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user.isSuperAdmin) return <Navigate to="/" replace />;
   return (
     <>
-      {children}
+      <div className="flex flex-col min-h-screen">
+        <main className="flex-grow">
+          {children}
+        </main>
+        <Footer />
+      </div>
       <Navigation />
     </>
   );
@@ -103,12 +120,15 @@ function AppRoutes() {
   return (
     <Router>
       <NotificationBootstrap />
+      <NetworkStatus />
       <GlobalNotificationManager />
       <Suspense fallback={GlobalLoader}>
         <Routes>
-          <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/login"    element={<PublicRoute><div className="flex flex-col min-h-screen"><main className="flex-grow"><Login /></main><Footer /></div></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><div className="flex flex-col min-h-screen"><main className="flex-grow"><Register /></main><Footer /></div></PublicRoute>} />
           <Route path="/setup"    element={<SetupProfile />} />
+          <Route path="/privacy"  element={<PrivacyPolicy />} />
+          <Route path="/terms"    element={<TermsOfService />} />
           <Route path="/"         element={<PrivateRoute><Tasks /></PrivateRoute>} />
           <Route path="/group"    element={<PrivateRoute><FamilyGroup /></PrivateRoute>} />
           <Route path="/orders"   element={<PrivateRoute><Orders /></PrivateRoute>} />
@@ -126,16 +146,18 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <GroupProvider>
-          <OrderProvider>
-            <TaskProvider>
-              <AppRoutes />
-            </TaskProvider>
-          </OrderProvider>
-        </GroupProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <GroupProvider>
+            <OrderProvider>
+              <TaskProvider>
+                <AppRoutes />
+              </TaskProvider>
+            </OrderProvider>
+          </GroupProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </QueryClientProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
@@ -131,6 +132,7 @@ function AdminUserAgendaModal({ userId, username, onClose }: { userId: string; u
 // ── Main Page ────────────────────────────────────────────────────────
 export default function AdminUsers() {
   const { user } = useAuth();
+  usePageTitle('Administración de Usuarios');
   const navigate = useNavigate();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);

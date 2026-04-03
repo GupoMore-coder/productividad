@@ -14,14 +14,15 @@ import {
   Trash2, 
   Mail, 
   ShieldCheck, 
-  ArrowLeft,
-  UserPlus
+  ArrowLeft
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function FamilyGroup() {
   const { user } = useAuth();
+  usePageTitle('Nuestro Equipo');
   const { 
     groups, 
     memberships, 
@@ -39,6 +40,11 @@ export default function FamilyGroup() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [userDirectory, setUserDirectory] = useState<{ id: string; email: string; full_name: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const { fetchAllProfiles } = useGroups();
 
   const myUserId = user?.id || user?.email || 'unknown';
 
@@ -47,6 +53,17 @@ export default function FamilyGroup() {
   useEffect(() => {
     const handleOpen = () => setShowCreateModal(true);
     window.addEventListener('open-create-group', handleOpen);
+    
+    const loadProfiles = async () => {
+      try {
+        const profiles = await fetchAllProfiles();
+        setUserDirectory(profiles);
+      } catch (err) {
+        console.error('Error loading profiles:', err);
+      }
+    };
+    loadProfiles();
+
     return () => window.removeEventListener('open-create-group', handleOpen);
   }, []);
 
@@ -86,7 +103,18 @@ export default function FamilyGroup() {
     handleAction('light');
     inviteUser(selectedGroup.id, inviteEmail.trim());
     setInviteEmail('');
+    setSearchQuery('');
+    setShowDropdown(false);
   };
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return userDirectory.filter(u => 
+      (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+       u.email?.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      !memberships.some(m => m.groupId === selectedGroup?.id && m.userId === u.id)
+    ).slice(0, 5);
+  }, [searchQuery, userDirectory, memberships, selectedGroup]);
 
   const GroupCardSkeleton = () => (
     <div className="p-5 rounded-[28px] bg-white/[0.02] border border-white/5 flex items-center justify-between">
@@ -249,25 +277,54 @@ export default function FamilyGroup() {
               <p className="text-slate-500 font-bold uppercase tracking-widest text-[0.65rem]">Creado por @{selectedGroup.creatorId.split('@')[0]}</p>
             </header>
             
-            {/* Invite Form */}
-            {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && (
-              <div className="bg-purple-500/5 border border-purple-500/20 p-6 rounded-[32px] space-y-4 shadow-inner">
-                <div className="flex items-center gap-2 text-[0.65rem] font-black uppercase tracking-widest text-purple-400">
-                  <UserPlus size={16} /> Invitar Colaborador
+                <div className="relative">
+                  <form onSubmit={handleInvite} className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <input 
+                        type="text" 
+                        value={searchQuery} 
+                        onChange={e => {
+                          setSearchQuery(e.target.value);
+                          setShowDropdown(true);
+                        }} 
+                        onFocus={() => setShowDropdown(true)}
+                        placeholder="Buscar por nombre o correo..." 
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-700"
+                      />
+                      <AnimatePresence>
+                        {showDropdown && filteredUsers.length > 0 && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-2 bg-[#1a1622] border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                          >
+                            {filteredUsers.map(u => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  setInviteEmail(u.email);
+                                  setSearchQuery(`${u.full_name || u.email}`);
+                                  setShowDropdown(false);
+                                }}
+                                className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors flex flex-col border-b border-white/5 last:border-0"
+                              >
+                                <span className="text-white text-sm font-bold">{u.full_name}</span>
+                                <span className="text-[0.6rem] text-slate-500 uppercase tracking-widest">{u.email}</span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    <button 
+                      type="submit" 
+                      disabled={!inviteEmail}
+                      className={`px-6 py-3 rounded-2xl font-black text-[0.65rem] uppercase tracking-widest active:scale-95 transition-all ${inviteEmail ? 'bg-purple-500 text-slate-900 shadow-lg shadow-purple-500/20' : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'}`}
+                    >
+                      Invitar
+                    </button>
+                  </form>
                 </div>
-                <form onSubmit={handleInvite} className="flex gap-2">
-                  <input 
-                    type="email" 
-                    value={inviteEmail} 
-                    onChange={e => setInviteEmail(e.target.value)} 
-                    placeholder="usuario@grupomore.com" 
-                    className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-700"
-                    aria-label="Correo del invitado"
-                  />
-                  <button type="submit" className="bg-purple-500 text-slate-900 px-6 py-3 rounded-2xl font-black text-[0.65rem] uppercase tracking-widest active:scale-95 transition-all">Invitar</button>
-                </form>
-              </div>
-            )}
 
             {/* Pending Requests */}
             {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && pendingRequests.length > 0 && (
