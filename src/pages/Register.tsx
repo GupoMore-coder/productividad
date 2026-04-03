@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 
 export default function Register() {
-  const { signUp } = useAuth();
+  const { signUp, isFirstUser } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -49,7 +49,7 @@ export default function Register() {
         throw new Error('El correo electrónico no es válido.');
       }
 
-      const isFirst = await (useAuth as any)().isFirstUser(); // Dynamic check
+      const isFirst = await isFirstUser(); // Correctly using the function from hook
 
       if (password.length < 8) {
         throw new Error('La contraseña debe tener al menos 8 caracteres.');
