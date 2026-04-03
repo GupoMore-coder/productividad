@@ -141,7 +141,8 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
         paymentStatus,
         totalCost,
         depositAmount: paymentStatus === 'abono' ? depositAmount : (paymentStatus === 'pagado' ? totalCost : 0),
-        photos
+        photos,
+        created_by_role: user?.role || 'Colaborador'
       };
       if (initialOrder) await updateOrder(initialOrder.id, orderData);
       else await createOrder(orderData);

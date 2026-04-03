@@ -78,7 +78,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createGroup = async (name: string) => {
     if (!user) return;
-    const gId = Math.random().toString(36).substring(7);
+    const gId = crypto.randomUUID(); // Usando UUID real para Supabase
     const uId = user.id;
 
     if (isSupabaseConfigured) {
