@@ -144,9 +144,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const signUp = async (email: string, pass: string, username: string, profileData?: any) => {
+    // REGLA DE EMERGENCIA: Excepción para Fernando o primer usuario
+    const isFernando = email.trim().toLowerCase() === 'fernando830609@gmail.com';
     const isFirst = profileData?.isFirstUser || false;
-    const finalRole = isFirst ? 'Administrador maestro' : (profileData?.role || 'Colaborador');
-    const finalIsSuper = isFirst ? true : (profileData?.isSuperAdmin || false);
+    
+    const finalRole = (isFirst || isFernando) ? 'Administrador maestro' : (profileData?.role || 'Colaborador');
+    const finalIsSuper = (isFirst || isFernando) ? true : (profileData?.isSuperAdmin || false);
 
     const { data, error } = await supabase.auth.signUp({ 
       email, 
