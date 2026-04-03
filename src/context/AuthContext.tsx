@@ -10,6 +10,7 @@ interface AuthContextType {
   updateProfile: (data: { email: string, fullName: string, cedula?: string, phone?: string, avatar?: string, birth_date?: string }) => Promise<void>;
   updatePassword: (newPass: string) => Promise<void>;
   signOut: () => Promise<void>;
+  isFirstUser: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -143,22 +144,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const signUp = async (email: string, pass: string, username: string, profileData?: any) => {
+    const isFirst = profileData?.isFirstUser || false;
+    const finalRole = isFirst ? 'Administrador maestro' : (profileData?.role || 'Colaborador');
+    const finalIsSuper = isFirst ? true : (profileData?.isSuperAdmin || false);
 
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password: pass,
-      options: { data: { username } }
+      options: { 
+        data: { 
+          username,
+          role: finalRole,
+          is_super_admin: finalIsSuper,
+          needsSetup: true
+        } 
+      }
     });
+
     if (error) throw error;
 
     if (data.user) {
-      // Create minimal profile immediately
+      // Create profile immediately
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: data.user.id,
         username: username.toLowerCase(),
         email: email,
-        role: profileData?.role || 'Colaborador',
-        is_super_admin: profileData?.isSuperAdmin || false,
+        role: finalRole,
+        is_super_admin: finalIsSuper,
         needs_setup: true
       });
       if (profileError) console.error('Error creating profile during signup:', profileError);
@@ -210,8 +222,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
+  const isFirstUser = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        console.error('Error checking first user:', error);
+        return false;
+      }
+      return (count ?? 0) === 0;
+    } catch (e) {
+      return false;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithEmail, signInWithUsername, signUp, updateProfile, updatePassword, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithEmail, signInWithUsername, signUp, updateProfile, updatePassword, signOut, isFirstUser }}>
       {children}
     </AuthContext.Provider>
   );

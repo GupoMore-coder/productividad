@@ -109,9 +109,10 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
         setPhotos(prev => [...prev, publicUrl]);
         triggerHaptic('success');
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error uploading photo:', err);
       triggerHaptic('error');
+      alert(`⚠️ ERROR DE CARGA: ${err.message || 'Verifica tu conexión o permisos de almacenamiento'}`);
     } finally {
       setUploadingPhotos(false);
     }
@@ -146,9 +147,10 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
       else await createOrder(orderData);
       triggerHaptic('success');
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error submitting order:', err);
       triggerHaptic('error');
+      alert(`⚠️ ERROR AL GUARDAR: ${err.message || 'No se pudo crear la orden. Verifica los campos y tu sesión.'}`);
     } finally {
       setSubmitting(false);
     }

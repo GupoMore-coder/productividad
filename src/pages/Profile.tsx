@@ -168,8 +168,9 @@ export default function Profile() {
         <section className="flex flex-col items-center">
           <div className="relative group">
             <motion.div 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.25, rotate: 2 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 300, damping: 15 }}
               className="w-32 h-32 bg-black/40 rounded-[40px] border-4 border-purple-500/30 flex items-center justify-center text-6xl shadow-2xl overflow-hidden shadow-purple-500/10 group-hover:border-purple-500 transition-colors"
             >
               {avatar.length > 10 ? (

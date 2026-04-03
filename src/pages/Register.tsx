@@ -49,22 +49,23 @@ export default function Register() {
         throw new Error('El correo electrónico no es válido.');
       }
 
-      const isSuper = cleanUsername === 'fernando';
+      const isFirst = await (useAuth as any)().isFirstUser(); // Dynamic check
 
-      if (!isSuper && password.length < 8) {
+      if (password.length < 8) {
         throw new Error('La contraseña debe tener al menos 8 caracteres.');
       }
 
       // SIGN UP (Auth) - Minimal data
       await signUp(cleanEmail, password, cleanUsername, {
-        role: isSuper ? 'Administrador maestro' : 'Colaborador',
-        isSuperAdmin: isSuper,
-        needsSetup: true // Enforce setup on first login
+        isFirstUser: isFirst,
+        role: isFirst ? 'Administrador maestro' : 'Colaborador',
+        isSuperAdmin: isFirst,
+        needsSetup: true
       });
 
       triggerHaptic('success');
-      alert(isSuper 
-        ? '¡Bienvenido Fernando! Tu cuenta de Administrador Maestro ha sido creada. Ya puedes iniciar sesión.' 
+      alert(isFirst 
+        ? '¡Bienvenido! Eres el primer usuario del sistema y has sido configurado como Administrador Maestro con todos los privilegios.' 
         : 'Registro exitoso. Tu cuenta ha sido creada. Por favor inicia sesión para completar tu perfil.'
       );
       navigate('/login');

@@ -302,13 +302,22 @@ export default function AdminUsers() {
             <p className="text-sm text-slate-500 font-medium">Panel de Control de Acceso y Roles</p>
           </div>
         </div>
-        <button 
-          onClick={() => { handleAction('light'); navigate(-1); }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
-          aria-label="Volver"
-        >
-          <ChevronLeft size={16} /> Volver
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={() => { handleAction('success'); navigate('/dashboard'); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#d4bc8f] text-slate-900 text-xs font-black uppercase tracking-widest hover:brightness-110 shadow-xl shadow-amber-500/10 transition-all active:scale-95"
+            aria-label="Ir al Dashboard Global"
+          >
+            <ShieldCheck size={16} /> Ver Dashboard v2
+          </button>
+          <button 
+            onClick={() => { handleAction('light'); navigate(-1); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
+            aria-label="Volver"
+          >
+            <ChevronLeft size={16} /> Volver
+          </button>
+        </div>
       </header>
 
       {notifications.length > 0 && (

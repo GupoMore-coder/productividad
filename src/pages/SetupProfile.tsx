@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Camera, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
@@ -47,6 +48,11 @@ export default function SetupProfile() {
     setError('');
 
     try {
+      const { data: { session } } = await (supabase as any).auth.getSession();
+      if (!session && !user?.isBypass) {
+        throw new Error('Tu sesión ha expirado o no es válida. Por favor, inicia sesión de nuevo.');
+      }
+
       const isSuper = user?.isSuperAdmin || user?.role === 'Administrador maestro';
 
       if (!isSuper) {
