@@ -165,15 +165,24 @@ export default function Dashboard() {
     <div className="max-w-4xl mx-auto px-4 pt-8 pb-32 animate-in fade-in duration-700">
       
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-amber-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <LayoutDashboard className="text-slate-900" size={32} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase">Inteligencia Cloud</h1>
-            <p className="text-[0.65rem] text-slate-500 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5 opacity-60">
-              <ShieldCheck size={14} className="text-purple-500" /> Grupo More · {activeTab === 'financial' ? 'Finanzas' : 'Productividad'}
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <button 
+             onClick={() => { triggerHaptic('light'); window.history.back(); }}
+             className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors active:scale-95"
+             aria-label="Volver"
+          >
+            <Filter size={18} className="rotate-90" /> {/* Reusing an icon orienting as back arrow */}
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-amber-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <LayoutDashboard className="text-slate-900" size={32} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase">Inteligencia Cloud</h1>
+              <p className="text-[0.65rem] text-slate-500 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5 opacity-60">
+                <ShieldCheck size={14} className="text-purple-500" /> Grupo More · {activeTab === 'financial' ? 'Finanzas' : 'Productividad'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -290,10 +299,10 @@ export default function Dashboard() {
                      <div>
                         <div className="flex justify-between text-[0.6rem] font-black text-slate-500 mb-1">
                            <span>CUMPLIMIENTO DE TIEMPOS</span>
-                           <span className="text-purple-400">88.4%</span>
+                           <span className="text-purple-400">{stats.tasksEfficiency.toFixed(1)}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                           <motion.div initial={{ width: 0 }} animate={{ width: '88.4%' }} className="h-full bg-purple-500" />
+                           <motion.div initial={{ width: 0 }} animate={{ width: `${stats.tasksEfficiency}%` }} className="h-full bg-purple-500" />
                         </div>
                      </div>
                   </div>

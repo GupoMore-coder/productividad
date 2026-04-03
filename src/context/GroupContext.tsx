@@ -87,6 +87,10 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (gErr) throw gErr;
         const { error: mErr } = await supabase.from('group_memberships').insert({ group_id: gId, user_id: uId, status: 'approved' });
         if (mErr) throw mErr;
+
+        // Sincronización proactiva inmediata
+        setGroups(prev => [...prev, { id: gId, name, creatorId: uId }]);
+        setMemberships(prev => [...prev, { groupId: gId, userId: uId, status: 'approved' as const }]);
       } catch (err: any) {
         console.error('Error al crear grupo:', err);
         alert(`FALLO AL CREAR GRUPO: ${err.message || 'Error de permisos RLS o conexión de red'}`);

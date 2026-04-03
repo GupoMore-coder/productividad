@@ -240,7 +240,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         message: `✨ Se ha creado la orden No. ${orderId} por ${uName}`
       });
       
-      return mapOrderFromDB({ ...created, order_history: [] });
+      // Sincronización proactiva inmediata
+      const finalNewOrder = mapOrderFromDB({ ...created, order_history: [] });
+      setOrders(prev => [finalNewOrder, ...prev]);
+
+      return finalNewOrder;
     } else {
       const id = `ORD-MOCK-${Math.floor(Math.random()*100000)}`;
       const completedOrder = { ...newOrderPayload, id, history: [] };
