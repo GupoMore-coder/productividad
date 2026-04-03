@@ -80,6 +80,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user.isSuperAdmin) {
         // Master Admin can see everything
       } else if (myGroupIds.length > 0) {
+
         query = query.or(`user_id.eq.${user.id},group_ids.overlap.{${myGroupIds.join(',')}}`);
       } else {
         query = query.eq('user_id', user.id);

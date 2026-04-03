@@ -93,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
         isBypass: true // Added flag
+
       };
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
@@ -123,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
         isBypass: true // Added flag
+
       };
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
@@ -187,6 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const { data: updated } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       setUser({ ...user, ...updated, isBypass: user.isBypass });
+
     }
   };
 

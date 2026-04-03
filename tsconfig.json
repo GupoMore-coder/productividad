@@ -9,6 +9,7 @@
     "paths": {
       "@/*": ["src/*"],
       "@lib/*": ["src/lib/*"]
+
     },
 
     /* Bundler mode */

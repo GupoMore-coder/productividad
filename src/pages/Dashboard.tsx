@@ -4,6 +4,7 @@ import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+
 import { 
   TrendingUp, 
   Wallet, 
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Skeleton, StatsSkeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
+
 
 // ── Custom SVG Bar Component ──────────────────────────────────────
 const BarChart = ({ data, color }: { data: { label: string, value: number }[], color: string }) => {
@@ -51,6 +53,7 @@ const BarChart = ({ data, color }: { data: { label: string, value: number }[], c
 };
 
 
+
 export default function Dashboard() {
   const { orders, loading: ordersLoading } = useOrders();
   const { tasks, loading: tasksLoading } = useTasks();
@@ -76,6 +79,7 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     // 1. Filtered Orders (Financial) - General Group View
+
     const excludedUsers = ['miguel', 'flor', 'fernando', 'admin'];
     const financialOrders = orders.filter(o => 
       !excludedUsers.some(ex => (o.responsible || '').toLowerCase().includes(ex))
@@ -85,6 +89,7 @@ export default function Dashboard() {
     const totalCollected = financialOrders.reduce((acc, o) => acc + (o.depositAmount || 0), 0);
     const totalPending = financialOrders.reduce((acc, o) => acc + (o.pendingBalance || 0), 0);
     
+
     const serviceMap: Record<string, number> = {};
     financialOrders.forEach(o => {
       o.services.forEach(s => {
@@ -122,6 +127,7 @@ export default function Dashboard() {
     const ordersEfficiency = ordersTotal > 0 ? (ordersCompleted / (ordersTotal - ordersActive || 1)) * 100 : 0;
 
     // Productivity by Responsible (for list)
+
     const respMap: Record<string, number> = {};
     orders.forEach(o => {
       respMap[o.responsible] = (respMap[o.responsible] || 0) + 1;
@@ -150,6 +156,7 @@ export default function Dashboard() {
   if (loading) return (
     <div className="max-w-4xl mx-auto px-4 pt-8 pb-32 animate-pulse space-y-8">
       <StatsSkeleton />
+
       <Skeleton width="100%" height={300} className="rounded-[40px]" />
     </div>
   );
@@ -381,6 +388,7 @@ export default function Dashboard() {
       <footer className="mt-16 text-center text-slate-600 space-y-2">
         <Activity className="mx-auto opacity-20" size={24} />
         <p className="text-[0.6rem] font-black uppercase tracking-[0.2em]">SISTEMA ANALÍTICO GRUPO MORE · CLOUD LOGIC v2.0</p>
+
       </footer>
     </div>
   );

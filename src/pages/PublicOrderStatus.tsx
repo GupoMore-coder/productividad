@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 
+
 export default function PublicOrderStatus() {
   const { orderId } = useParams();
   const [order, setOrder] = useState<any>(null);
@@ -162,6 +163,7 @@ export default function PublicOrderStatus() {
             aria-label={`Estado actual de la orden: ${statusCfg.label}`}
           >
             <statusCfg.icon size={16} aria-hidden="true" />
+
             {statusCfg.label}
           </div>
         </motion.div>
@@ -187,6 +189,7 @@ export default function PublicOrderStatus() {
                   <div key={i} className="z-10 text-center w-1/4 space-y-3" aria-label={`Paso ${i + 1}: ${s.label} - ${isActive ? 'Completado' : 'Pendiente'}`}>
                     <div className={`w-8 h-8 rounded-[10px] mx-auto flex items-center justify-center border-2 transition-all duration-700 ${isActive ? `${statusCfg.color.replace('text', 'bg')} border-transparent text-slate-900` : 'bg-[#1a1a24] border-white/10 text-slate-600'}`}>
                       <IconComp size={14} aria-hidden="true" />
+
                     </div>
                     <span className={`text-[0.55rem] font-black uppercase tracking-tighter block ${isActive ? 'text-white' : 'text-slate-600'}`}>{s.label}</span>
                   </div>

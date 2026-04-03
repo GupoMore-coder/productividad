@@ -28,6 +28,7 @@ cleanupOutdatedCaches();
 // ── Background Sync ──────────────────────────────────────────
 // Retries failed Supabase requests (POST/PATCH/DELETE) when connection returns
 // This ensures that updates made while offline are eventually synced to the server.
+
 const bgSyncPlugin = new BackgroundSyncPlugin('supabase-queue', {
   maxRetentionTime: 24 * 60, // Retry for max 24 hours
 });
