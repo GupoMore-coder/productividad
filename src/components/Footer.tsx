@@ -21,12 +21,14 @@ export default function Footer() {
             className="flex items-center gap-3"
           >
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-white/5 overflow-hidden">
-               {/* Custom MD* Brand Logo */}
-               <svg viewBox="0 0 100 100" className="w-9 h-9" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <text x="5" y="65" className="font-serif italic text-black font-black" style={{ fontSize: '60px' }}>m</text>
-                  <text x="52" y="65" className="font-sans text-black font-black" style={{ fontSize: '50px' }}>d</text>
-                  <path d="M85 45L87 52H95L89 56L91 63L85 59L79 63L81 56L75 52H83L85 45Z" fill="#A855F7" />
-               </svg>
+               <img 
+                 src="/logo.png" 
+                 alt="Grupo More Logo" 
+                 className="w-full h-full object-cover"
+                 onError={(e) => {
+                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=200&q=80';
+                 }}
+               />
             </div>
             <div>
               <h4 className="text-lg font-black text-white tracking-tight uppercase">Grupo More</h4>
@@ -34,7 +36,7 @@ export default function Footer() {
             </div>
           </motion.div>
           <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
-            Papeleria creativa y detalles autenticos / Personalizar es identidad.
+            Papeleria creativa y detalles autenticos.
           </p>
           <div className="pt-2">
             <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[0.6rem] font-bold uppercase tracking-wider">
