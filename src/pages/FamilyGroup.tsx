@@ -30,6 +30,7 @@ export default function FamilyGroup() {
     approveJoin, 
     rejectJoin, 
     leaveGroup,
+    deleteGroup,
     removeUser,
     inviteUser,
     acceptInvitation,
@@ -396,15 +397,22 @@ export default function FamilyGroup() {
               <button 
                   onClick={() => {
                     handleAction('error');
-                    if (confirm(selectedGroup.creatorId === myUserId ? '¿Eliminar grupo por completo?' : '¿Quieres salir de este grupo?')) {
-                      leaveGroup(selectedGroup.id);
+                    const isOwner = selectedGroup.creatorId === myUserId || user?.isSuperAdmin;
+                    const msg = isOwner ? '¿Eliminar grupo por completo? Esta acción es irreversible y borrará todas las tareas del equipo.' : '¿Quieres salir de este grupo?';
+                    
+                    if (confirm(msg)) {
+                      if (isOwner) {
+                        deleteGroup(selectedGroup.id);
+                      } else {
+                        leaveGroup(selectedGroup.id);
+                      }
                       setSelectedGroup(null);
                       handleAction('success');
                     }
                   }}
                   className="flex items-center gap-2 mx-auto px-6 py-3 rounded-2xl border border-red-500/20 text-red-500 text-[0.6rem] font-black uppercase tracking-[0.2em] hover:bg-red-500/10 active:scale-95 transition-all"
                 >
-                  <LogOut size={16} /> {selectedGroup.creatorId === myUserId ? 'Eliminar Grupo' : 'Abandonar Equipo'}
+                  <LogOut size={16} /> { (selectedGroup.creatorId === myUserId || user?.isSuperAdmin) ? 'Eliminar Grupo' : 'Abandonar Equipo'}
               </button>
             </div>
           </motion.div>

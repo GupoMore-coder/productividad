@@ -195,7 +195,14 @@ export default function Tasks() {
     await updateTask(id, { status: 'declined' });
   };
 
-  const dailyTasks = tasks.filter((t) => t.date === dateStr && t.status !== 'pending_acceptance');
+  const dailyTasks = tasks.filter((t) => 
+    t.date === dateStr && 
+    t.status !== 'pending_acceptance' && 
+    !t.completed && 
+    t.status !== 'declined' &&
+    t.status !== 'cancelled_with_reason' &&
+    t.status !== 'expired'
+  );
   
   const dailyOrders = orders.filter((o) => 
     o.deliveryDate.startsWith(dateStr) && 

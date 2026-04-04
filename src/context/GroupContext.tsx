@@ -22,6 +22,7 @@ interface GroupContextType {
   approveJoin: (groupId: string, userId: string) => Promise<void>;
   rejectJoin: (groupId: string, userId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
+  deleteGroup: (groupId: string) => Promise<void>;
   removeUser: (groupId: string, targetUserId: string) => Promise<void>;
   inviteUser: (groupId: string, userEmail: string) => Promise<void>;
   acceptInvitation: (groupId: string) => Promise<void>;
@@ -135,7 +136,57 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await rejectJoin(groupId, user.id);
   };
 
+  const deleteGroup = async (groupId: string) => {
+    if (!user) return;
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const isAdmin = user.isSuperAdmin || group.creatorId === user.id;
+    if (!isAdmin) {
+      alert("No tienes permisos suficientes para eliminar este grupo.");
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        // 1. Delete associated tasks first (Cascade-like)
+        const { error: tErr } = await supabase
+          .from('tasks')
+          .delete()
+          .contains('group_ids', [groupId]);
+        if (tErr) console.warn('Warning: Could not delete tasks for group:', tErr);
+
+        // 2. Delete memberships
+        const { error: mErr } = await supabase.from('group_memberships').delete().eq('group_id', groupId);
+        if (mErr) throw mErr;
+
+        // 3. Delete group
+        const { error: gErr } = await supabase.from('groups').delete().eq('id', groupId);
+        if (gErr) throw gErr;
+
+        setGroups(prev => prev.filter(g => g.id !== groupId));
+        setMemberships(prev => prev.filter(m => m.groupId !== groupId));
+      } catch (err: any) {
+        console.error('Error deleting group:', err);
+        alert(`Error al eliminar grupo: ${err.message}`);
+      }
+    } else {
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      setMemberships(prev => prev.filter(m => m.groupId !== groupId));
+    }
+  };
+
   const removeUser = async (groupId: string, targetUserId: string) => {
+    if (!user) return;
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const isAdmin = user.isSuperAdmin || group.creatorId === user.id;
+    if (!isAdmin) {
+      alert("Solo el creador o el administrador maestro pueden expulsar usuarios.");
+      return;
+    }
+
     await rejectJoin(groupId, targetUserId);
   };
 
@@ -185,6 +236,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       approveJoin, 
       rejectJoin, 
       leaveGroup, 
+      deleteGroup,
       removeUser, 
       inviteUser, 
       acceptInvitation, 
