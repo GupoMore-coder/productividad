@@ -107,22 +107,29 @@ create table if not exists public.global_alerts (
 -- CONFIGURACIÓN DE SEGURIDAD (RLS) INICIAL
 -- ########################################################
 alter table public.profiles enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.profiles;
 create policy "Acceso público" on public.profiles for all using (true) with check (true);
 
 alter table public.tasks enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.tasks;
 create policy "Acceso público" on public.tasks for all using (true) with check (true);
 
 alter table public.service_orders enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.service_orders;
 create policy "Acceso público" on public.service_orders for all using (true) with check (true);
 
 alter table public.order_history enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.order_history;
 create policy "Acceso público" on public.order_history for all using (true) with check (true);
 
 alter table public.groups enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.groups;
 create policy "Acceso público" on public.groups for all using (true) with check (true);
 
 alter table public.group_memberships enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.group_memberships;
 create policy "Acceso público" on public.group_memberships for all using (true) with check (true);
 
 alter table public.global_alerts enable row level security;
+DROP POLICY IF EXISTS "Acceso público" on public.global_alerts;
 create policy "Acceso público" on public.global_alerts for all using (true) with check (true);
