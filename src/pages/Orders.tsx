@@ -58,11 +58,17 @@ export default function Orders() {
       setEditingOrder(undefined);
       (window as any).__activeModal = undefined;
     };
+    const handleUpdateField = (e: any) => {
+      const { id, fields } = e.detail;
+      updateOrder(id, fields);
+    };
     window.addEventListener('open-create-order', handleOpen);
     window.addEventListener('force-close-modals', handleForceClose);
+    window.addEventListener('update-order-field', handleUpdateField);
     return () => {
       window.removeEventListener('open-create-order', handleOpen);
       window.removeEventListener('force-close-modals', handleForceClose);
+      window.removeEventListener('update-order-field', handleUpdateField);
     };
   }, []);
 

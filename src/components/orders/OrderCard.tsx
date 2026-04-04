@@ -15,7 +15,9 @@ import {
   QrCode,
   XCircle,
   AlertTriangle,
-  PlayCircle
+  PlayCircle,
+  PlusCircle,
+  DollarSign
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ServiceOrder } from '../../context/OrderContext';
@@ -48,6 +50,8 @@ export function OrderCard({
   const [showCancelReason, setShowCancelReason] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [obsValue, setObsValue] = useState('');
+  const [showAbonoModal, setShowAbonoModal] = useState(false);
+  const [abonoValue, setAbonoValue] = useState('');
 
   const deliveryDate = new Date(order.deliveryDate);
   const timeRemaining = formatDistanceToNow(deliveryDate, { addSuffix: true, locale: es });
@@ -59,6 +63,30 @@ export function OrderCard({
       setObsValue('');
     }
   };
+
+  const handleAbonoSubmit = () => {
+    const amount = parseFloat(abonoValue);
+    if (!isNaN(amount) && amount > 0) {
+      onStatusChange(order.id, 'en_proceso'); // Placeholder or specific financial update
+      // Logic handled via order context update
+      const newTotal = order.depositAmount + amount;
+      (window as any).dispatchEvent(new CustomEvent('update-order-field', { 
+        detail: { id: order.id, fields: { depositAmount: newTotal } } 
+      }));
+      setAbonoValue('');
+      setShowAbonoModal(false);
+      triggerHaptic('success');
+    }
+  };
+
+  const isWithinLastYear = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    return date > oneYearAgo;
+  };
+
+  const showPhotos = isWithinLastYear(order.createdAt);
 
   return (
     <motion.div 
@@ -121,7 +149,7 @@ export function OrderCard({
         ))}
       </div>
 
-      {order.photos && order.photos.length > 0 && (
+      {showPhotos && order.photos && order.photos.length > 0 && (
         <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar">
           {order.photos.map((p, i) => (
             <img 
@@ -136,13 +164,16 @@ export function OrderCard({
       )}
 
       {/* Financial Bar */}
-      <div className="mx-5 my-3 grid grid-cols-3 p-3 rounded-2xl bg-black/30 border border-white/5 divide-x divide-white/10">
+      <div className="mx-5 my-3 grid grid-cols-3 p-3 rounded-2xl bg-black/30 border border-white/5 divide-x divide-white/10 group/finance relative">
         <div className="flex flex-col px-2">
           <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Total</span>
           <span className="text-xs font-black text-slate-200 tracking-tight">$ {order.totalCost.toLocaleString()}</span>
         </div>
-        <div className="flex flex-col px-4 text-center">
-          <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Abono</span>
+        <div className="flex flex-col px-4 text-center cursor-pointer hover:bg-emerald-500/5 transition-colors rounded-lg" onClick={() => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && setShowAbonoModal(true)}>
+          <div className="flex items-center justify-center gap-1">
+            <span className="text-[0.6rem] text-emerald-500 font-bold uppercase tracking-widest">Abono</span>
+            {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && <PlusCircle size={8} className="text-emerald-500" />}
+          </div>
           <span className="text-xs font-black text-emerald-400/90 tracking-tight">$ {order.depositAmount.toLocaleString()}</span>
         </div>
         <div className="flex flex-col px-2 text-right">
@@ -370,6 +401,46 @@ export function OrderCard({
               >
                 Confirmar Cancelación
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Abono Modal Overlay */}
+      <AnimatePresence>
+        {showAbonoModal && (
+          <div className="fixed inset-0 z-[10003] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAbonoModal(false)} className="absolute inset-0 bg-black/90 backdrop-blur-xl" />
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="relative bg-[#1a1622] p-8 rounded-[40px] border border-emerald-500/10 shadow-2xl text-left max-w-sm w-full">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-6">
+                <DollarSign size={24} />
+              </div>
+              <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tight">Registrar Nuevo Abono</h3>
+              <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-6">La información financiera se actualizará automáticamente</p>
+              
+              <div className="relative mb-8">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                <input
+                  type="number"
+                  autoFocus
+                  value={abonoValue}
+                  onChange={e => setAbonoValue(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl pl-8 pr-4 py-4 text-xl font-black text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 placeholder:text-slate-800 transition-all font-mono"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setShowAbonoModal(false)} className="flex-1 py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+                  Cancelar
+                </button>
+                <button 
+                  disabled={!abonoValue || parseFloat(abonoValue) <= 0}
+                  onClick={handleAbonoSubmit}
+                  className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${abonoValue && parseFloat(abonoValue) > 0 ? 'bg-emerald-500 text-slate-950 shadow-xl shadow-emerald-500/20' : 'bg-white/5 text-slate-700 border border-white/5 cursor-not-allowed'}`}
+                >
+                  Confirmar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
