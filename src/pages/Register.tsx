@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { Eye, EyeOff, ChevronLeft, UserPlus, Mail, User, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { HoneypotField } from '../components/HoneypotField';
 import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 
 export default function Register() {
-  const { signUp, isFirstUser } = useAuth();
+  const { signUp, isFirstUser, user } = useAuth();
   const navigate = useNavigate();
+  
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -68,7 +73,7 @@ export default function Register() {
         ? '¡Bienvenido! Eres el primer usuario del sistema y has sido configurado como Administrador Maestro con todos los privilegios.' 
         : 'Registro exitoso. Tu cuenta ha sido creada. Por favor inicia sesión para completar tu perfil.'
       );
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (err: any) {
       triggerHaptic('error');
       if (err.message?.includes('already registered')) {
