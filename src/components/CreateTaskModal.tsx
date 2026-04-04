@@ -96,7 +96,6 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
 
     onSave({
       ...data,
-      id: Date.now().toString(),
       status: 'accepted',
       isShared: (data.group_ids || []).length > 0,
       groupId: (data.group_ids || [])[0] || undefined,

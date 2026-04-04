@@ -357,7 +357,10 @@ export default function Tasks() {
           {dailyTasks.length === 0 && dailyOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl text-center">
               <Clock className="mb-4 opacity-10" size={48} />
-              <p className="text-sm text-slate-500 font-medium whitespace-pre-wrap">Sin actividades para el\n{format(selectedDate, 'PPP', { locale: es })}</p>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed uppercase tracking-tighter">
+                Sin actividades para el<br />
+                {format(selectedDate, 'PPP', { locale: es })}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

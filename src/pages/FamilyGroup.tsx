@@ -108,10 +108,14 @@ export default function FamilyGroup() {
   };
 
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return userDirectory.filter(u => 
-      (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-       u.email?.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    const pool = searchQuery.trim() 
+      ? userDirectory.filter(u => 
+          (u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+           u.email?.toLowerCase().includes(searchQuery.toLowerCase()))
+        )
+      : userDirectory;
+
+    return pool.filter(u => 
       !memberships.some(m => m.groupId === selectedGroup?.id && m.userId === u.id)
     ).slice(0, 5);
   }, [searchQuery, userDirectory, memberships, selectedGroup]);
