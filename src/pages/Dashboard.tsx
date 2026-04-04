@@ -322,7 +322,7 @@ export default function Dashboard() {
                   <div key={i} className="flex justify-between items-center bg-black/20 p-4 rounded-2xl border border-white/5 hover:border-purple-500/20 transition-all group">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black group-hover:scale-110 transition-transform">
-                        {p.label.charAt(0).toUpperCase()}
+                        {(p.label || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <span className="text-sm font-bold text-slate-300 block">@{p.label}</span>

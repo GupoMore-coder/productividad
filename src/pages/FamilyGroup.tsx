@@ -227,7 +227,7 @@ export default function FamilyGroup() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-purple-400 text-lg font-black">
-                        {g.name.charAt(0).toUpperCase()}
+                        {(g.name || 'G').charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <h4 className="text-white font-bold leading-tight tracking-tight">{g.name}</h4>
@@ -361,7 +361,7 @@ export default function FamilyGroup() {
                 {approvedMembers.map(m => (
                   <div key={m.userId} className="bg-white/[0.02] border border-white/5 p-4 rounded-[28px] flex items-center gap-4 hover:border-white/10 transition-colors group">
                     <div className="w-10 h-10 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-purple-400/50 text-[0.65rem] font-black group-hover:text-purple-400 transition-colors">
-                      {m.userId.charAt(0).toUpperCase()}
+                      {(m.userId || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-bold text-white tracking-tight">@{m.userId.split('@')[0]}</div>

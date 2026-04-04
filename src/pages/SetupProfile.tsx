@@ -106,7 +106,7 @@ export default function SetupProfile() {
                 <img src={avatar} className="w-full h-full object-cover" alt="Avatar" />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950">
-                  {(fullName || user.username).charAt(0).toUpperCase()}
+                  {(fullName || user?.username || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
             </div>

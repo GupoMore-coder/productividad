@@ -181,7 +181,7 @@ export default function Profile() {
                 <img src={avatar} alt={user.username} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950">
-                  {(fullName || user.username).charAt(0).toUpperCase()}
+                  {(fullName || user?.username || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
             </motion.div>
