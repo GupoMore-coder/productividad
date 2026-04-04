@@ -37,7 +37,7 @@ export default function Profile() {
   const [cedula, setCedula] = useState(user?.cedula || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [birthDate, setBirthDate] = useState(user?.birth_date || '');
-  const [avatar, setAvatar] = useState(user?.avatar || '👤');
+  const [avatar, setAvatar] = useState(user?.avatar || '');
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -52,7 +52,6 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  const emoticons = ['👤', '👔', '👩‍💼', '👨‍💻', '👩‍🎨', '👷', '👨‍⚕️', '👸', '🤴', '🚀', '⭐', '🌈'];
 
   useEffect(() => {
     if (user) {
@@ -61,7 +60,7 @@ export default function Profile() {
       setCedula(user.cedula || '');
       setPhone(user.phone || '');
       setBirthDate(user.birth_date || '');
-      setAvatar(user.avatar || '👤');
+      setAvatar(user.avatar || '');
     }
   }, [user]);
 
@@ -176,12 +175,14 @@ export default function Profile() {
               whileHover={{ scale: 1.25, rotate: 2 }}
               whileTap={{ scale: 0.9 }}
               transition={{ type: "spring", stiffness: 300, damping: 15 }}
-              className="w-32 h-32 bg-black/40 rounded-[40px] border-4 border-purple-500/30 flex items-center justify-center text-6xl shadow-2xl overflow-hidden shadow-purple-500/10 group-hover:border-purple-500 transition-colors"
+              className="w-32 h-32 bg-black/40 rounded-[40px] border-4 border-[#d4bc8f]/30 flex items-center justify-center text-5xl font-black shadow-2xl overflow-hidden shadow-amber-500/10 group-hover:border-[#d4bc8f] transition-all duration-500"
             >
               {avatar.length > 10 ? (
                 <img src={avatar} alt={user.username} className="w-full h-full object-cover" />
               ) : (
-                <span>{avatar}</span>
+                <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950">
+                  {(fullName || user.username).charAt(0).toUpperCase()}
+                </div>
               )}
             </motion.div>
             <label className="absolute -bottom-2 -right-2 p-3 bg-purple-500 text-slate-900 rounded-2xl shadow-xl cursor-pointer hover:scale-110 active:scale-90 transition-all border-4 border-[#1a1622]">
@@ -200,17 +201,6 @@ export default function Profile() {
             </span>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-2.5 mt-8 max-w-[280px]">
-            {emoticons.map(e => (
-              <button 
-                key={e} 
-                onClick={() => { setAvatar(e); handleAction('light'); }}
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90 border-2 ${avatar === e ? 'border-purple-500 bg-purple-500/20 shadow-lg shadow-purple-500/10' : 'border-white/5 bg-white/5 hover:border-white/20'}`}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
         </section>
 
         {/* Notifications */}

@@ -110,8 +110,20 @@ export default function Navigation() {
           </NavLink>
 
           <NavLink to="/profile" style={getNavStyle} title="Mi Perfil">
-             <div style={{ position: 'relative', width: '22px', height: '22px', borderRadius: '11px', overflow: 'hidden', border: '1px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>
-                {user?.avatar && user.avatar.length > 10 ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user?.avatar || (user?.username || 'U').charAt(0).toUpperCase())}
+             <div style={{ 
+               position: 'relative', width: '22px', height: '22px', borderRadius: '11px', 
+               overflow: 'hidden', border: '1px solid var(--accent-color)', 
+               display: 'flex', alignItems: 'center', justifyContent: 'center', 
+               fontSize: '9px', fontWeight: 900,
+               background: user?.avatar && user.avatar.length > 10 ? 'transparent' : 'linear-gradient(135deg, #d4bc8f, #b39063)'
+             }}>
+                {user?.avatar && user.avatar.length > 10 ? (
+                  <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ color: '#1a1622' }}>
+                    {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
                 {(() => {
                     if (!user?.birth_date) return false;
                     const bday = new Date(user.birth_date + 'T12:00:00');

@@ -376,7 +376,13 @@ export default function AdminUsers() {
                        className="w-12 h-12 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-xl text-purple-400 overflow-hidden group-hover:border-purple-500/40 transition-all font-black"
                        aria-label="Ver o quitar foto"
                      >
-                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" /> : (u.avatar || u.username.charAt(0).toUpperCase())}
+                        {u.avatar && u.avatar.length > 10 ? (
+                          <img src={u.avatar} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950">
+                            {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
+                          </div>
+                        )}
                      </button>
                   </td>
                   <td className="px-6 py-4">

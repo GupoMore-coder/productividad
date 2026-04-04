@@ -16,11 +16,9 @@ export default function SetupProfile() {
   const [cedula, setCedula] = useState('');
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [avatar, setAvatar] = useState('👤');
+  const [avatar, setAvatar] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const emoticons = ['👤', '👔', '👩‍💼', '👨‍💻', '👩‍🎨', '👷', '👨‍⚕️', '👸', '🤴', '🚀', '⭐', '🌈'];
 
   useEffect(() => {
     if (!user || user.needsSetup === false) {
@@ -103,8 +101,14 @@ export default function SetupProfile() {
           </button>
           
           <div className="inline-block relative mb-6">
-            <div className="w-24 h-24 bg-black/40 rounded-[32px] border-4 border-[#d4bc8f] flex items-center justify-center text-4xl shadow-2xl overflow-hidden shadow-amber-500/10">
-              {avatar.length > 10 ? <img src={avatar} className="w-full h-full object-cover" alt="Avatar" /> : avatar}
+            <div className="w-24 h-24 bg-black/40 rounded-[32px] border-4 border-[#d4bc8f] flex items-center justify-center text-3xl font-black shadow-2xl overflow-hidden shadow-amber-500/10 transition-all duration-500">
+              {avatar.length > 10 ? (
+                <img src={avatar} className="w-full h-full object-cover" alt="Avatar" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950">
+                  {(fullName || user.username).charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <label className="absolute -bottom-2 -right-2 p-2 bg-[#d4bc8f] text-slate-900 rounded-xl shadow-xl cursor-pointer hover:scale-110 active:scale-95 transition-all border-4 border-[#1a1622]">
               <Camera size={16} />
@@ -203,23 +207,6 @@ export default function SetupProfile() {
             />
           </div>
 
-          <div className="space-y-3 pt-2">
-            <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Elige un Identificador Visual</label>
-            <div className="flex flex-wrap justify-center gap-2">
-              {emoticons.map(e => (
-                <button 
-                  key={e} 
-                  type="button"
-                  onClick={() => { setAvatar(e); triggerHaptic('light'); }}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all active:scale-90 border-2 ${avatar === e ? 'border-[#d4bc8f] bg-[#d4bc8f]/10 shadow-lg shadow-amber-500/10' : 'border-white/5 bg-white/5 hover:border-white/10'}`}
-                  aria-label={`Seleccionar avatar ${e}`}
-                  title={`Avatar ${e}`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <button 
             type="submit" 
