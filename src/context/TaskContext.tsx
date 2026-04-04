@@ -126,8 +126,20 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (isSupabaseConfigured) {
         const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
-        if (error) throw error;
-        return data; // map is done in query
+        if (error) {
+          console.error('Error inserting task:', error);
+          throw error;
+        }
+        // Map keys to camelCase for UI consistency
+        return {
+          ...data,
+          userId: data.user_id,
+          isShared: data.is_shared,
+          createdBy: data.created_by,
+          failureReason: data.failure_reason,
+          imageUrl: data.image_url,
+          isGroupTask: data.user_id !== user?.id
+        };
       } else {
         return { ...newTask, id: Math.random().toString(36).substring(7) };
       }

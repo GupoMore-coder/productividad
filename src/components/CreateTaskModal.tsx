@@ -16,9 +16,10 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (task: any) => void;
+  initialDate?: string;
 }
 
-export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskModalProps) {
+export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate }: CreateTaskModalProps) {
   const { groups, memberships } = useGroups();
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
@@ -36,7 +37,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
     defaultValues: {
       title: '',
       description: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
+      date: initialDate || format(new Date(), 'yyyy-MM-dd'),
       time: format(new Date(), 'HH:mm'),
       priority: 'media',
       group_ids: [],
@@ -55,10 +56,19 @@ export default function CreateTaskModal({ isOpen, onClose, onSave }: CreateTaskM
 
   useEffect(() => {
     if (isOpen) {
-      reset();
+      reset({
+        title: '',
+        description: '',
+        date: initialDate || format(new Date(), 'yyyy-MM-dd'),
+        time: format(new Date(), 'HH:mm'),
+        priority: 'media',
+        group_ids: [],
+        isShared: false,
+        imageUrl: ''
+      });
       setUploading(false);
     }
-  }, [isOpen, reset]);
+  }, [isOpen, reset, initialDate]);
 
   const toggleGroup = (id: string) => {
     triggerHaptic('light');

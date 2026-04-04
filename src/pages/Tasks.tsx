@@ -439,7 +439,12 @@ export default function Tasks() {
       {showAnalytics && <TaskAnalytics tasks={tasks} onClose={() => setShowAnalytics(false)} />}
       {showDirectory && <UserDirectory onClose={() => setShowDirectory(false)} />}
       
-      <CreateTaskModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSave={handleAddTask} />
+      <CreateTaskModal 
+        isOpen={showCreateModal} 
+        onClose={() => setShowCreateModal(false)} 
+        onSave={handleAddTask} 
+        initialDate={dateStr}
+      />
       <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       <WelcomeDailyModal isOpen={showDailyModal} onClose={() => setShowDailyModal(false)} personalTasks={tasks.filter(t => !t.groupId && t.userId === myUserId && !t.completed && t.date < todayKey)} groupTasks={tasks.filter(t => t.groupId && myApprovedGroupIds.includes(t.groupId) && !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired')} onMigrateToToday={(tid) => updateTask(tid, { date: todayKey })} onReschedule={(tid, d) => updateTask(tid, { date: d })} />
