@@ -63,6 +63,8 @@ interface OrderContextType {
   loading: boolean;
   createOrder: (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'createdBy' | 'status' | 'pendingBalance' | 'history'>) => Promise<ServiceOrder>;
   updateOrder: (id: string, updates: Partial<ServiceOrder> & { newObservation?: string }) => Promise<ServiceOrder>;
+  registerDeposit: (id: string, amount: number) => Promise<void>;
+  reactivateOrder: (id: string) => Promise<void>;
   downloadOrderPdf: (orderId: string) => Promise<void>;
 }
 
@@ -296,6 +298,73 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
+  const registerDeposit = async (id: string, amount: number) => {
+    const order = (queryClient.getQueryData(['orders']) as ServiceOrder[])?.find(o => o.id === id);
+    if (!order) return;
+    
+    const newTotalDeposit = order.depositAmount + amount;
+    const newBalance = Math.max(0, order.totalCost - newTotalDeposit);
+    const uName = user?.full_name || user?.username || user?.email || 'Sistema';
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ 
+          deposit_amount: newTotalDeposit, 
+          pending_balance: newBalance,
+          payment_status: newBalance === 0 ? 'pagado' : 'abono'
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'financiero',
+        user_name: uName,
+        description: `Abono recibido: $${amount.toLocaleString()} • Total abonado: $${newTotalDeposit.toLocaleString()}`
+      });
+    } else {
+      // Mock logic
+      const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
+      const idx = mockOrders.findIndex(o => o.id === id);
+      if (idx !== -1) {
+        mockOrders[idx].depositAmount = newTotalDeposit;
+        mockOrders[idx].pendingBalance = newBalance;
+        mockOrders[idx].paymentStatus = newBalance === 0 ? 'pagado' : 'abono';
+        await mockStorage.setItem('mock_orders', mockOrders);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
+  const reactivateOrder = async (id: string) => {
+    if (!user?.isSuperAdmin) {
+      alert("Solo el Administrador Maestro puede restablecer órdenes finalizadas.");
+      return;
+    }
+    const uName = user?.full_name || user?.username || user?.email || 'Sistema';
+    
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ status: 'recibida', completed_at: null })
+        .eq('id', id);
+      
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: uName,
+        description: `Orden restablecida a modo ACTIVO por ${uName}`
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('medium');
+  };
+
   // Listener para capturar motivos de cancelación desde UI
   useEffect(() => {
     const handleCancelReason = (e: any) => {
@@ -331,99 +400,99 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { default: jsPDF } = await import('jspdf');
       const QRCode = await import('qrcode');
       
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const trackingUrl = `${window.location.origin}/status/${orderId}`;
       const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1 });
 
-      // -- Color Palette --
       const COLORS = {
-        DARK_TEXT: [15, 23, 42],
         DEEP_BG: [10, 10, 15],
-        PURPLE: [124, 58, 237],
+        PURPLE: [147, 51, 234],
         AMBER: [245, 158, 11],
         EMERALD: [16, 185, 129],
+        SLATE_900: [15, 23, 42],
         SLATE_600: [71, 85, 105],
-        SLATE_200: [226, 232, 240],
+        SLATE_50: [248, 250, 252],
         WHITE: [255, 255, 255]
       };
 
-      // 1. Premium Executive Header
+      // --- HEADER: DARK BRANDED ---
       doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.rect(0, 0, 210, 60, 'F');
-      
-      doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.setLineWidth(1);
-      doc.line(10, 58, 200, 58);
+      doc.rect(0, 0, 210, 50, 'F');
+      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.rect(0, 48, 210, 2, 'F');
 
-      // Logo & Brand
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(28);
+      // Logo
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.text("M", 20, 32);
-      doc.setFontSize(22);
-      doc.text("GRUPO MORE", 40, 28);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(32);
+      doc.text("M", 15, 28);
+      
+      doc.setFontSize(20);
+      doc.text("GRUPO MORE", 30, 24);
       doc.setFontSize(8);
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("PRECISIÓN · CALIDAD · IDENTIDAD CLOUD", 40, 35);
+      doc.text("ALTA PRECISIÓN · IDENTIDAD CLOUD · PERSONALIZACIÓN", 30, 30);
 
-      // Order ID Accent
-      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.1);
-      doc.roundedRect(155, 12, 40, 35, 3, 3, 'F');
+      // Order Info Box
+      doc.setFillColor(255, 255, 255, 0.05);
+      doc.roundedRect(150, 10, 50, 30, 3, 3, 'F');
+      doc.setTextColor(200, 200, 200);
+      doc.setFontSize(7);
+      doc.text("ORDEN DE SERVICIO", 155, 18);
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.setFontSize(7);
-      doc.text("ORDEN DE SERVICIO No.", 159, 20);
-      doc.setFontSize(16);
-      doc.text(`#${orderId}`, 159, 32);
-      doc.setFontSize(7);
+      doc.setFontSize(14);
+      doc.text(`#${orderId.slice(-6).toUpperCase()}`, 155, 26);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text(order.status.toUpperCase(), 159, 41);
+      doc.setFontSize(8);
+      doc.text(order.status.toUpperCase(), 155, 34);
 
-      // 2. Client Section
-      let y = 75;
-      doc.setFillColor(245, 245, 250);
-      doc.roundedRect(10, y-5, 190, 40, 4, 4, 'F');
+      // --- CLIENT & RESPONSIBLE SECTION ---
+      let y = 65;
+      doc.setFillColor(COLORS.SLATE_50[0], COLORS.SLATE_50[1], COLORS.SLATE_50[2]);
+      doc.roundedRect(10, y - 5, 190, 35, 4, 4, 'F');
       
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("DETALLES DEL CLIENTE Y RESPONSABLE", 15, y);
+      doc.text("DATOS DE LA ORDEN", 15, y);
 
       y += 10;
-      doc.setTextColor(COLORS.DARK_TEXT[0], COLORS.DARK_TEXT[1], COLORS.DARK_TEXT[2]);
       doc.setFontSize(10);
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
       doc.text("CLIENTE:", 15, y);
       doc.setFont("helvetica", "normal");
-      doc.text(order.customerName.toUpperCase(), 45, y);
-      doc.text("CONTACTO:", 110, y);
-      doc.text(order.customerPhone, 140, y);
+      doc.text(order.customerName.toUpperCase(), 40, y);
       
+      const phoneLabelX = 115;
+      doc.setFont("helvetica", "bold");
+      doc.text("CONTACTO:", phoneLabelX, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerPhone, phoneLabelX + 25, y);
+
       y += 8;
       doc.setFont("helvetica", "bold");
       doc.text("OPERADOR:", 15, y);
       doc.setFont("helvetica", "normal");
-      doc.text(order.responsible.toUpperCase(), 45, y);
-      doc.text("ENTREGA:", 110, y);
+      doc.text(order.responsible.toUpperCase(), 40, y);
+      
+      const entregaLabelX = 115;
       doc.setFont("helvetica", "bold");
+      doc.text("ENTREGA:", entregaLabelX, y);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text(format(new Date(order.deliveryDate), "dd/MM/yyyy - 17:00", { locale: es }), 140, y);
+      doc.text(format(new Date(order.deliveryDate), "dd/MM/yyyy HH:mm", { locale: es }), entregaLabelX + 25, y);
 
-      // 3. Services & Notes
+      // --- SERVICES ---
       y += 25;
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("SERVICIOS Y ESPECIFICACIONES", 15, y);
-      doc.setDrawColor(COLORS.SLATE_200[0], COLORS.SLATE_200[1], COLORS.SLATE_200[2]);
-      doc.line(15, y+2, 195, y+2);
+      doc.text("ESPECIFICACIONES DEL SERVICIO", 15, y);
+      doc.setDrawColor(230, 230, 235);
+      doc.line(15, y + 2, 195, y + 2);
 
       y += 10;
-      doc.setTextColor(COLORS.DARK_TEXT[0], COLORS.DARK_TEXT[1], COLORS.DARK_TEXT[2]);
-      doc.setFontSize(10);
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      doc.setFontSize(11);
       const servicesText = order.services.join(" + ");
       const splitServices = doc.splitTextToSize(servicesText, 175);
       doc.text(splitServices, 15, y);
@@ -432,80 +501,90 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (order.notes) {
         doc.setFontSize(8);
         doc.setFont("helvetica", "italic");
-        doc.setTextColor(100, 100, 100);
-        const splitNotes = doc.splitTextToSize(`Nota: ${order.notes}`, 175);
+        doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
+        const splitNotes = doc.splitTextToSize(`Requerimientos: ${order.notes}`, 175);
         doc.text(splitNotes, 15, y);
         y += (splitNotes.length * 5) + 10;
       }
 
-      // 4. Financial Summary
-      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.roundedRect(10, y, 190, 30, 4, 4, 'F');
+      // --- FINANCIAL CARD ---
+      y += 5;
+      doc.setFillColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      doc.roundedRect(10, y, 190, 25, 4, 4, 'F');
       
-      let fy = y + 10;
+      let fy = y + 8;
       doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(150, 150, 150);
-      doc.text("TOTAL ESTIMADO", 25, fy);
-      doc.text("ABONO RECIBIDO", 85, fy);
-      doc.text("SALDO PENDIENTE", 145, fy);
+      doc.setTextColor(150, 150, 160);
+      doc.text("VALOR TOTAL", 20, fy);
+      doc.text("PAGADO ACTUAL", 85, fy);
+      doc.text("SALDO A PAGAR", 150, fy);
 
       fy += 10;
       doc.setFontSize(14);
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.text(`$ ${order.totalCost.toLocaleString()}`, 25, fy);
+      doc.text(`$ ${order.totalCost.toLocaleString()}`, 20, fy);
       doc.setTextColor(COLORS.EMERALD[0], COLORS.EMERALD[1], COLORS.EMERALD[2]);
       doc.text(`$ ${order.depositAmount.toLocaleString()}`, 85, fy);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text(`$ ${order.pendingBalance.toLocaleString()}`, 145, fy);
+      doc.text(`$ ${order.pendingBalance.toLocaleString()}`, 150, fy);
 
-      // 5. History Section (Premium List)
-      y += 45;
-      if (y > 200) { doc.addPage(); y = 20; }
+      // --- AUDIT TRAIL (HYSTORY) ---
+      y += 40;
+      if (y > 230) { doc.addPage(); y = 25; }
       
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("TRAZABILIDAD Y NOVEDADES (HISTORIAL)", 15, y);
-      doc.line(15, y+2, 195, y+2);
+      doc.text("TRAZABILIDAD Y REGISTROS DE SEGURIDAD", 15, y);
+      doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.3);
+      doc.line(15, y + 2, 195, y + 2);
       
       y += 10;
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       
-      order.history.slice().reverse().forEach((log) => {
-        if (y > 270) { doc.addPage(); y = 20; }
+      // Detailed Table Structure
+      const history = order.history.slice().reverse();
+      history.forEach((log) => {
+        if (y > 275) { doc.addPage(); y = 25; }
         
-        // Date bullet
-        doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-        doc.circle(18, y-1, 1, 'F');
+        // Background row for alternates
+        doc.setFillColor(250, 250, 255);
+        doc.rect(12, y - 4, 186, 8, 'F');
         
         doc.setFont("helvetica", "bold");
-        doc.setTextColor(COLORS.DARK_TEXT[0], COLORS.DARK_TEXT[1], COLORS.DARK_TEXT[2]);
+        doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
         const dateStr = format(new Date(log.timestamp), "dd/MM HH:mm", { locale: es });
-        doc.text(dateStr, 22, y);
+        doc.text(dateStr, 15, y + 1);
         
-        doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
-        doc.text(`[${log.userName.toUpperCase()}]`, 45, y);
+        doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+        doc.text(`[${log.userName.toUpperCase()}]`, 35, y + 1);
         
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(50, 50, 50);
-        const splitDesc = doc.splitTextToSize(log.description, 130);
-        doc.text(splitDesc, 72, y);
+        doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
+        const descText = log.description;
+        const splitDesc = doc.splitTextToSize(descText, 125);
+        doc.text(splitDesc, 65, y + 1);
         
-        y += (splitDesc.length * 5) + 3;
+        y += (splitDesc.length * 4) + 4;
       });
 
-      // Final Footer with QR
-      y += 15;
-      if (y > 240) { doc.addPage(); y = 20; }
+      // --- FOOTER ---
+      const footY = 265;
+      doc.setFillColor(COLORS.SLATE_50[0], COLORS.SLATE_50[1], COLORS.SLATE_50[2]);
+      doc.rect(0, footY - 5, 210, 40, 'F');
       
-      doc.addImage(qrDataUrl, 'PNG', 15, y, 25, 25);
+      doc.addImage(qrDataUrl, 'PNG', 15, footY, 20, 20);
       doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text("ESCANEÉ PARA SEGUIMIENTO CLOUD EN TIEMPO REAL", 45, y + 10);
-      doc.text("ESTE DOCUMENTO ES UNA REPRESENTACIÓN DIGITAL DE SEGURIDAD.", 45, y + 14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      doc.text("VALIDACIÓN DIGITAL GRUPO MORE", 40, footY + 6);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
+      doc.text("Este documento representa el estado actual de la orden en nube.", 40, footY + 10);
+      doc.text("Escanee el código QR para verificar autenticidad y cambios en tiempo real.", 40, footY + 14);
 
-      doc.save(`ORDEN_${orderId}_GRUPO_MORE.pdf`);
+      doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');
     } catch (err) {
       console.error('Error generando PDF premium:', err);
@@ -514,7 +593,18 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <OrderContext.Provider value={{ orders, archivedOrders, serviceTypes, teamMembers, loading, createOrder, updateOrder, downloadOrderPdf }}>
+    <OrderContext.Provider value={{ 
+      orders, 
+      archivedOrders, 
+      serviceTypes, 
+      teamMembers, 
+      loading, 
+      createOrder, 
+      updateOrder, 
+      registerDeposit,
+      reactivateOrder,
+      downloadOrderPdf 
+    }}>
       {children}
     </OrderContext.Provider>
   );

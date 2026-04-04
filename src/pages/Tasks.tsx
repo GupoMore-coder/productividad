@@ -12,7 +12,8 @@ import {
   CalendarDays,
   LayoutGrid,
   Loader2,
-  ClipboardList
+  ClipboardList,
+  Smartphone
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -276,12 +277,12 @@ export default function Tasks() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 pb-32 animate-in fade-in duration-700">
-      <header className="flex items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
+    <div className="max-w-4xl mx-auto px-4 pt-4 pb-28 animate-in fade-in duration-700">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="group relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-purple-500 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-2xl cursor-pointer"
+            className="group relative w-12 h-12 rounded-xl overflow-hidden border-2 border-purple-500 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-xl cursor-pointer"
             onClick={() => { if (avatar.length > 10) setZoomedImg(avatar); }}
           >
             {avatar.length > 10 ? <img src={avatar} className="w-full h-full object-cover" alt="avatar" /> : avatar}
@@ -290,32 +291,34 @@ export default function Tasks() {
             )}
           </motion.div>
           <div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2">
+            <h2 className="text-lg font-black text-white flex items-center gap-1.5 tracking-tight line-clamp-1">
               Hola, {fullName.split(' ')[0]}
-              {isSameDay(parseISO(user?.birth_date || ''), new Date()) && <PartyPopper size={20} className="text-amber-400" />}
+              {isSameDay(parseISO(user?.birth_date || ''), new Date()) && <PartyPopper size={18} className="text-amber-400" />}
             </h2>
             <LedIndicator user={user} onLateAlert={() => setLateAlert(true)} />
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 justify-between sm:justify-end">
           {isInstallable && (
             <button 
               onClick={installApp}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-slate-900 font-black text-[0.6rem] uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-900 font-black text-[0.6rem] uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg active:scale-95"
             >
-              <Bell size={14} className="animate-bounce" /> Instalar App
+              <Smartphone size={12} className="animate-bounce" /> Instalar
             </button>
           )}
-          <button onClick={() => setShowDirectory(true)} className="p-2.5 rounded-xl bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 hover:border-purple-500/20 transition-all shadow-xl">
-            <Users size={20} />
-          </button>
-          <button onClick={() => setShowHistory(true)} className="p-2.5 rounded-xl bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 hover:border-purple-500/20 transition-all shadow-xl">
-            <History size={20} />
-          </button>
-          <button onClick={() => setIsHelpOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-500 text-slate-900 hover:bg-purple-400 font-black transition-all shadow-xl shadow-purple-500/20">
-            ?
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowDirectory(true)} className="p-2 rounded-lg bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 transition-all">
+              <Users size={18} />
+            </button>
+            <button onClick={() => setShowHistory(true)} className="p-2 rounded-lg bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 transition-all">
+              <History size={18} />
+            </button>
+            <button onClick={() => setIsHelpOpen(true)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-purple-500 text-slate-900 font-black transition-all">
+              ?
+            </button>
+          </div>
         </div>
       </header>
 
@@ -381,22 +384,24 @@ export default function Tasks() {
         </section>
 
         {/* Daily Tasks */}
-        <section>
-          <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
-            <h3 className="text-lg font-black text-white flex items-center gap-2 tracking-tight">
-              <CalendarDays size={20} className="text-purple-500" />
+        <section className="mb-0">
+          <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+            <h3 className="text-base font-black text-white flex items-center gap-2 tracking-tight">
+              <CalendarDays size={18} className="text-purple-500" />
               Agenda del Día
             </h3>
-            <button onClick={() => setShowAnalytics(true)} className="text-[0.65rem] font-bold text-slate-500 hover:text-purple-400 transition-colors uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
-              <LayoutGrid size={12} className="inline mr-1" /> Análisis
+            <button onClick={() => setShowAnalytics(true)} className="text-[0.6rem] font-bold text-slate-500 hover:text-purple-400 transition-colors uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md border border-white/5">
+              <LayoutGrid size={10} className="inline mr-1" /> Análisis
             </button>
           </div>
 
           {dailyTasks.length === 0 && dailyOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-6 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl text-center">
-              <Clock className="mb-4 opacity-10" size={48} />
-              <p className="text-sm text-slate-500 font-medium leading-relaxed uppercase tracking-tighter">
-                Sin actividades para el<br />
+            <div className="flex flex-col items-center justify-center py-10 px-6 bg-white/[0.01] border border-dashed border-white/10 rounded-2xl text-center">
+              <Clock className="mb-3 opacity-10" size={32} />
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-tighter">
+                Sin actividades para hoy
+              </p>
+              <p className="text-[0.65rem] text-slate-600 mt-1">
                 {format(selectedDate, 'PPP', { locale: es })}
               </p>
             </div>

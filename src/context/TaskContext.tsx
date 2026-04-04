@@ -110,18 +110,21 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 3. Mutations
   const addTaskMutation = useMutation({
     mutationFn: async (taskData: Partial<Task>) => {
+      // 1. Sanitize for Supabase (Snake Case)
       const newTask: any = {
         title: taskData.title || '',
         date: taskData.date || new Date().toISOString().split('T')[0],
         time: taskData.time || '12:00',
         priority: taskData.priority || 'media',
-        completed: false,
-        status: 'accepted',
-        user_id: user?.id,
-        created_by: user?.id,
+        completed: taskData.completed || false,
+        status: taskData.status || 'accepted',
+        user_id: taskData.userId || user?.id,
+        created_by: taskData.createdBy || user?.id,
         group_ids: taskData.group_ids || [],
         is_shared: taskData.isShared || false,
-        ...taskData
+        image_url: taskData.imageUrl || null,
+        description: taskData.description || null,
+        failure_reason: taskData.failureReason || null
       };
 
       if (isSupabaseConfigured) {

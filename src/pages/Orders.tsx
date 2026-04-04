@@ -16,7 +16,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export default function Orders() {
   const { user } = useAuth();
   usePageTitle('Gestión de Órdenes');
-  const { orders, updateOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
+  const { orders, updateOrder, registerDeposit, reactivateOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
@@ -299,6 +299,8 @@ export default function Orders() {
                 onEdit={handleEdit}
                 onDownloadPdf={handleDownloadPdf}
                 onAddObservation={handleObsAdd}
+                onRegisterDeposit={registerDeposit}
+                onReactivate={reactivateOrder}
                 isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas'}
                 isGenerating={isGeneratingPdf === order.id}
               />

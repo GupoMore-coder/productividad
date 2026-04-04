@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAuth } from '../../context/AuthContext';
 import { 
   Phone, 
   Clock, 
@@ -31,6 +32,8 @@ interface OrderCardProps {
   onEdit: (order: ServiceOrder) => void;
   onDownloadPdf: (order: ServiceOrder) => void;
   onAddObservation: (id: string, obs: string) => void;
+  onRegisterDeposit: (id: string, amount: number) => Promise<void>;
+  onReactivate: (id: string) => Promise<void>;
   isOverdue?: boolean;
   isGenerating?: boolean;
 }
@@ -41,9 +44,12 @@ export function OrderCard({
   onEdit, 
   onDownloadPdf, 
   onAddObservation,
+  onRegisterDeposit,
+  onReactivate,
   isOverdue,
   isGenerating
 }: OrderCardProps) {
+  const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -67,15 +73,9 @@ export function OrderCard({
   const handleAbonoSubmit = () => {
     const amount = parseFloat(abonoValue);
     if (!isNaN(amount) && amount > 0) {
-      onStatusChange(order.id, 'en_proceso'); // Placeholder or specific financial update
-      // Logic handled via order context update
-      const newTotal = order.depositAmount + amount;
-      (window as any).dispatchEvent(new CustomEvent('update-order-field', { 
-        detail: { id: order.id, fields: { depositAmount: newTotal } } 
-      }));
+      onRegisterDeposit(order.id, amount);
       setAbonoValue('');
       setShowAbonoModal(false);
-      triggerHaptic('success');
     }
   };
 
@@ -256,6 +256,14 @@ export function OrderCard({
                 </button>
               )}
 
+              {/* Edit Button */}
+              <button 
+                onClick={() => onEdit(order)}
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all shadow-xl"
+              >
+                <Edit3 size={18} />
+              </button>
+
               {/* Cancel Button */}
               <button 
                 onClick={() => { triggerHaptic('warning'); setShowCancelConfirm(true); }}
@@ -266,9 +274,21 @@ export function OrderCard({
               </button>
             </>
           ) : (
-             <div className="w-full text-center py-2 bg-white/5 rounded-xl border border-white/5">
-                <span className="text-[0.6rem] text-slate-500 font-black tracking-[0.2em] uppercase">Orden Finalizada - Solo Lectura</span>
-             </div>
+            <div className="flex flex-1 items-center justify-between gap-3 px-2 min-h-[44px]">
+              <div className="flex items-center gap-2 text-[0.65rem] font-bold text-slate-500 uppercase tracking-widest">
+                <AlertTriangle size={14} className="text-amber-500/50" />
+                Historial - Solo Lectura
+              </div>
+              
+              {user?.isSuperAdmin && (
+                <button 
+                  onClick={() => { triggerHaptic('medium'); onReactivate(order.id); }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 font-black text-[0.6rem] uppercase tracking-widest hover:bg-purple-500/20 transition-all active:scale-95 shadow-lg shadow-purple-500/10"
+                >
+                  <RefreshCw size={14} /> Restablecer Activa
+                </button>
+              )}
+            </div>
           )}
         </div>
 
