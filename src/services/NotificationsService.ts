@@ -47,6 +47,11 @@ export function hasNotificationPermission(): boolean {
   return typeof Notification !== 'undefined' && Notification.permission === 'granted';
 }
 
+export function getNotificationPermissionStatus(): 'default' | 'granted' | 'denied' | 'unsupported' {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  return Notification.permission as 'default' | 'granted' | 'denied';
+}
+
 // ── Schedule / Cancel ────────────────────────────────────────
 
 /**
