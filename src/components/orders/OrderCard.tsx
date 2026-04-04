@@ -85,9 +85,17 @@ export function OrderCard({
             <h3 className="text-lg font-semibold text-white truncate group-hover:translate-x-1 transition-transform duration-300">
               {order.customerName}
             </h3>
-            <div className="flex items-center gap-2 mt-1 text-slate-400">
-              <Phone size={14} className="text-purple-500/70" />
-              <span className="text-sm font-light">{order.customerPhone}</span>
+            <div className="flex flex-col gap-1 mt-2">
+              <div className="flex items-center gap-2 text-slate-400">
+                <Phone size={14} className="text-purple-500/70" />
+                <span className="text-sm font-light">{order.customerPhone}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-500">
+                <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center text-[0.5rem] font-black text-purple-400 border border-purple-500/20">
+                  {order.responsible.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-[0.65rem] font-bold uppercase tracking-widest truncate">R: {order.responsible}</span>
+              </div>
             </div>
           </div>
           

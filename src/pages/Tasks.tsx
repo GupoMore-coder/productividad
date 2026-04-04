@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   CalendarDays,
   LayoutGrid,
-  Loader2
+  Loader2,
+  ClipboardList
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +25,9 @@ import {
   cancelTaskNotifications, 
   scheduleLocalNotification 
 } from '../services/NotificationsService';
+
+import { useOrders } from '../context/OrderContext';
+import { usePWA } from '../hooks/usePWA';
 
 import CreateTaskModal from '../components/CreateTaskModal';
 import WelcomeDailyModal from '../components/WelcomeDailyModal';
@@ -87,6 +91,8 @@ export default function Tasks() {
   usePageTitle('Mi Agenda');
   const { groups, memberships } = useGroups();
   const { tasks, addTask, updateTask, loading: tasksLoading, hasMore, loadMore } = useTasks();
+  const { orders, loading: ordersLoading } = useOrders();
+  const { isInstallable, installApp } = usePWA();
   
   // Infinite Scroll Trigger
   const [scrollInView, setScrollInView] = useState(false);
@@ -173,6 +179,11 @@ export default function Tasks() {
   };
 
   const dailyTasks = tasks.filter((t) => t.date === dateStr && t.status !== 'pending_acceptance');
+  
+  const dailyOrders = orders.filter((o) => 
+    o.deliveryDate.startsWith(dateStr) && 
+    ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)
+  );
 
   // Scanner for alerts
   useEffect(() => {
@@ -209,7 +220,9 @@ export default function Tasks() {
     scheduleTaskNotifications(taskData);
   };
 
-  if (tasksLoading) return (
+  const loading = tasksLoading || ordersLoading;
+
+  if (loading) return (
     <div className="max-w-4xl mx-auto px-4 pt-6 pb-32 animate-in fade-in duration-500">
       <header className="flex justify-between items-center mb-8">
         <div className="flex gap-4">
@@ -262,6 +275,14 @@ export default function Tasks() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isInstallable && (
+            <button 
+              onClick={installApp}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-slate-900 font-black text-[0.6rem] uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20 active:scale-95"
+            >
+              <Bell size={14} className="animate-bounce" /> Instalar App
+            </button>
+          )}
           <button onClick={() => setShowDirectory(true)} className="p-2.5 rounded-xl bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 hover:border-purple-500/20 transition-all shadow-xl">
             <Users size={20} />
           </button>
@@ -333,13 +354,40 @@ export default function Tasks() {
             </button>
           </div>
 
-          {dailyTasks.length === 0 ? (
+          {dailyTasks.length === 0 && dailyOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl text-center">
               <Clock className="mb-4 opacity-10" size={48} />
               <p className="text-sm text-slate-500 font-medium whitespace-pre-wrap">Sin actividades para el\n{format(selectedDate, 'PPP', { locale: es })}</p>
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Service Orders - Highlighted style */}
+              {dailyOrders.map(order => (
+                <div key={order.id} className="relative group">
+                   <div className="absolute inset-0 bg-amber-500/5 rounded-2xl border border-amber-500/20 group-hover:bg-amber-500/10 transition-colors" />
+                   <div className="relative p-4 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                         <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
+                            <ClipboardList size={20} />
+                         </div>
+                         <div>
+                            <span className="text-[0.6rem] font-black text-amber-500 uppercase tracking-widest block mb-0.5">Orden de Servicio · {order.id}</span>
+                            <h4 className="text-sm font-bold text-white truncate">{order.customerName}</h4>
+                            <div className="flex items-center gap-2 text-[0.6rem] text-slate-500 font-medium uppercase mt-1">
+                               <span>{order.services.join(' + ')}</span>
+                               <span>•</span>
+                               <span className="text-amber-500/80">{order.status.replace('_', ' ')}</span>
+                            </div>
+                         </div>
+                      </div>
+                      <div className="text-right">
+                         <div className="text-xs font-black text-white">$ {order.totalCost.toLocaleString()}</div>
+                         <div className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">{order.deliveryDate.split('T')[1]}</div>
+                      </div>
+                   </div>
+                </div>
+              ))}
+
               {dailyTasks.map((task) => (
                 <TaskCard key={task.id} task={task} onToggleComplete={toggleTask} />
               ))}

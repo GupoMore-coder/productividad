@@ -214,7 +214,34 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                 </div>
                 <div className="space-y-2">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Costo Total ($)</label>
-                  <input {...register('totalCost', { valueAsNumber: true })} type="number" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white" />
+                  <input {...register('totalCost', { valueAsNumber: true })} type="number" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-purple-500/20" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Abono Inicial ($)</label>
+                  <input {...register('depositAmount', { valueAsNumber: true })} type="number" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-emerald-400 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Estado de Pago</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['pendiente', 'abono', 'pagado'] as const).map((status) => {
+                    const isSelected = watch('paymentStatus') === status;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => { setValue('paymentStatus', status); triggerHaptic('light'); }}
+                        className={`py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
+                          isSelected 
+                            ? status === 'pagado' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                            : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

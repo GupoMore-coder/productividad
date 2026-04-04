@@ -3,6 +3,9 @@ import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStorage } from '@/lib/storageService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { triggerHaptic } from '@/utils/haptics';
 
 export interface ServiceOrder {
   id: string;
@@ -321,151 +324,191 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { default: jsPDF } = await import('jspdf');
       const QRCode = await import('qrcode');
       
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
       const trackingUrl = `${window.location.origin}/status/${orderId}`;
-      const qrDataUrl = await QRCode.toDataURL(trackingUrl);
+      const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1 });
 
-      const PRIMARY_PURPLE = [124, 58, 237];
-      const SLATE_DARK = [15, 23, 42];
-      const SLATE_GRAY = [100, 116, 139];
+      // -- Color Palette --
+      const COLORS = {
+        DARK: [15, 23, 42],
+        PURPLE: [124, 58, 237],
+        AMBER: [245, 158, 11],
+        EMERALD: [16, 185, 129],
+        SLATE_600: [71, 85, 105],
+        SLATE_100: [241, 245, 249],
+        WHITE: [255, 255, 255]
+      };
 
-      doc.setFillColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-      doc.rect(0, 0, 210, 40, 'F');
+      // 1. Background Header
+      doc.setFillColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      doc.rect(0, 0, 210, 55, 'F');
       
+      // Accent line
+      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.rect(0, 55, 210, 1.5, 'F');
+
+      // 2. Logo & Brand
+      doc.setFillColor(40, 40, 60);
+      doc.roundedRect(15, 12, 22, 22, 5, 5, 'F');
       doc.setFont("helvetica", "bold");
       doc.setFontSize(22);
-      doc.setTextColor(255, 255, 255);
-      doc.text("ORDEN DE SERVICIO", 20, 20);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(PRIMARY_PURPLE[0], PRIMARY_PURPLE[1], PRIMARY_PURPLE[2]);
-      doc.text("GRUPO MORE - PRODUCTIVIDAD Y GESTIÓN", 20, 28);
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text("M", 21.5, 27);
 
+      doc.setFontSize(24);
+      doc.text("GRUPO MORE", 45, 24);
       doc.setFontSize(9);
-      doc.setTextColor(200, 200, 200);
-      doc.text(`ID: #${orderId.toString()}`, 20, 35);
-      doc.text(`FECHA: ${new Date().toLocaleDateString()}`, 80, 35);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.text("PRECISIÓN · CALIDAD · IDENTIDAD CLOUD", 45, 30);
 
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(165, 5, 35, 35, 3, 3, 'F');
-      doc.addImage(qrDataUrl, 'PNG', 167.5, 7.5, 30, 30);
-      doc.setFontSize(7);
-      doc.setTextColor(255, 255, 255);
-      doc.text("SEGUIMIENTO DIGITAL", 166, 44);
+      // 3. Order ID Box
+      doc.setFillColor(255, 255, 255, 0.05);
+      doc.roundedRect(155, 12, 40, 30, 4, 4, 'F');
+      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("ORDEN DE SERVICIO", 158, 18);
+      doc.setFontSize(18);
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text(`#${orderId}`, 158, 30);
 
-      let y = 60;
-      doc.setFontSize(12);
-      doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-      doc.text("INFORMACIÓN DEL CLIENTE", 20, y);
-      doc.setDrawColor(PRIMARY_PURPLE[0], PRIMARY_PURPLE[1], PRIMARY_PURPLE[2]);
-      doc.setLineWidth(0.5);
-      doc.line(20, y + 2, 190, y + 2);
+      // 4. Client & Times Row
+      let y = 75;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.text("INFORMACIÓN TÉCNICA Y CLIENTE", 15, y);
+      doc.setDrawColor(COLORS.SLATE_100[0], COLORS.SLATE_100[1], COLORS.SLATE_100[2]);
+      doc.line(15, y + 2, 195, y + 2);
+
+      y += 15;
+      // Client Details
+      doc.setTextColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      doc.setFontSize(10);
+      doc.text("CLIENTE:", 15, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerName.toUpperCase(), 45, y);
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("CONTACTO:", 15, y + 8);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerPhone, 45, y + 8);
+
+      doc.setFont("helvetica", "bold");
+      doc.text("RESPONSABLE:", 15, y + 16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.text(order.responsible.toUpperCase(), 45, y + 16);
+
+      // Dates Details (Right side)
+      doc.setTextColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      doc.setFont("helvetica", "bold");
+      doc.text("INGRESO:", 120, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(format(new Date(order.createdAt), "dd/MM/yyyy, p", { locale: es }), 150, y);
+
+      doc.setFont("helvetica", "bold");
+      doc.text("ENTREGA:", 120, y + 8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.text(format(new Date(order.deliveryDate), "dd/MM/yyyy - 17:00", { locale: es }), 150, y + 8);
+
+      doc.setTextColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      doc.setFont("helvetica", "bold");
+      doc.text("ESTADO:", 120, y + 16);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.status.toUpperCase(), 150, y + 16);
+
+      // 5. Services Section
+      y += 35;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.text("SERVICIOS REQUERIDOS", 15, y);
+      doc.line(15, y + 2, 195, y + 2);
 
       y += 12;
       doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text("Nombre:", 20, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(order.customerName, 50, y);
-
-      y += 8;
-      doc.setFont("helvetica", "bold");
-      doc.text("Teléfono:", 20, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(order.customerPhone, 50, y);
-
-      y += 20;
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text("DETALLES DEL TRABAJO", 20, y);
-      doc.line(20, y + 2, 190, y + 2);
-
-      y += 12;
-      doc.setFontSize(10);
-      doc.text("Servicios Contratados:", 20, y);
-      y += 6;
-      doc.setFont("helvetica", "normal");
-      const servicesText = order.services.join(", ");
-      const splitServices = doc.splitTextToSize(servicesText, 160);
-      doc.text(splitServices, 20, y);
-      y += (splitServices.length * 5);
+      doc.setTextColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      const servicesText = order.services.join(" + ");
+      const splitServices = doc.splitTextToSize(servicesText, 170);
+      doc.text(splitServices, 15, y);
+      y += (splitServices.length * 6);
 
       if (order.notes) {
         y += 5;
-        doc.setFont("helvetica", "bold");
-        doc.text("Observaciones:", 20, y);
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        const splitNotes = doc.splitTextToSize(order.notes, 170);
-        doc.text(splitNotes, 20, y);
-        y += (splitNotes.length * 5);
+        doc.setFillColor(COLORS.SLATE_100[0], COLORS.SLATE_100[1], COLORS.SLATE_100[2]);
+        const splitNotes = doc.splitTextToSize(`OBS: ${order.notes}`, 170);
+        const rectH = (splitNotes.length * 5) + 10;
+        doc.roundedRect(15, y, 180, rectH, 3, 3, 'F');
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9);
+        doc.text(splitNotes, 20, y + 7);
+        y += rectH + 10;
+      } else {
+        y += 10;
       }
 
-      y += 15;
-      if (y > 220) { doc.addPage(); y = 20; }
-      doc.setFillColor(245, 245, 250);
-      doc.roundedRect(20, y, 170, 25, 3, 3, 'F');
+      // 6. Financial Summary (Premium Table Style)
+      doc.setFillColor(COLORS.DARK[0], COLORS.DARK[1], COLORS.DARK[2]);
+      doc.roundedRect(15, y, 180, 25, 4, 4, 'F');
       
       let fy = y + 10;
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(SLATE_GRAY[0], SLATE_GRAY[1], SLATE_GRAY[2]);
-      doc.text("TOTAL ESTIMADO", 30, fy);
+      doc.setTextColor(150, 150, 150);
+      doc.text("TOTAL ESTIMADO", 25, fy);
       doc.text("ABONO RECIBIDO", 85, fy);
       doc.text("SALDO PENDIENTE", 145, fy);
 
-      fy += 7;
-      doc.setFontSize(12);
-      doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-      doc.text(`$${order.totalCost.toLocaleString()}`, 30, fy);
-      doc.setTextColor(20, 150, 80);
-      doc.text(`$${order.depositAmount.toLocaleString()}`, 85, fy);
-      doc.setTextColor(180, 50, 50);
-      doc.text(`$${order.pendingBalance.toLocaleString()}`, 145, fy);
+      fy += 8;
+      doc.setFontSize(14);
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text(`$ ${order.totalCost.toLocaleString()}`, 25, fy);
+      doc.setTextColor(COLORS.EMERALD[0], COLORS.EMERALD[1], COLORS.EMERALD[2]);
+      doc.text(`$ ${order.depositAmount.toLocaleString()}`, 85, fy);
+      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.text(`$ ${order.pendingBalance.toLocaleString()}`, 145, fy);
 
-      if (order.photos && order.photos.length > 0) {
-        y += 50;
-        if (y > 230) { doc.addPage(); y = 20; }
+      // 7. QR & Final Footer
+      y += 45;
+      if (y > 220) { doc.addPage(); y = 20; }
+      
+      doc.addImage(qrDataUrl, 'PNG', 15, y, 25, 25);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
+      doc.text("ESCANEAR PARA SEGUIMIENTO", 15, y + 28);
+      doc.text("EN TIEMPO REAL CLOUD", 15, y + 31);
 
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-        doc.text("EVIDENCIAS FOTOGRÁFICAS", 20, y);
-        doc.line(20, y + 2, 190, y + 2);
-        
-        y += 10;
-        const imgSize = 40;
-        const margin = 2;
-        const startX = 20;
-        let currentX = startX;
+      // Signature line
+      doc.setDrawColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
+      doc.line(100, y + 20, 180, y + 20);
+      doc.setFont("helvetica", "bold");
+      doc.text(order.responsible.toUpperCase(), 140, y + 25, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.text("FIRMA AUTORIZADA", 140, y + 29, { align: "center" });
 
-        for (let i = 0; i < order.photos.length; i++) {
-          try {
-            doc.addImage(order.photos[i], 'JPEG', currentX, y, imgSize, imgSize);
-            currentX += imgSize + margin;
-            if ((i + 1) % 4 === 0) {
-              currentX = startX;
-              y += imgSize + margin;
-              if (y > 250) { doc.addPage(); y = 20; }
-            }
-          } catch (e) {
-            console.warn("Could not add image to PDF:", order.photos[i]);
-          }
-        }
-      }
-
+      // Global Footer
       const pageCount = (doc as any).internal.getNumberOfPages();
       for(let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Documento generado automáticamente por Sistema Grupo More - Página ${i} de ${pageCount}`, 105, 285, { align: "center" });
+        doc.setFontSize(7);
+        doc.setTextColor(180, 180, 180);
+        doc.text(`Este documento es una representación digital de la orden #${orderId}. Generado por GRUPO MORE CLOUD v2.0 - Página ${i} de ${pageCount}`, 105, 288, { align: "center" });
       }
 
-      doc.save(`ORDEN_${orderId}.pdf`);
+      doc.save(`ORDEN_${orderId}_GRUPO_MORE.pdf`);
+      triggerHaptic('success');
     } catch (err) {
-      console.error('Error generando PDF local:', err);
-      alert('Error al generar el PDF. Reintente en un momento.');
+      console.error('Error generando PDF premium:', err);
+      alert('Error en motor PDF. Reintente.');
     }
   };
 
