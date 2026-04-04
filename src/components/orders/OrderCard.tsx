@@ -150,15 +150,17 @@ export function OrderCard({
       </div>
 
       {showPhotos && order.photos && order.photos.length > 0 && (
-        <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar">
+        <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x">
           {order.photos.map((p, i) => (
-            <img 
-              key={i} 
-              src={p} 
-              alt="evidencia" 
-              className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10 hover:ring-purple-500/50 transition-all cursor-zoom-in"
-              onClick={() => (window as any).dispatchEvent(new CustomEvent('zoom-image', { detail: p }))}
-            />
+            <div key={i} className="shrink-0 w-16 h-16 rounded-xl overflow-hidden ring-1 ring-white/10 hover:ring-[#d4bc8f]/50 transition-all cursor-zoom-in shadow-lg">
+              <img 
+                src={p} 
+                alt="evidencia" 
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onClick={() => (window as any).dispatchEvent(new CustomEvent('zoom-image', { detail: p }))}
+              />
+            </div>
           ))}
         </div>
       )}

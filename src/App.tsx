@@ -28,6 +28,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
 import GlobalNotificationManager from './components/GlobalNotificationManager';
+import PWAInstallBanner from './components/PWAInstallBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NetworkStatus from './components/NetworkStatus';
 
@@ -122,6 +123,7 @@ function AppRoutes() {
       <NotificationBootstrap />
       <NetworkStatus />
       <GlobalNotificationManager />
+      <PWAInstallBanner />
       <Suspense fallback={GlobalLoader}>
         <Routes>
           <Route path="/login"    element={<PublicRoute><div className="flex flex-col min-h-screen"><main className="flex-grow"><Login /></main><Footer /></div></PublicRoute>} />

@@ -64,9 +64,9 @@ export default function Navigation() {
         className="glass-panel"
         style={{
           position: 'fixed',
-          bottom: '16px',
-          left: '16px',
-          right: '16px',
+          bottom: 'max(16px, env(safe-area-inset-bottom))',
+          left: 'max(16px, env(safe-area-inset-left))',
+          right: 'max(16px, env(safe-area-inset-right))',
           padding: '8px 8px',
           display: 'flex',
           justifyContent: 'space-between',

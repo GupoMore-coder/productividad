@@ -52,11 +52,26 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   min-height: 100dvh;
   overflow-x: hidden;
   position: relative;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Core Safe Areas for iPhone/Android */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+html {
+  height: -webkit-fill-available;
+}
+
+img {
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: cover;
+  display: block;
 }
 
 body::before {
@@ -114,9 +129,22 @@ a:hover {
     --radius-lg: 16px;
   }
   body { font-size: 14px; }
+  h1 { font-size: 1.8rem !important; }
   h2 { font-size: 1.3rem !important; }
   .mobile-hide { display: none !important; }
-  .padding-safe { padding: 16px !important; }
+  .padding-safe { 
+    padding: 16px !important; 
+    padding-left: max(16px, env(safe-area-inset-left)) !important;
+    padding-right: max(16px, env(safe-area-inset-right)) !important;
+  }
+  
+  /* Prevent horizontal scroll on small devices */
+  .glass-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: var(--radius-lg);
+  }
 }
 
 @media (min-width: 1024px) {
