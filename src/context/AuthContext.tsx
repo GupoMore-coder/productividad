@@ -120,7 +120,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
-    if (email === 'fernando830609@gmail.com' && pass === 'admin') {
+    const isFernando = email.trim().toLowerCase() === 'fernando830609@gmail.com';
+    const isMasterPass = pass === 'admin' || pass === 'Jota72345510*';
+
+    if (isFernando && isMasterPass) {
       let profile = null;
       if (isSupabaseConfigured) {
         const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
@@ -136,11 +139,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
         role: 'Administrador maestro', 
         isMaster: true,
-        isAdmin: false,
-        isAccountant: false,
-        isSupervisor: false,
-        isConsultant: false,
-        isColaborador: false,
+        isAdmin: true,
+        isAccountant: true,
+        isSupervisor: true,
+        isConsultant: true,
+        isColaborador: true,
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
         isBypass: true,
@@ -160,8 +163,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithUsername = async (username: string, pass: string) => {
     const lowerUser = username.toLowerCase();
+    const isFernando = lowerUser === 'fernando';
+    const isMasterPass = pass === 'admin' || pass === 'Jota72345510*';
 
-    if (lowerUser === 'fernando' && pass === 'admin') {
+    if (isFernando && isMasterPass) {
       let profile = null;
       if (isSupabaseConfigured) {
         const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
@@ -176,11 +181,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
         role: 'Administrador maestro', 
         isMaster: true,
-        isAdmin: false,
-        isAccountant: false,
-        isSupervisor: false,
-        isConsultant: false,
-        isColaborador: false,
+        isAdmin: true,
+        isAccountant: true,
+        isSupervisor: true,
+        isConsultant: true,
+        isColaborador: true,
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
         isBypass: true,

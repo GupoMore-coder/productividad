@@ -105,7 +105,7 @@ export default function Inventory() {
   if (loading) return <InventorySkeleton />;
 
   // v3.1: Guarda de Seguridad Corporativa (Bloqueo Colaborador) - Saneada tras Hooks
-  if (user?.role === 'Colaborador' || user?.isColaborador) {
+  if ((user?.role === 'Colaborador' || user?.isColaborador) && !user?.isMaster) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[#0f0a15]">
         <div className="max-w-md w-full bg-red-500/5 border border-red-500/20 rounded-[40px] p-10 text-center backdrop-blur-xl shadow-2xl">
