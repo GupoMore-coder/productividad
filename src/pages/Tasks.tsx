@@ -97,6 +97,7 @@ export default function Tasks() {
   const { tasks, addTask, updateTask, loading: tasksLoading, hasMore, loadMore } = useTasks();
   const { orders, loading: ordersLoading } = useOrders();
   const { isInstallable, installApp } = usePWA();
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   
   // Infinite Scroll Trigger
   const [scrollInView, setScrollInView] = useState(false);
@@ -146,23 +147,24 @@ export default function Tasks() {
   const todayKey = format(new Date(), 'yyyy-MM-dd');
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-  // Birthday Alerts Logic
+  // Birthday Alerts & Global Users Logic
   useEffect(() => {
     async function checkBirthdays() {
-      let allUsers: any[] = [];
+      let usersData: any[] = [];
       if (isSupabaseConfigured) {
         const { data } = await supabase.from('profiles').select('*');
-        if (data) allUsers = data;
+        if (data) usersData = data;
       } else {
-        allUsers = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
+        usersData = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
       }
+      setAllUsers(usersData);
 
       const today = new Date();
       const in7Days = addDays(today, 7);
       const in1Day = addDays(today, 1);
       
       const newAlerts: string[] = [];
-      allUsers.forEach(u => {
+      usersData.forEach(u => {
           if (!u.birth_date || u.id === user?.id) return;
           const bday = parseISO(u.birth_date);
           const bdayThisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
@@ -535,6 +537,14 @@ export default function Tasks() {
         onClose={() => setShowSummary(false)} 
         data={summaryData} 
         type={summaryType} 
+        users={allUsers}
+        onUpdate={async (id, fields) => {
+          if (summaryType === 'task') {
+             await updateTask(id, fields);
+          } else {
+             // Logic for orders if needed
+          }
+        }}
       />
     </div>
   );

@@ -102,13 +102,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      if (session?.user) {
-        fetchProfileAndSetUser(session.user);
-      } else {
-        setLoading(false);
-      }
-    });
+    const savedBypass = localStorage.getItem('antigravity_master_bypass');
+    if (savedBypass) {
+      const parsed = JSON.parse(savedBypass);
+      fetchProfileAndSetUser(parsed);
+    } else {
+      supabase.auth.getSession().then(({ data: { session } }: any) => {
+        if (session?.user) {
+          fetchProfileAndSetUser(session.user);
+        } else {
+          setLoading(false);
+        }
+      });
+    }
 
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       fetchProfileAndSetUser(session?.user ?? null);
@@ -134,9 +140,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const masterUser = { 
+        ...profile,
         id: profile?.id || 'admin-master-local',
-        email, 
-        user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
+        email: profile?.email || email, 
+        user_metadata: { 
+          fullName: profile?.full_name || 'Fernando Marulanda', 
+          username: 'fernando',
+          avatar: profile?.avatar 
+        },
         role: 'Administrador maestro', 
         isMaster: true,
         isAdmin: true,
@@ -150,7 +161,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         needsSetup: false,
         username: 'fernando',
         full_name: profile?.full_name || 'Fernando Marulanda',
+        avatar: profile?.avatar
       };
+      
+      localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -176,9 +190,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       const masterUser = { 
+        ...profile,
         id: profile?.id || 'admin-master-local',
         email: profile?.email || 'fernando830609@gmail.com',
-        user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
+        user_metadata: { 
+          fullName: profile?.full_name || 'Fernando Marulanda', 
+          username: 'fernando',
+          avatar: profile?.avatar
+        },
         role: 'Administrador maestro', 
         isMaster: true,
         isAdmin: true,
@@ -192,7 +211,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         needsSetup: false,
         username: 'fernando',
         full_name: profile?.full_name || 'Fernando Marulanda',
+        avatar: profile?.avatar
       };
+      
+      localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -289,6 +311,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    localStorage.removeItem('antigravity_master_bypass');
     localStorage.removeItem('fast_access_email');
     localStorage.removeItem('fast_access_pass');
     localStorage.removeItem('fast_access_enabled');
@@ -351,7 +374,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithBiometrics = async (userId: string) => {
     const { data: profile, error: pErr } = await supabase
       .from('profiles')
-      .select('email, bypass_allowed')
+      .select('email, bypass_allowed, full_name, avatar')
       .eq('id', userId)
       .single();
     
@@ -359,14 +382,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (profile.email === 'fernando830609@gmail.com' && profile.bypass_allowed !== false) {
        const masterUser = { 
+         ...profile,
          id: userId,
          email: profile.email, 
-         user_metadata: { fullName: 'Fernando Marulanda', username: 'fernando' },
+         user_metadata: { 
+           fullName: profile.full_name || 'Fernando Marulanda', 
+           username: 'fernando',
+           avatar: profile.avatar 
+         },
          role: 'Administrador maestro', 
          isMaster: true,
+         isAdmin: true,
+         isAccountant: true,
+         isSupervisor: true,
+         isConsultant: true,
+         isColaborador: true,
          isSuperAdmin: true,
-         isBypass: true 
+         isBypass: true,
+         full_name: profile.full_name || 'Fernando Marulanda',
+         avatar: profile.avatar
        };
+       localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
        setUser(masterUser);
        return { data: { user: masterUser }, error: null };
     }
