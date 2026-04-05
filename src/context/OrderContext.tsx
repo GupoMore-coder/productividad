@@ -621,7 +621,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pdf.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
         pdf.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 294);
         
-        pdf.text(`Página ${pageNum}`, 195, 294);
+        // Page Numbering - Guaranteed Right Corner
+        pdf.text(`Página ${pageNum}`, 200, 294, { align: 'right' } as any);
       };
 
       const addNewPage = (pdf: any) => {

@@ -16,6 +16,14 @@ const updateSW = registerSW({
   },
 });
 
+// Escudo de Auto-Recarga (Chunk Load Error Protector)
+window.addEventListener('error', (e) => {
+  if (e.message && e.message.includes('Failed to fetch dynamically imported module')) {
+    console.warn('⚠️ Se detectó un conflicto de versión. Recargando para actualizar...');
+    window.location.reload();
+  }
+}, true);
+
 // Rutina secreta de limpieza global (una sola vez por versión)
 if (!localStorage.getItem('app_reset_v4')) {
   localStorage.clear();
