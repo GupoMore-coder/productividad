@@ -35,15 +35,13 @@ export function OrderTimeline({ history }: OrderTimelineProps) {
             {historyIcons[entry.type] || '📌'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[0.7rem] font-bold text-purple-400/90 group-hover:text-purple-400 transition-colors">
-                {entry.userName}
-              </span>
-              <span className="text-[0.6rem] text-slate-500">
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <span className="text-[0.6rem] text-slate-500 font-mono">
                 {format(new Date(entry.timestamp), 'dd MMM, HH:mm', { locale: es })}
               </span>
+              <div className="h-[1px] flex-1 bg-white/[0.05]" />
             </div>
-            <p className="text-[0.8rem] text-slate-300 leading-relaxed font-light">
+            <p className="text-[0.75rem] text-slate-300 leading-relaxed font-medium break-words">
               {entry.description}
             </p>
           </div>

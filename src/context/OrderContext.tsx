@@ -402,126 +402,178 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const trackingUrl = `${window.location.origin}/status/${orderId}`;
-      const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1 });
+      const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1, errorCorrectionLevel: 'H' });
+
+      // Load Logo
+      const loadLogo = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null);
+          img.src = '/logo.png';
+        });
+      };
+      const logoBase64 = await loadLogo();
 
       const COLORS = {
-        DEEP_BG: [10, 10, 15],
-        PURPLE: [147, 51, 234],
-        AMBER: [245, 158, 11],
-        EMERALD: [16, 185, 129],
+        DEEP_BG: [15, 23, 42], // Slate 900
+        PURPLE: [147, 51, 234], // Purple 600
+        AMBER: [217, 119, 6], // Amber 600
+        EMERALD: [5, 150, 105], // Emerald 600
         SLATE_900: [15, 23, 42],
-        SLATE_600: [71, 85, 105],
+        SLATE_700: [51, 65, 85],
+        SLATE_500: [100, 116, 139],
         SLATE_50: [248, 250, 252],
         WHITE: [255, 255, 255]
       };
 
+      // --- PAGE BACKGROUND (Premium Feel) ---
+      doc.setFillColor(248, 250, 252);
+      doc.rect(0, 0, 210, 297, 'F');
+
       // --- HEADER: DARK BRANDED ---
       doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.rect(0, 0, 210, 50, 'F');
+      doc.rect(0, 0, 210, 45, 'F');
       doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.rect(0, 48, 210, 2, 'F');
+      doc.rect(0, 43, 210, 2, 'F');
 
-      // Logo
+      // Logo & Brand
+      if (logoBase64) {
+        doc.addImage(logoBase64, 'PNG', 15, 8, 25, 25);
+      }
+      
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(32);
-      doc.text("M", 15, 28);
+      doc.setFontSize(22);
+      doc.text("GRUPO MORE", 45, 22);
       
-      doc.setFontSize(20);
-      doc.text("GRUPO MORE", 30, 24);
-      doc.setFontSize(8);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("ALTA PRECISIÓN · IDENTIDAD CLOUD · PERSONALIZACIÓN", 30, 30);
+      doc.text("Un regalo auténtico · Personalizar es identidad", 45, 28);
 
       // Order Info Box
-      doc.setFillColor(255, 255, 255, 0.05);
-      doc.roundedRect(150, 10, 50, 30, 3, 3, 'F');
+      doc.setFillColor(255, 255, 255, 0.08);
+      doc.roundedRect(145, 10, 55, 25, 4, 4, 'F');
       doc.setTextColor(200, 200, 200);
       doc.setFontSize(7);
-      doc.text("ORDEN DE SERVICIO", 155, 18);
+      doc.text("ORDEN DE SERVICIO", 150, 16);
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
       doc.setFontSize(14);
-      doc.text(`#${orderId.slice(-6).toUpperCase()}`, 155, 26);
+      doc.text(`#${orderId.slice(-6).toUpperCase()}`, 150, 23);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
       doc.setFontSize(8);
-      doc.text(order.status.toUpperCase(), 155, 34);
+      doc.setFont("helvetica", "bold");
+      doc.text(order.status.replace('_', ' ').toUpperCase(), 150, 30);
 
       // --- CLIENT & RESPONSIBLE SECTION ---
-      let y = 65;
-      doc.setFillColor(COLORS.SLATE_50[0], COLORS.SLATE_50[1], COLORS.SLATE_50[2]);
-      doc.roundedRect(10, y - 5, 190, 35, 4, 4, 'F');
+      let y = 60;
+      doc.setFillColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.roundedRect(10, y - 5, 115, 40, 5, 5, 'F');
       
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("DATOS DE LA ORDEN", 15, y);
+      doc.text("INFORMACIÓN DEL CLIENTE", 15, y);
 
       y += 10;
       doc.setFontSize(10);
       doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
-      doc.text("CLIENTE:", 15, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(order.customerName.toUpperCase(), 40, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(order.customerName.toUpperCase(), 15, y);
       
-      const phoneLabelX = 115;
-      doc.setFont("helvetica", "bold");
-      doc.text("CONTACTO:", phoneLabelX, y);
+      y += 6;
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text(order.customerPhone, phoneLabelX + 25, y);
-
-      y += 8;
+      doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
+      doc.text(`Contacto: ${order.customerPhone}`, 15, y);
+      
+      y += 6;
       doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
       doc.text("OPERADOR:", 15, y);
       doc.setFont("helvetica", "normal");
-      doc.text(order.responsible.toUpperCase(), 40, y);
-      
-      const entregaLabelX = 115;
+      doc.text(order.responsible.toUpperCase(), 38, y);
+
+      y += 6;
       doc.setFont("helvetica", "bold");
-      doc.text("ENTREGA:", entregaLabelX, y);
+      doc.text("ENTREGA:", 15, y);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text(format(new Date(order.deliveryDate), "dd/MM/yyyy HH:mm", { locale: es }), entregaLabelX + 25, y);
+      doc.text(format(new Date(order.deliveryDate), "dd 'de' MMMM, HH:mm", { locale: es }), 38, y);
+
+      // --- QR CODE SECTION (High Priority) ---
+      const qrX = 135;
+      const qrY = 55;
+      doc.setFillColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.roundedRect(qrX - 5, qrY - 5, 70, 40, 5, 5, 'F');
+      doc.addImage(qrDataUrl, 'PNG', qrX, qrY, 25, 25);
+      
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      doc.text("VALIDACIÓN DIGITAL", qrX + 28, qrY + 5);
+      
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
+      const qrExplanation = "Escanee este código para verificar el estado de su orden en tiempo real y acceder a la trazabilidad oficial 24/7 de Grupo More.";
+      const splitQrText = doc.splitTextToSize(qrExplanation, 35);
+      doc.text(splitQrText, qrX + 28, qrY + 10);
 
       // --- SERVICES ---
-      y += 25;
+      y = 105;
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
       doc.text("ESPECIFICACIONES DEL SERVICIO", 15, y);
-      doc.setDrawColor(230, 230, 235);
+      doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.1);
       doc.line(15, y + 2, 195, y + 2);
 
       y += 10;
       doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
       doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
       const servicesText = order.services.join(" + ");
       const splitServices = doc.splitTextToSize(servicesText, 175);
       doc.text(splitServices, 15, y);
-      y += (splitServices.length * 6) + 5;
+      y += (splitServices.length * 6) + 4;
 
       if (order.notes) {
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "italic");
-        doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
-        const splitNotes = doc.splitTextToSize(`Requerimientos: ${order.notes}`, 175);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
+        const splitNotes = doc.splitTextToSize(`Nota Técnica: ${order.notes}`, 175);
         doc.text(splitNotes, 15, y);
         y += (splitNotes.length * 5) + 10;
       }
 
-      // --- FINANCIAL CARD ---
+      // --- FINANCIAL CARD (EXECUTIVE STYLE) ---
       y += 5;
-      doc.setFillColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
-      doc.roundedRect(10, y, 190, 25, 4, 4, 'F');
+      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
+      doc.roundedRect(10, y, 190, 30, 5, 5, 'F');
       
-      let fy = y + 8;
       doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(150, 150, 160);
+      doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
+      doc.text("RESUMEN FINANCIERO", 15, y + 8);
+      
+      let fy = y + 18;
+      doc.setFontSize(8);
+      doc.setTextColor(COLORS.SLATE_50[0], COLORS.SLATE_50[1], COLORS.SLATE_50[2]);
       doc.text("VALOR TOTAL", 20, fy);
-      doc.text("PAGADO ACTUAL", 85, fy);
-      doc.text("SALDO A PAGAR", 150, fy);
+      doc.text("ABONADO", 85, fy);
+      doc.text("SALDO PENDIENTE", 150, fy);
 
-      fy += 10;
+      fy += 6;
       doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
       doc.text(`$ ${order.totalCost.toLocaleString()}`, 20, fy);
       doc.setTextColor(COLORS.EMERALD[0], COLORS.EMERALD[1], COLORS.EMERALD[2]);
@@ -529,60 +581,62 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
       doc.text(`$ ${order.pendingBalance.toLocaleString()}`, 150, fy);
 
-      // --- AUDIT TRAIL (HYSTORY) ---
-      y += 40;
-      if (y > 230) { doc.addPage(); y = 25; }
+      // --- AUDIT TRAIL (HISTORY) ---
+      y += 45;
+      if (y > 220) { doc.addPage(); y = 25; }
       
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("TRAZABILIDAD Y REGISTROS DE SEGURIDAD", 15, y);
+      doc.text("TRAZABILIDAD Y REGISTROS OFICIALES", 15, y);
       doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.3);
       doc.line(15, y + 2, 195, y + 2);
       
       y += 10;
-      doc.setFontSize(7);
-      
-      // Detailed Table Structure
+      const historyIcons: Record<string, string> = {
+        creacion: '✨',
+        cambio_estado: '🔄',
+        financiero: '💰',
+        observacion: '💬',
+        modificacion: '🛠️'
+      };
+
       const history = order.history.slice().reverse();
-      history.forEach((log) => {
-        if (y > 275) { doc.addPage(); y = 25; }
+      history.forEach((log, index) => {
+        const descText = log.description;
+        const splitDesc = doc.splitTextToSize(descText, 160);
+        const rowHeight = Math.max(8, (splitDesc.length * 4) + 4);
+
+        if (y + rowHeight > 280) { doc.addPage(); y = 25; }
         
-        // Background row for alternates
-        doc.setFillColor(250, 250, 255);
-        doc.rect(12, y - 4, 186, 8, 'F');
+        // Alternating background
+        if (index % 2 === 0) {
+          doc.setFillColor(240, 240, 250);
+          doc.rect(10, y - 4, 190, rowHeight, 'F');
+        }
         
+        doc.setFontSize(7);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
         const dateStr = format(new Date(log.timestamp), "dd/MM HH:mm", { locale: es });
         doc.text(dateStr, 15, y + 1);
         
-        doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-        doc.text(`[${log.userName.toUpperCase()}]`, 35, y + 1);
+        const icon = historyIcons[log.type] || '📌';
+        doc.text(icon, 35, y + 1);
         
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
-        const descText = log.description;
-        const splitDesc = doc.splitTextToSize(descText, 125);
-        doc.text(splitDesc, 65, y + 1);
+        doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
+        doc.text(splitDesc, 42, y + 1);
         
-        y += (splitDesc.length * 4) + 4;
+        y += rowHeight;
       });
 
-      // --- FOOTER ---
-      const footY = 265;
-      doc.setFillColor(COLORS.SLATE_50[0], COLORS.SLATE_50[1], COLORS.SLATE_50[2]);
-      doc.rect(0, footY - 5, 210, 40, 'F');
-      
-      doc.addImage(qrDataUrl, 'PNG', 15, footY, 20, 20);
-      doc.setFontSize(7);
+      // --- FOOTER BRANDING ---
+      const footY = 285;
+      doc.setFontSize(6);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
-      doc.text("VALIDACIÓN DIGITAL GRUPO MORE", 40, footY + 6);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(COLORS.SLATE_600[0], COLORS.SLATE_600[1], COLORS.SLATE_600[2]);
-      doc.text("Este documento representa el estado actual de la orden en nube.", 40, footY + 10);
-      doc.text("Escanee el código QR para verificar autenticidad y cambios en tiempo real.", 40, footY + 14);
+      doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
+      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 105, footY, { align: 'center' });
 
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');
