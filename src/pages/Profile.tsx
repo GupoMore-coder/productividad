@@ -165,17 +165,45 @@ export default function Profile() {
     setIsLinkingBiometrics(true);
     setError('');
     try {
+      if (!currentPassword) {
+        throw new Error('Debes ingresar tu contraseña actual arriba para autorizar la vinculación biométrica.');
+      }
+
+      // 1. Verify password first
+      try {
+        await signInWithEmail(user.email, currentPassword);
+      } catch (e) {
+        throw new Error('Contraseña incorrecta. No se puede vincular el dispositivo.');
+      }
+
+      // 2. Register WebAuthn
       await WebAuthnService.registerDevice(user);
+      
+      // 3. Store password for future auto-login (Zero-Click)
+      localStorage.setItem(`antigravity_bio_pass_${user.id}`, currentPassword);
+      
       setDeviceLinked(true);
-      setSuccess('¡Seguridad Biométrica activada con éxito en este dispositivo!');
+      setSuccess('¡Identidad Biométrica vinculada con éxito!');
       handleAction('success');
+      setCurrentPassword('');
     } catch (err: any) {
       if (err.name !== 'NotAllowedError') {
-        setError('Error al vincular biometría. Asegúrate de tener un sensor activo.');
+        setError(err.message || 'Error al vincular biometría.');
         handleAction('error');
       }
     } finally {
       setIsLinkingBiometrics(false);
+    }
+  };
+
+  const handleUnlinkBiometrics = () => {
+    if (!user) return;
+    if (window.confirm('¿Deseas eliminar el acceso biométrico en este dispositivo? Deberás usar tu contraseña la próxima vez.')) {
+      localStorage.removeItem(`antigravity_passkey_linked_${user.id}`);
+      localStorage.removeItem(`antigravity_bio_pass_${user.id}`);
+      setDeviceLinked(false);
+      setSuccess('Dispositivo desvinculado.');
+      handleAction('warning');
     }
   };
 
@@ -456,8 +484,16 @@ export default function Profile() {
                 {isLinkingBiometrics ? 'Procesando...' : 'Vincular este Equipo'}
               </button>
             ) : (
-              <div className="flex items-center gap-2 text-emerald-400 font-black text-[0.6rem] uppercase tracking-widest bg-emerald-500/10 px-6 py-3 rounded-full border border-emerald-500/20">
-                <CheckCircle2 size={14} /> Equipo Protegido
+              <div className="w-full space-y-4">
+                <div className="flex items-center justify-center gap-2 text-emerald-400 font-black text-[0.6rem] uppercase tracking-widest bg-emerald-500/10 px-6 py-3 rounded-full border border-emerald-500/20">
+                  <CheckCircle2 size={14} /> Equipo Protegido
+                </div>
+                <button 
+                  onClick={handleUnlinkBiometrics}
+                  className="w-full py-3 text-[0.55rem] font-black text-slate-600 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle size={12} /> Eliminar Acceso en este Dispositivo
+                </button>
               </div>
             )}
           </div>

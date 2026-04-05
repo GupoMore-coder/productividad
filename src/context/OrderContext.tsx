@@ -698,17 +698,17 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         
         pdf.setFontSize(5);
         pdf.setTextColor(100, 116, 139);
-        pdf.text("INSTAGRAM", 145, footY + 23);
-        pdf.text("WA PAPER", 165, footY + 23);
-        pdf.text("WA DESIGN", 185, footY + 23);
+        pdf.text("INSTAGRAM", 145, footY + 21.5);
+        pdf.text("WA More Paper", 165, footY + 21.5);
+        pdf.text("WA More Design", 185, footY + 21.5);
 
         pdf.setFontSize(6);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-        pdf.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 294);
+        pdf.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 295.5);
         
-        // Page Numbering - Guaranteed Right Corner
-        pdf.text(`Página ${pageNum}`, 200, 294, { align: 'right' } as any);
+        // Page Numbering - Guaranteed Right Corner with no overlap
+        pdf.text(`Página ${pageNum}`, 200, 295.5, { align: 'right' } as any);
       };
 
       const addNewPage = (pdf: any) => {

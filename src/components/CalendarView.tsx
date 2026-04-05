@@ -11,20 +11,18 @@ interface CalendarViewProps {
 }
 
 export default function CalendarView({ selectedDate, onSelectDate, activities = [] }: CalendarViewProps) {
-  // viewDate determines which week is shown in the carousel
   const [viewDate, setViewDate] = useState<Date>(selectedDate);
   
-  // Sync viewDate when selectedDate changes externally (e.g. "Ir a Hoy")
   useEffect(() => {
     setViewDate(selectedDate);
   }, [selectedDate]);
 
-  // Generate 7 days centered: [v-3, v-2, v-1, v, v+1, v+2, v+3]
-  const days = Array.from({ length: 7 }, (_, i) => addDays(subDays(viewDate, 3), i));
+  // v13: Increased to 14 days for better scroll experience
+  const days = Array.from({ length: 14 }, (_, i) => addDays(subDays(viewDate, 7), i));
 
   const navigateWeek = (direction: 'prev' | 'next') => {
     triggerHaptic('light');
-    const newView = direction === 'prev' ? subDays(viewDate, 7) : addDays(viewDate, 7);
+    const newView = direction === 'prev' ? subDays(viewDate, 14) : addDays(viewDate, 14);
     setViewDate(newView);
   };
 
@@ -50,14 +48,14 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
   };
 
   return (
-    <div className="mb-6 animate-fade-in select-none">
-      <div className="flex justify-between items-center mb-4">
+    <div className="mb-6 animate-fade-in select-none w-full overflow-visible">
+      <div className="flex justify-between items-center mb-4 px-1">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => navigateWeek('prev')}
             className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-colors active:scale-90"
-            title="Semana Anterior"
-            aria-label="Ver semana anterior"
+            title="Quincena Anterior"
+            aria-label="Ver quincena anterior"
           >
             <ChevronLeft size={20} />
           </button>
@@ -85,8 +83,8 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
           <button 
             onClick={() => navigateWeek('next')}
             className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-colors active:scale-90"
-            title="Siguiente Semana"
-            aria-label="Ver siguiente semana"
+            title="Siguiente Quincena"
+            aria-label="Ver siguiente quincena"
           >
             <ChevronRight size={20} />
           </button>
@@ -100,43 +98,49 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
         </button>
       </div>
 
-      {/* v12: Centered Date Strip with Android horizontal scroll fix */}
+      {/* v13: Force scroll and snap for Android stability */}
       <div 
-        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x touch-pan-x"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x touch-pan-x overscroll-x-contain"
+        style={{ 
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none'
+        }}
       >
-        {days.map((day, idx) => {
-          const dayKey = format(day, "yyyy-MM-dd");
-          const isSelected = dayKey === format(selectedDate, "yyyy-MM-dd");
-          const isToday = dayKey === format(new Date(), "yyyy-MM-dd");
-          const hasActivity = activities.includes(dayKey);
+        <div className="flex gap-3 min-w-max pb-2">
+          {days.map((day, idx) => {
+            const dayKey = format(day, "yyyy-MM-dd");
+            const isSelected = dayKey === format(selectedDate, "yyyy-MM-dd");
+            const isToday = dayKey === format(new Date(), "yyyy-MM-dd");
+            const hasActivity = activities.includes(dayKey);
 
-          return (
-            <button 
-              key={idx}
-              onClick={() => handleSelectDay(day)}
-              className={`
-                min-w-[70px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center flex-shrink-0
-                ${isSelected 
-                  ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10 font-black' 
-                  : 'bg-white/[0.03] border border-white/5 text-slate-400 hover:bg-white/[0.07] hover:border-white/10'}
-                ${isToday && !isSelected ? 'border-purple-500/50 border-dashed' : ''}
-              `}
-              aria-label={`Seleccionar ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
-              aria-pressed={isSelected}
-            >
-              <span className={`text-[0.6rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
-                {format(day, "EEE", { locale: es })}
-              </span>
-              <span className="text-xl font-black tracking-tighter">
-                {format(day, "dd")}
-              </span>
-              {hasActivity && (
-                <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500 shadow-sm shadow-purple-500/50'}`} />
-              )}
-            </button>
-          )
-        })}
+            return (
+              <button 
+                key={idx}
+                onClick={() => handleSelectDay(day)}
+                className={`
+                  min-w-[65px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center flex-shrink-0
+                  ${isSelected 
+                    ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10 font-black' 
+                    : 'bg-white/[0.03] border border-white/5 text-slate-400 hover:bg-white/[0.07] hover:border-white/10'}
+                  ${isToday && !isSelected ? 'border-purple-500/50 border-dashed' : ''}
+                `}
+                aria-label={`Seleccionar ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
+                aria-pressed={isSelected}
+              >
+                <span className={`text-[0.6rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
+                  {format(day, "EEE", { locale: es })}
+                </span>
+                <span className="text-xl font-black tracking-tighter">
+                  {format(day, "dd")}
+                </span>
+                {hasActivity && (
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500 shadow-sm shadow-purple-500/50'}`} />
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   );

@@ -36,6 +36,7 @@ interface AuthContextType {
   isFirstUser: () => Promise<boolean>;
   extendSandbox: (userId: string, days: number) => Promise<void>;
   deleteUserSandbox: (userId: string) => Promise<void>;
+  signInWithBiometrics: (userId: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -119,7 +120,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
-    // 1. Master Bypass for Fernando
     if (email === 'fernando830609@gmail.com' && pass === 'admin') {
       const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
       
@@ -155,7 +155,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithUsername = async (username: string, pass: string) => {
     const lowerUser = username.toLowerCase();
 
-    // 1. Master Bypass for Fernando
     if (lowerUser === 'fernando' && pass === 'admin') {
       const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
       
@@ -170,10 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'Administrador maestro', 
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true // Marcador de acceso sin sesión real
+        isBypass: true 
       };
-      
-      console.warn('⚠️ MODO BYPASS ACTIVO: Tienes acceso total a la interfaz, pero las operaciones de escritura en base de datos (RLS) fallarán. Para realizar cambios, usa tu contraseña real.');
       
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
@@ -190,7 +187,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const signUp = async (email: string, pass: string, username: string, profileData?: any) => {
-    // REGLA DE EMERGENCIA: Excepción para Fernando o primer usuario
     const isFernando = email.trim().toLowerCase() === 'fernando830609@gmail.com';
     const isFirst = profileData?.isFirstUser || false;
     
@@ -213,12 +209,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
 
     if (data.user) {
-      // Set 72h sandbox expiry for new Colaboradores
       const sandboxExpiry = finalRole === 'Colaborador' 
         ? new Date(Date.now() + 72 * 3600 * 1000).toISOString() 
         : null;
 
-      // Create profile immediately
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: data.user.id,
         username: username.toLowerCase(),
@@ -254,8 +248,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         })
         .eq('id', user.id);
       
-      // If RLS fails because of bypass (no real session), but it's fernando, 
-      // we might still fail if RLS is very strict.
       if (dbError) {
         console.error('Profile update error:', dbError);
         throw dbError;
@@ -319,7 +311,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user?.isMaster) throw new Error('Acceso restringido.');
 
     if (isSupabaseConfigured) {
-      // 1. Eliminar órdenes y su historial (vía cascada o manual)
       const { data: userOrders } = await supabase.from('service_orders').select('id').eq('created_by', userId);
       
       if (userOrders && userOrders.length > 0) {
@@ -328,21 +319,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.from('service_orders').delete().eq('created_by', userId);
       }
 
-      // 2. Eliminar ítems faltantes
       await supabase.from('missing_items').delete().eq('reported_by_id', userId);
-
-      // 3. Eliminar perfil
       await supabase.from('profiles').delete().eq('id', userId);
       
       triggerHaptic('warning');
     }
   };
 
+  const signInWithBiometrics = async (userId: string) => {
+    const { data: profile, error: pErr } = await supabase
+      .from('profiles')
+      .select('email, bypass_allowed')
+      .eq('id', userId)
+      .single();
+    
+    if (pErr || !profile) throw new Error('Usuario vinculado no encontrado.');
+
+    if (profile.email === 'fernando830609@gmail.com' && profile.bypass_allowed !== false) {
+       const masterUser = { 
+         id: userId,
+         email: profile.email, 
+         user_metadata: { fullName: 'Fernando Marulanda', username: 'fernando' },
+         role: 'Administrador maestro', 
+         isMaster: true,
+         isSuperAdmin: true,
+         isBypass: true 
+       };
+       setUser(masterUser);
+       return { data: { user: masterUser }, error: null };
+    }
+
+    const savedPass = localStorage.getItem(`antigravity_bio_pass_${userId}`);
+    if (!savedPass) {
+       throw new Error('La sesión biométrica no está inicializada. Por favor, ingresa con tu contraseña una vez para vincular el dispositivo.');
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+       email: profile.email, 
+       password: savedPass 
+    });
+    
+    if (error) throw error;
+    return { data, error: null };
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, loading, signInWithEmail, signInWithUsername, signUp, 
       updateProfile, updatePassword, signOut, isFirstUser,
-      extendSandbox, deleteUserSandbox 
+      extendSandbox, deleteUserSandbox, signInWithBiometrics 
     }}>
       {children}
     </AuthContext.Provider>

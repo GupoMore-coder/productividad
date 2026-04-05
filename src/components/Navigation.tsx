@@ -1,18 +1,23 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import HelpManualModal from './HelpManualModal';
 import { useAuth } from '../context/AuthContext';
+import { LogOut, Plus, Calendar, Users, BookOpen, LayoutDashboard, ShieldCheck, Box } from 'lucide-react';
 
+/**
+ * v12.3: Elite Navigation Resilience
+ * Features a horizontally scrollable center section pinned between 
+ * fixed specialized action buttons (+ and Logout).
+ * Optimized for high-density navigation on mobile devices.
+ */
 export default function Navigation() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // ── Detect active modal via a lightweight flag on window ──────────
-  // Each create-modal sets window.__activeModal = 'task'|'group'|'order' on open
-  // and clears it on close / cancel.
   const getActiveModalLabel = (): string | null => {
     const m = (window as any).__activeModal as string | undefined;
     if (!m) return null;
@@ -29,15 +34,14 @@ export default function Navigation() {
       window.dispatchEvent(new CustomEvent('open-create-group'));
     } else if (location.pathname.startsWith('/orders')) {
       window.dispatchEvent(new CustomEvent('open-create-order'));
+    } else if (location.pathname === '/inventory') {
+       window.dispatchEvent(new CustomEvent('open-create-item'));
     }
   };
 
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-  };
+  const handleLogoutClick = () => setShowLogoutConfirm(true);
 
   const confirmLogout = async () => {
-    // Close any open modal first
     window.dispatchEvent(new CustomEvent('force-close-modals'));
     (window as any).__activeModal = undefined;
     setShowLogoutConfirm(false);
@@ -45,167 +49,87 @@ export default function Navigation() {
     navigate('/login', { replace: true });
   };
 
-  const getNavStyle = ({ isActive }: { isActive: boolean }) => ({
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '4px',
-    color: isActive ? 'var(--accent-color)' : 'var(--text-secondary)',
-    transition: 'var(--transition-fast)',
-    fontSize: '0.75rem',
-    fontWeight: isActive ? 600 : 400,
-  });
+  const getNavClass = ({ isActive }: { isActive: boolean }) => 
+    `flex flex-col items-center gap-1 min-w-[56px] transition-all duration-300 ${isActive ? 'text-purple-400 scale-110 drop-shadow-glow' : 'text-slate-500 hover:text-slate-300'}`;
 
   const activeModal = getActiveModalLabel();
 
   return (
     <>
       <nav
-        className="glass-panel"
-        style={{
-          position: 'fixed',
-          bottom: 'max(16px, env(safe-area-inset-bottom))',
-          left: 'max(16px, env(safe-area-inset-left))',
-          right: 'max(16px, env(safe-area-inset-right))',
-          padding: '8px 8px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          zIndex: 50,
-          borderRadius: 'var(--radius-full)'
-        }}
+        className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] left-[max(16px,env(safe-area-inset-left))] right-[max(16px,env(safe-area-inset-right))] z-50 flex items-center justify-between p-1.5 bg-[#0f0a15]/80 border border-white/10 backdrop-blur-3xl rounded-full shadow-2xl overflow-hidden"
       >
-        {/* ── Create button ── */}
+        {/* ── Fixed: Create Trigger ── */}
         <button
           onClick={handleAddClick}
-          style={{
-            width: '56px', height: '56px', borderRadius: '28px',
-            backgroundColor: 'var(--bg-color)', color: 'var(--accent-color)',
-            border: '1px solid var(--accent-color)',
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            cursor: 'pointer', transition: 'transform 0.2s ease',
-            boxShadow: '0 4px 12px rgba(196, 167, 119, 0.2)'
-          }}
-          className="hover:scale-105"
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-900 border border-purple-500/30 flex items-center justify-center text-purple-400 hover:bg-purple-500/10 hover:border-purple-500 transition-all active:scale-95 shadow-lg shadow-purple-500/5 shrink-0"
           title="Crear nuevo"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          <Plus size={22} strokeWidth={2.5} />
         </button>
 
-        {/* ── Nav links ── */}
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <NavLink to="/" style={getNavStyle} end title="Actividades">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
-            <span style={{ fontSize: '0.65rem' }}>Agenda</span>
+        {/* ── Scrollable Area: Main Nav ── */}
+        <div 
+          ref={scrollRef}
+          className="flex-1 flex items-center gap-2 overflow-x-auto px-4 no-scrollbar touch-pan-x"
+        >
+          <NavLink to="/" className={getNavClass} end>
+            <Calendar size={20} />
+            <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Agenda</span>
           </NavLink>
 
-          <NavLink to="/group" style={getNavStyle} title="Grupo">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span style={{ fontSize: '0.65rem' }}>Grupo</span>
+          <NavLink to="/group" className={getNavClass}>
+            <Users size={20} />
+            <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Grupo</span>
           </NavLink>
 
-          <NavLink to="/orders" style={getNavStyle} title="Órdenes">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-            <span style={{ fontSize: '0.65rem' }}>Órdenes</span>
+          <NavLink to="/orders" className={getNavClass}>
+            <BookOpen size={20} />
+            <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Órdenes</span>
           </NavLink>
 
-          <NavLink to="/profile" style={getNavStyle} title="Mi Perfil">
-             <div style={{ 
-               position: 'relative', width: '22px', height: '22px', borderRadius: '11px', 
-               overflow: 'hidden', border: '1px solid var(--accent-color)', 
-               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-               fontSize: '9px', fontWeight: 900,
-               background: user?.avatar && user.avatar.length > 10 ? 'transparent' : 'linear-gradient(135deg, #d4bc8f, #b39063)'
-             }}>
+          <NavLink to="/profile" className={getNavClass}>
+             <div className="relative w-5 h-5 rounded-md overflow-hidden border border-purple-500/30">
                 {user?.avatar && user.avatar.length > 10 ? (
-                  <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={user.avatar} className="w-full h-full object-cover" alt="p" />
                 ) : (
-                  <span style={{ color: '#1a1622' }}>
+                  <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[0.55rem] font-black text-purple-400">
                     {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
-                  </span>
+                  </div>
                 )}
-                {(() => {
-                    if (!user?.birth_date) return false;
-                    const bday = new Date(user.birth_date + 'T12:00:00');
-                    const today = new Date();
-                    if (bday.getDate() === today.getDate() && bday.getMonth() === today.getMonth()) {
-                        return <div style={{ position: 'absolute', top: -3, right: -3, fontSize: '8px' }}>👑</div>;
-                    }
-                    return null;
-                })()}
              </div>
-             <span style={{ fontSize: '0.65rem' }}>Perfil</span>
+             <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Perfil</span>
           </NavLink>
 
-          {/* Botón CEO (Dashboard v2 e Inventarios) */}
           {(user?.role === 'Director General (CEO)') && (
-            <NavLink to="/dashboard" style={getNavStyle} title="Panel CEO">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-              <span style={{ fontSize: '0.65rem' }}>CEO</span>
+            <NavLink to="/dashboard" className={getNavClass}>
+              <LayoutDashboard size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">CEO</span>
             </NavLink>
           )}
 
-          {/* Botón Admin (Exclusivo Maestro) */}
           {user?.isMaster && (
-            <NavLink to="/admin" style={getNavStyle} title="Administración Maestra">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span style={{ fontSize: '0.65rem' }}>Admin</span>
+            <NavLink to="/admin" className={getNavClass}>
+              <ShieldCheck size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Admin</span>
             </NavLink>
           )}
 
-          {/* Botón Inventarios (Supervisor/Maestro/CEO/Consultor) - Bloqueado para Colaborador */}
           {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.isSupervisor || user?.isConsultant) && (user?.role !== 'Colaborador') && (
-            <NavLink to="/inventory" style={getNavStyle} title="Proveedores e Inventario">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-              <span style={{ fontSize: '0.65rem' }}>Stock</span>
+            <NavLink to="/inventory" className={getNavClass}>
+              <Box size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Stock</span>
             </NavLink>
           )}
-
-          <NavLink to="/profile" style={getNavStyle} title="Mi Perfil">
-             <div style={{ 
-               position: 'relative', width: '22px', height: '22px', borderRadius: '11px', 
-               overflow: 'hidden', border: '1px solid var(--accent-color)', 
-               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-               fontSize: '9px', fontWeight: 900,
-               background: user?.avatar && user.avatar.length > 10 ? 'transparent' : 'linear-gradient(135deg, #d4bc8f, #b39063)'
-             }}>
-                {user?.avatar && user.avatar.length > 10 ? (
-                  <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ color: '#1a1622' }}>
-                    {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
-                  </span>
-                )}
-                {(() => {
-                    if (!user?.birth_date) return false;
-                    const bday = new Date(user.birth_date + 'T12:00:00');
-                    const today = new Date();
-                    if (bday.getDate() === today.getDate() && bday.getMonth() === today.getMonth()) {
-                        return <div style={{ position: 'absolute', top: -3, right: -3, fontSize: '8px' }}>👑</div>;
-                    }
-                    return null;
-                })()}
-             </div>
-             <span style={{ fontSize: '0.65rem' }}>Perfil</span>
-          </NavLink>
         </div>
 
-        {/* ── Logout button ── */}
+        {/* ── Fixed: Logout ── */}
         <button
           onClick={handleLogoutClick}
-          style={{
-            width: '44px', height: '44px', borderRadius: '22px',
-            backgroundColor: 'rgba(248,113,113,0.1)',
-            color: '#f87171',
-            border: '1px solid rgba(248,113,113,0.3)',
-            display: 'flex', justifyContent: 'center', alignItems: 'center',
-            cursor: 'pointer', transition: 'all 0.2s ease',
-          }}
+          className="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500 transition-all hover:text-slate-900 active:scale-95 shrink-0"
           title="Salir"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
+          <LogOut size={18} strokeWidth={2.5} />
         </button>
       </nav>
 
@@ -213,58 +137,31 @@ export default function Navigation() {
 
       {/* ── Logout confirmation modal ── */}
       {showLogoutConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '16px'
-        }}>
-          <div className="glass-panel" style={{ maxWidth: 360, width: '100%', padding: '28px 24px', borderRadius: 20 }}>
-            {/* Icon */}
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: 'rgba(248,113,113,0.12)',
-                border: '1px solid rgba(248,113,113,0.35)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 12px'
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
+        <div className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/5 max-w-sm w-full p-8 rounded-[32px] shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+                <LogOut size={24} className="text-red-400" />
               </div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Cerrar sesión</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: 0, lineHeight: 1.55 }}>
+              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-2">¿Cerrar sesión?</h3>
+              <p className="text-sm text-slate-500 font-light leading-relaxed">
                 {activeModal
-                  ? <>⚠️ Tienes <strong style={{ color: 'var(--text-primary)' }}>{activeModal}</strong> abierta. Al salir, perderás los datos ingresados sin guardar.<br/><br/>¿Deseas continuar y cerrar sesión?</>
-                  : <>¿Confirmas que deseas cerrar la sesión de <strong style={{ color: 'var(--accent-color)' }}>{user?.username || user?.email}</strong>?</>
+                  ? <>⚠️ Tienes <strong className="text-white">{activeModal}</strong> abierta. Al salir, perderás los datos ingresados.<br/><br/>¿Confirmas el cierre?</>
+                  : <>Identificado como <strong className="text-purple-400">{user?.username || user?.email}</strong>. ¿Confirmas tu salida del sistema?</>
                 }
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <div className="flex gap-3">
               <button
                 onClick={confirmLogout}
-                style={{
-                  flex: 1, padding: '11px', borderRadius: 12, border: 'none',
-                  cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem',
-                  background: '#f87171', color: '#fff'
-                }}
+                className="flex-1 py-3.5 rounded-2xl bg-red-500 text-slate-900 font-black text-xs uppercase tracking-widest hover:bg-red-400 transition-all active:scale-95 shadow-lg shadow-red-500/20"
               >
-                Sí, cerrar sesión
+                Sí, Salir
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                style={{
-                  flex: 1, padding: '11px', borderRadius: 12,
-                  border: '1px solid var(--glass-border)',
-                  cursor: 'pointer', background: 'transparent',
-                  color: 'var(--text-primary)', fontWeight: 500, fontSize: '0.9rem'
-                }}
+                className="flex-1 py-3.5 rounded-2xl bg-slate-800 text-slate-200 font-bold text-xs uppercase tracking-widest border border-white/5 hover:bg-slate-700 transition-all active:scale-95"
               >
                 Cancelar
               </button>

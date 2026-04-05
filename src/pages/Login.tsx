@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 
 export default function Login() {
-  const { user, signInWithEmail, signInWithUsername } = useAuth();
+  const { user, signInWithEmail, signInWithUsername, signInWithBiometrics } = useAuth();
   const location = useLocation();
   const showWelcome = location.state?.welcome;
   
@@ -54,29 +54,32 @@ export default function Login() {
     }
   };
   const handleBiometricLogin = async () => {
-    if (!identifier) {
-      setError('Ingresa tu correo o usuario para usar biometría.');
-      triggerHaptic('warning');
-      return;
-    }
-    
     setBiometricLoading(true);
     setError('');
+    
     try {
-      // 1. Get userId for this identifier (In real app, fetch from backend)
-      // For this Vanguard Phase, we simulate the biometric validation with the service
-      const success = await WebAuthnService.authenticate(identifier); 
-      if (success) {
+      // 1. Authenticate with WebAuthn (Discoverable Credential Flow)
+      // Pass identifier if user already typed it (optional optimization)
+      const authResult = await WebAuthnService.authenticate(identifier || undefined); 
+      
+      if (authResult?.success) {
         triggerHaptic('success');
-        // If success, we should auto-login. For now, we simulate the flow
-        // In a real banking level app, this would exchange a challenge for a JWT
-        alert("Autenticación Biométrica Exitosa (Simulación Vanguardia)");
-      } else {
-        throw new Error('Autenticación fallida o cancelada.');
+        
+        // 2. Perform real login with the identified userId
+        const { error: signInError } = await signInWithBiometrics(authResult.userId);
+        
+        if (signInError) throw signInError;
+      } else if (authResult === null) {
+        // User cancelled or no credentials found
+        if (!identifier) {
+          setError('No se encontraron llaves de acceso en este dispositivo. Por favor, inicia sesión con contraseña para vincular la biometría.');
+        } else {
+          setError('La llave de acceso no es válida para este usuario.');
+        }
       }
     } catch (err: any) {
       triggerHaptic('error');
-      setError(err.message || 'Error en biometría');
+      setError(err.message || 'Error en autenticación biométrica');
     } finally {
       setBiometricLoading(false);
     }

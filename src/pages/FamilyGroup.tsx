@@ -208,11 +208,11 @@ export default function FamilyGroup() {
               </motion.div>
             )}
 
-            <div className="space-y-3">
+            <div className="grid gap-4">
               {groupsWithStatus.length === 0 ? (
-                <div className="text-center py-20 bg-white/[0.01] border border-dashed border-white/10 rounded-[32px]">
-                   <Users className="mx-auto mb-4 text-slate-800" size={48} />
-                   <p className="text-sm font-medium text-slate-500">No hay grupos registrados en este momento.</p>
+                <div className="text-center py-20 bg-white/[0.01] border border-dashed border-white/10 rounded-[40px] flex flex-col items-center">
+                   <div className="w-20 h-20 bg-slate-900/50 rounded-3xl flex items-center justify-center text-slate-800 mb-6"><Users size={40} /></div>
+                   <p className="text-sm font-black text-slate-600 uppercase tracking-widest leading-loose">Ecosistema Vacío · Inicia un Equipo</p>
                 </div>
               ) : (
                 groupsWithStatus.map(g => (
@@ -221,35 +221,51 @@ export default function FamilyGroup() {
                     key={g.id} 
                     onClick={() => { handleAction('light'); setSelectedGroup(g); }}
                     className={`
-                      p-5 rounded-[28px] flex items-center justify-between border cursor-pointer hover:bg-white/[0.04] active:scale-[0.98] transition-all
-                      ${g.status === 'invited' ? 'bg-purple-500/5 border-purple-500/30' : 'bg-white/[0.02] border-white/5'}
+                      p-6 rounded-[32px] flex items-center justify-between border cursor-pointer backdrop-blur-md transition-all duration-500 relative overflow-hidden group
+                      ${g.status === 'invited' 
+                          ? 'bg-purple-500/10 border-purple-500/40 shadow-lg shadow-purple-500/10' 
+                          : 'bg-white/[0.02] border-white/5 active:scale-[0.98] hover:bg-white/[0.05] hover:border-white/10'}
                     `}
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-purple-400 text-lg font-black">
-                        {(g.name || 'G').charAt(0).toUpperCase()}
+                    {/* Inner highlight */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none opacity-50" />
+                    
+                    <div className="flex items-center gap-5 relative z-10">
+                      <div className="relative">
+                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 border border-white/10 flex items-center justify-center text-purple-400 text-xl font-black shadow-inner shadow-white/5 group-hover:scale-110 transition-transform">
+                            {(g.name || 'G').charAt(0).toUpperCase()}
+                         </div>
+                         {g.memberCount > 5 && (
+                           <div className="absolute -top-2 -right-2 bg-emerald-500 text-slate-950 text-[0.5rem] font-black px-1.5 py-0.5 rounded-full border-2 border-[#1a1622] animate-pulse">POP</div>
+                         )}
                       </div>
                       <div>
-                        <h4 className="text-white font-bold leading-tight tracking-tight">{g.name}</h4>
-                        <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                          {g.memberCount} Miem.{g.memberCount !== 1 && 's'} · @{g.creatorId.split('@')[0]}
-                        </p>
+                        <h4 className="text-lg font-black text-white leading-tight tracking-tight">{g.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                           <span className="text-[0.6rem] text-slate-500 font-black uppercase tracking-widest">@{g.creatorId.split('@')[0]}</span>
+                           <div className="w-1 h-1 rounded-full bg-slate-700" />
+                           <span className="text-[0.6rem] text-purple-400 font-black uppercase tracking-widest">{g.memberCount} Miembros</span>
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      {g.status === 'approved' && <span className="bg-emerald-500/10 text-emerald-500 text-[0.6rem] font-black tracking-widest px-2 py-1 rounded-lg border border-emerald-500/20 uppercase">Miembro</span>}
-                      {g.status === 'pending' && <span className="bg-amber-500/10 text-amber-500 text-[0.6rem] font-black tracking-widest px-2 py-1 rounded-lg border border-amber-500/20 uppercase">Pendiente</span>}
-                      {g.status === 'invited' && <span className="bg-purple-500/20 text-purple-400 text-[0.6rem] font-black tracking-widest px-2 py-1 rounded-lg border border-purple-500/30 uppercase animate-pulse">Invitado</span>}
+                    <div className="flex items-center gap-4 relative z-10">
+                      {g.status === 'approved' && (
+                         <div className="flex flex-col items-end">
+                            <span className="bg-emerald-500/10 text-emerald-500 text-[0.55rem] font-black tracking-widest px-3 py-1 rounded-full border border-emerald-500/20 uppercase shadow-lg shadow-emerald-500/5">Activo</span>
+                         </div>
+                      )}
+                      {g.status === 'pending' && <span className="bg-amber-500/10 text-amber-500 text-[0.55rem] font-black tracking-widest px-3 py-1 rounded-full border border-amber-500/20 uppercase">En Espera</span>}
+                      {g.status === 'invited' && <span className="bg-purple-500 text-slate-950 text-[0.55rem] font-black tracking-widest px-3 py-1 rounded-full uppercase animate-pulse shadow-lg shadow-purple-500/20">Invitado</span>}
                       {g.status === 'none' && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleAction('light'); requestJoin(g.id); }}
-                          className="bg-white/5 border border-white/10 text-white text-[0.6rem] font-black tracking-widest px-3 py-2 rounded-xl uppercase hover:bg-white/10 transition-colors"
+                          className="bg-white/10 text-white text-[0.6rem] font-black tracking-widest px-5 py-2.5 rounded-xl uppercase hover:bg-white/20 transition-all active:scale-90 border border-white/10"
                         >
                           Unirse
                         </button>
                       )}
-                      <ChevronRight className="text-slate-700" size={18} />
+                      <ChevronRight className="text-slate-700 group-hover:text-purple-500 transition-colors" size={20} />
                     </div>
                   </motion.div>
                 ))
@@ -352,25 +368,39 @@ export default function FamilyGroup() {
             )}
 
             {/* Members Section */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-slate-500">Lista de Participantes</h3>
-                <span className="bg-white/5 text-[0.6rem] font-black uppercase tracking-widest px-3 py-1 rounded-full text-slate-600 border border-white/5">{approvedMembers.length} activos</span>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-2">
+                <h3 className="text-[0.65rem] font-black uppercase tracking-[0.25em] text-slate-600">Fuerza Operativa Activa</h3>
+                <span className="bg-purple-500/10 text-[0.6rem] font-black uppercase tracking-widest px-4 py-1.5 rounded-full text-purple-400 border border-purple-500/20">{approvedMembers.length} Miembros</span>
               </div>
-              <div className="space-y-2">
+              <div className="grid gap-3">
                 {approvedMembers.map(m => (
-                  <div key={m.userId} className="bg-white/[0.02] border border-white/5 p-4 rounded-[28px] flex items-center gap-4 hover:border-white/10 transition-colors group">
-                    <div className="w-10 h-10 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-purple-400/50 text-[0.65rem] font-black group-hover:text-purple-400 transition-colors">
+                  <div key={m.userId} className="bg-white/[0.02] border border-white/5 p-5 rounded-[32px] flex items-center gap-5 hover:bg-white/[0.05] hover:border-white/10 transition-all group relative overflow-hidden backdrop-blur-sm">
+                    {/* Role specific highlight */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${m.userId === selectedGroup.creatorId ? 'bg-amber-500' : 'bg-purple-500/30'}`} />
+                    
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 flex items-center justify-center text-purple-400 text-[0.8rem] font-black group-hover:scale-110 transition-transform shadow-inner shadow-white/5">
                       {(m.userId || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-white tracking-tight">@{m.userId.split('@')[0]}</div>
-                      <div className="text-[0.6rem] font-bold uppercase tracking-widest text-slate-500">
-                        {m.userId === selectedGroup.creatorId ? 'Líder de Grupo' : 'Analista Colaborador'}
+                      <div className="flex items-center gap-2">
+                         <span className="text-base font-black text-white tracking-tight">@{m.userId.split('@')[0]}</span>
+                         {m.userId === selectedGroup.creatorId && (
+                           <div className="bg-amber-500/20 text-amber-500 text-[0.5rem] font-black px-2 py-0.5 rounded-md border border-amber-500/30 uppercase tracking-tighter">Líder</div>
+                         )}
+                      </div>
+                      <div className="text-[0.65rem] font-black uppercase tracking-widest text-slate-500 mt-0.5">
+                        {m.userId === selectedGroup.creatorId ? 'Coordinador General' : 'Especialista de Grupo'}
                       </div>
                     </div>
                     {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && m.userId !== myUserId && (
-                      <button onClick={() => { handleAction('error'); removeUser(selectedGroup.id, m.userId); }} className="p-3 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+                      <button 
+                        onClick={() => { handleAction('error'); removeUser(selectedGroup.id, m.userId); }} 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                        title="Remover Miembro"
+                      >
+                         <Trash2 size={18} />
+                      </button>
                     )}
                   </div>
                 ))}

@@ -6,7 +6,6 @@ import {
   Plus, 
   Search, 
   ClipboardList, 
-  ExternalLink, 
   Phone, 
   Mail, 
   MapPin, 
@@ -336,40 +335,45 @@ export default function Inventory() {
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
     <motion.div 
-      whileHover={{ y: -4 }}
-      className="bg-white/[0.02] border border-white/10 rounded-[32px] p-6 hover:bg-white/[0.04] transition-all group relative overflow-hidden"
+      whileHover={{ y: -8, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="bg-white/[0.02] border border-white/5 rounded-[40px] p-8 hover:bg-white/[0.05] hover:border-blue-500/30 transition-all duration-500 group relative overflow-hidden backdrop-blur-xl shadow-2xl"
     >
-      <div className="absolute top-0 right-0 p-6 text-blue-500/5 group-hover:text-blue-500/10 transition-colors">
-        <Users size={100} />
-      </div>
+      {/* Decorative gradient */}
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/10 blur-[60px] rounded-full group-hover:bg-blue-500/20 transition-all duration-700" />
       
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-xl font-black text-white tracking-tight group-hover:text-blue-400 transition-colors uppercase">{supplier.name}</h3>
-          <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mt-1">NIT: {supplier.nit}</p>
+      <div className="relative z-10">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="text-xl font-black text-white tracking-tighter group-hover:text-blue-400 transition-colors uppercase leading-none">{supplier.name}</h3>
+            <p className="text-[0.6rem] text-slate-600 font-black uppercase tracking-[0.2em] mt-2">ID Corporativo: {supplier.nit}</p>
+          </div>
+          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400 group-hover:bg-blue-500 group-hover:text-slate-900 transition-all shadow-lg shadow-blue-500/5">
+            <Users size={20} />
+          </div>
         </div>
-        <button className="p-2 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white transition-colors" aria-label="Ver detalles">
-          <ExternalLink size={18} />
-        </button>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {supplier.categories.map((cat, i) => (
-          <span key={i} className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-full text-[0.6rem] font-black uppercase tracking-widest border border-blue-500/20">
-            {cat}
-          </span>
-        ))}
-      </div>
+        <div className="flex flex-wrap gap-2 mb-8">
+          {supplier.categories.map((cat, i) => (
+            <span key={i} className="px-3 py-1.5 bg-slate-900/60 text-slate-400 rounded-xl text-[0.55rem] font-black uppercase tracking-widest border border-white/5 group-hover:border-blue-500/20 group-hover:text-blue-300 transition-all">
+              {cat}
+            </span>
+          ))}
+        </div>
 
-      <div className="space-y-3 pt-4 border-t border-white/5 relative z-10">
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-           <Phone size={14} className="text-blue-500" /> {supplier.phone}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-           <Mail size={14} className="text-blue-500" /> {supplier.email}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-           <MapPin size={14} className="text-blue-500" /> {supplier.address || 'Ubicación no registrada'}
+        <div className="grid gap-3 pt-6 border-t border-white/5">
+          <div className="flex items-center gap-4 text-[0.7rem] text-slate-500 font-bold uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-500"><Phone size={14} /></div>
+             {supplier.phone}
+          </div>
+          <div className="flex items-center gap-4 text-[0.7rem] text-slate-500 font-bold uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-500"><Mail size={14} /></div>
+             {supplier.email || 'Sin correo registrado'}
+          </div>
+          <div className="flex items-center gap-4 text-[0.7rem] text-slate-500 font-bold uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+             <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-500"><MapPin size={14} /></div>
+             {supplier.address || 'Logística Central Grupo More'}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -378,64 +382,69 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
 
 function MissingItemRow({ item, onApprove, onDelete, isAdmin }: { item: MissingItem, onApprove: (id: string) => void, onDelete: (id: string) => void, isAdmin: boolean }) {
   const priorityStyles = {
-    alta: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
-    media: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    baja: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+    alta: 'text-rose-400 bg-rose-500/10 border-rose-500/20 shadow-rose-500/5',
+    media: 'text-amber-400 bg-amber-500/10 border-amber-500/20 shadow-amber-500/5',
+    baja: 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-blue-500/5'
   };
 
   return (
     <motion.div 
       layout
-      className="bg-black/40 border border-white/5 hover:border-white/10 rounded-[28px] p-5 flex flex-col sm:flex-row items-center gap-6 transition-all group"
+      whileHover={{ x: 4 }}
+      className="bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-[32px] p-6 flex flex-col sm:flex-row items-center gap-6 transition-all group relative overflow-hidden backdrop-blur-md shadow-xl"
     >
-      <div className="flex-1 w-full sm:w-auto">
-        <div className="flex items-center gap-3 mb-2">
-           <span className={`px-2 py-0.5 rounded-md text-[0.5rem] font-black uppercase tracking-tighter ${item.brand === 'More Paper' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${item.priority === 'alta' ? 'bg-rose-500' : item.priority === 'media' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+      
+      <div className="flex-1 w-full sm:w-auto relative z-10">
+        <div className="flex items-center gap-3 mb-3">
+           <span className={`px-2.5 py-1 rounded-lg text-[0.55rem] font-black uppercase tracking-widest border ${item.brand === 'More Paper' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
              {item.brand}
            </span>
-           <span className={`px-2 py-0.5 rounded-md text-[0.5rem] font-black uppercase tracking-tighter ${priorityStyles[item.priority]}`}>
-             Prioridad {item.priority}
+           <span className={`px-2.5 py-1 rounded-lg text-[0.55rem] font-black uppercase tracking-widest border ${priorityStyles[item.priority]}`}>
+             Urgencia {item.priority}
            </span>
         </div>
-        <h4 className="text-lg font-black text-white leading-tight uppercase group-hover:text-blue-400 transition-colors uppercase">{item.product_name}</h4>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">
-           <span className="flex items-center gap-1"><Users size={12} className="text-blue-500" /> {item.supplier_name || 'Proveedor General'}</span>
-           <span className="flex items-center gap-1"><Package size={12} className="text-blue-500" /> Cant: {item.quantity}</span>
+        <h4 className="text-xl font-black text-white leading-tight uppercase group-hover:text-blue-400 transition-colors tracking-tight">{item.product_name}</h4>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-3 text-[0.65rem] text-slate-500 font-black uppercase tracking-[0.15em] opacity-70">
+           <span className="flex items-center gap-2 px-3 py-1 bg-black/20 rounded-full border border-white/5"><Users size={12} className="text-blue-500" /> {item.supplier_name || 'Stock General'}</span>
+           <span className="flex items-center gap-2"><Package size={12} className="text-blue-500" /> <span className="text-white">{item.quantity}</span> Disponibles</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 shrink-0 sm:ml-auto">
+      <div className="flex items-center gap-4 shrink-0 sm:ml-auto relative z-10">
          <div className="text-right hidden sm:block">
-            <p className="text-[0.55rem] text-slate-600 font-black uppercase tracking-widest">Solicitado por</p>
-            <p className="text-xs font-black text-white">@{item.requested_by_name}</p>
+            <p className="text-[0.6rem] text-slate-600 font-black uppercase tracking-widest">Solicitante</p>
+            <p className="text-sm font-black text-white tracking-tight">@{item.requested_by_name}</p>
          </div>
          
-         <div className="flex items-center gap-2">
+         <div className="flex items-center gap-3">
             {!item.is_approved ? (
-              <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl text-[0.6rem] font-black uppercase tracking-widest">
-                <Clock size={14} /> Pendiente
+              <div className="flex items-center gap-2 px-5 py-3 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl text-[0.6rem] font-black uppercase tracking-widest shadow-lg shadow-amber-500/5">
+                <Clock size={14} className="animate-pulse" /> Pendiente
               </div>
             ) : (
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-2xl text-[0.6rem] font-black uppercase tracking-widest">
-                <CheckCircle2 size={14} /> Solicitado
+              <div className="flex items-center gap-2 px-5 py-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-2xl text-[0.6rem] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/5">
+                <CheckCircle2 size={14} /> Procesado
               </div>
             )}
 
             {isAdmin && !item.is_approved && (
               <button 
                 onClick={() => { triggerHaptic('success'); onApprove(item.id); }}
-                className="p-3 bg-emerald-500 text-slate-950 rounded-2xl hover:bg-emerald-400 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                className="w-12 h-12 bg-emerald-500 text-slate-950 rounded-2xl hover:bg-emerald-400 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center group/btn"
+                title="Aprobar Solicitud"
               >
-                <CheckCircle2 size={18} />
+                <CheckCircle2 size={24} className="group-hover/btn:scale-110 transition-transform" />
               </button>
             )}
 
             {isAdmin && (
               <button 
                 onClick={() => { triggerHaptic('warning'); onDelete(item.id); }}
-                className="p-3 bg-white/5 border border-white/5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all active:scale-95"
+                className="w-12 h-12 bg-white/5 border border-white/5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all active:scale-95 flex items-center justify-center"
+                title="Eliminar Registro"
               >
-                <Trash2 size={18} />
+                <Trash2 size={20} />
               </button>
             )}
          </div>
