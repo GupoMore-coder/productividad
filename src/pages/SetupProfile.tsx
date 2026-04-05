@@ -13,8 +13,11 @@ export default function SetupProfile() {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [cedula, setCedula] = useState('');
   const [phone, setPhone] = useState('');
+  const [secondaryPhone, setSecondaryPhone] = useState('');
+  const [secondaryEmail, setSecondaryEmail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [avatar, setAvatar] = useState('');
   const [error, setError] = useState('');
@@ -23,6 +26,8 @@ export default function SetupProfile() {
   useEffect(() => {
     if (!user || user.needsSetup === false) {
       navigate('/');
+    } else if (user.email) {
+      setEmail(user.email);
     }
   }, [user, navigate]);
 
@@ -56,8 +61,10 @@ export default function SetupProfile() {
       if (!isSuper) {
         if (password.length < 8) throw new Error('Crea una contraseña segura de al menos 8 caracteres.');
         if (password === '123456') throw new Error('Debes crear una contraseña distinta a la genérica.');
+        if (password !== confirmPassword) throw new Error('Las contraseñas no coinciden. Por favor verifica.');
       }
-      if (!email.includes('@')) throw new Error('Introduce un correo válido.');
+      
+      if (!email.includes('@')) throw new Error('Introduce un correo válido como principal.');
       if (!fullName.trim()) throw new Error('El nombre completo es requerido.');
       if (!cedula.trim()) throw new Error('El número de cédula es requerido.');
       if (!phone.trim()) throw new Error('El número de celular es requerido.');
@@ -68,9 +75,17 @@ export default function SetupProfile() {
         fullName, 
         cedula, 
         phone, 
+        secondaryPhone,
+        secondaryEmail,
         birth_date: birthDate, 
         avatar 
       });
+      
+      if (password) {
+        const { error: passErr } = await supabase.auth.updateUser({ password });
+        if (passErr) console.warn('No se pudo actualizar la contraseña física:', passErr.message);
+      }
+
       triggerHaptic('success');
       navigate('/');
     } catch (err: any) {
@@ -136,7 +151,7 @@ export default function SetupProfile() {
         <form onSubmit={handleSetup} className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Cédula</label>
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Cédula (Obligatorio)</label>
               <input 
                 type="text" 
                 value={cedula}
@@ -147,28 +162,63 @@ export default function SetupProfile() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Celular</label>
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nombre Completo</label>
               <input 
-                type="tel" 
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="3xx xxxxxxx"
+                type="text" 
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                placeholder="Ej. Nayelis Puerta"
                 className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
                 required 
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nombre Completo</label>
-            <input 
-              type="text" 
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              placeholder="Ej. Miguel Rodríguez"
-              className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
-              required 
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Celular Principal</label>
+              <input 
+                type="tel" 
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="Principal (Oblig)"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
+                required 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1 opacity-50">Celular Secundario</label>
+              <input 
+                type="tel" 
+                value={secondaryPhone}
+                onChange={e => setSecondaryPhone(e.target.value)}
+                placeholder="Alternativo (Opc)"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Correo Principal</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
+                required 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1 opacity-50">Correo Secundario</label>
+              <input 
+                type="email" 
+                value={secondaryEmail}
+                onChange={e => setSecondaryEmail(e.target.value)}
+                placeholder="Opcional"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -178,44 +228,49 @@ export default function SetupProfile() {
                 type="date" 
                 value={birthDate}
                 onChange={e => setBirthDate(e.target.value)}
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all color-scheme-dark"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white color-scheme-dark"
+                required 
+              />
+            </div>
+            <div className="flex flex-col justify-end">
+               <p className="text-[0.55rem] text-slate-600 italic px-2 mb-1">
+                 * El correo principal es el que usaste para registrarte inicialmente.
+               </p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Contraseña Nueva</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Crea tu clave"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
                 required 
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Correo Real</label>
+              <label className="text-[0.6rem] uppercase tracking-widest text-[#d4bc8f] font-black ml-1">Confirmar Clave</label>
               <input 
-                type="email" 
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="tu@correo.com"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
+                type="password" 
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Repite tu clave"
+                className={`w-full bg-black/30 border rounded-2xl px-5 py-3.5 text-sm text-white transition-all ${password && confirmPassword ? (password === confirmPassword ? 'border-emerald-500/50' : 'border-red-500/50') : 'border-white/10'}`}
                 required 
               />
             </div>
           </div>
-          
-          <div className="space-y-1.5">
-            <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nueva Contraseña (8+ caracteres)</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Seguridad alta recomendada"
-              className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
-              required 
-            />
-          </div>
-
 
           <button 
             type="submit" 
             disabled={loading}
             className="w-full py-4 bg-[#d4bc8f] text-slate-900 font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-amber-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-4"
-            aria-label={loading ? 'Procesando registro' : 'Finalizar configuración de perfil'}
           >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} aria-hidden="true" />}
-            {loading ? 'Finalizando...' : 'Completar Registro Vital'}
+            {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
+            {loading ? 'Sincronizando...' : 'Finalizar Registro Vital'}
           </button>
         </form>
       </motion.div>

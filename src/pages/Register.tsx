@@ -69,11 +69,12 @@ export default function Register() {
       });
 
       triggerHaptic('success');
-      alert(isFirst 
-        ? '¡Bienvenido! Eres el primer usuario del sistema y has sido configurado como Administrador Maestro con todos los privilegios.' 
-        : 'Registro exitoso. Tu cuenta ha sido creada. Por favor inicia sesión para completar tu perfil.'
-      );
-      navigate('/login', { replace: true });
+      triggerHaptic('success');
+      // Redirect to Login with welcome state
+      navigate('/login', { 
+        replace: true, 
+        state: { welcome: true, registeredEmail: cleanEmail } 
+      });
     } catch (err: any) {
       triggerHaptic('error');
       if (err.message?.includes('already registered')) {

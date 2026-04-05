@@ -7,7 +7,16 @@ interface AuthContextType {
   signInWithEmail: (email: string, pass: string) => Promise<any>;
   signInWithUsername: (username: string, pass: string) => Promise<any>;
   signUp: (email: string, pass: string, username: string, profileData?: any) => Promise<any>;
-  updateProfile: (data: { email: string, fullName: string, cedula?: string, phone?: string, avatar?: string, birth_date?: string }) => Promise<void>;
+  updateProfile: (data: { 
+    email: string, 
+    fullName: string, 
+    cedula?: string, 
+    phone?: string, 
+    secondaryPhone?: string, 
+    secondaryEmail?: string, 
+    avatar?: string, 
+    birth_date?: string 
+  }) => Promise<void>;
   updatePassword: (newPass: string) => Promise<void>;
   signOut: () => Promise<void>;
   isFirstUser: () => Promise<boolean>;
@@ -190,6 +199,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: data.fullName, 
           cedula: data.cedula,
           phone: data.phone,
+          secondary_phone: data.secondaryPhone,
+          secondary_email: data.secondaryEmail,
           avatar: data.avatar,
           birth_date: data.birth_date,
           needs_setup: false,

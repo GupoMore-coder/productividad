@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, Navigate } from 'react-router-dom';
-import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { HoneypotField } from '../components/HoneypotField';
 import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 
 export default function Login() {
   const { user, signInWithEmail, signInWithUsername } = useAuth();
-  const [identifier, setIdentifier] = useState('');
+  const location = useLocation();
+  const showWelcome = location.state?.welcome;
+  
+  const [identifier, setIdentifier] = useState(location.state?.registeredEmail || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -78,6 +81,23 @@ export default function Login() {
             <span className="text-[#d4bc8f]">Regalos auténticos</span> / Grupo More
           </p>
         </div>
+
+        {showWelcome && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="bg-[#d4bc8f]/5 border border-[#d4bc8f]/20 p-5 rounded-[28px] mb-8 flex flex-col items-center gap-3 text-center backdrop-blur-sm relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#d4bc8f]/40 to-transparent" />
+            <div className="w-12 h-12 rounded-2xl bg-[#d4bc8f]/10 flex items-center justify-center text-[#d4bc8f] shadow-lg shadow-amber-500/10 border border-[#d4bc8f]/20">
+              <CheckCircle2 size={24} />
+            </div>
+            <p className="text-[0.7rem] font-black text-slate-200 leading-relaxed uppercase tracking-[0.15em]">
+              Bienvenid@ al <span className="text-[#d4bc8f]">Grupo More</span>. 💎<br/>
+              Ya puedes <span className="text-white">completar tu formulario</span> de registro.
+            </p>
+          </motion.div>
+        )}
 
         {error && (
           <motion.div 
