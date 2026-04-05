@@ -136,6 +136,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Map keys to camelCase for UI consistency
         return {
           ...data,
+          id: data.id,
+          title: data.title,
+          date: data.date,
+          time: data.time,
+          priority: data.priority,
+          completed: data.completed,
+          status: data.status,
           userId: data.user_id,
           isShared: data.is_shared,
           createdBy: data.created_by,

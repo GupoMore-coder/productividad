@@ -34,6 +34,7 @@ interface TaskCardProps {
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
   isReadOnly?: boolean;
+  onSelect?: (task: Task) => void;
 }
 
 export default function TaskCard({
@@ -42,6 +43,7 @@ export default function TaskCard({
   onAccept,
   onDecline,
   isReadOnly,
+  onSelect
 }: TaskCardProps) {
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -66,7 +68,8 @@ export default function TaskCard({
         layout
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: isCompleted && !isPending ? 0.5 : 1, y: 0 }}
-        className={`group relative overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 backdrop-blur-md mb-3 transition-all duration-300 hover:border-purple-500/30 shadow-lg ${isPending ? 'ring-1 ring-amber-500/30' : ''}`}
+        onClick={() => onSelect?.(task)}
+        className={`group relative overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 backdrop-blur-md mb-3 transition-all duration-300 hover:border-purple-500/30 shadow-lg cursor-pointer ${isPending ? 'ring-1 ring-amber-500/30' : ''}`}
       >
         {/* Priority Side Bar */}
         <div className={`absolute left-0 top-0 bottom-0 w-1 ${colors.bg.replace('bg-', 'bg-opacity-100 bg-')}`} />

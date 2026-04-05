@@ -31,6 +31,7 @@ import GlobalNotificationManager from './components/GlobalNotificationManager';
 import PWAInstallBanner from './components/PWAInstallBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NetworkStatus from './components/NetworkStatus';
+import RealtimeNotificationListener from './components/RealtimeNotificationListener';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ function AppRoutes() {
       <NetworkStatus />
       <GlobalNotificationManager />
       <PWAInstallBanner />
+      <RealtimeNotificationListener />
       <Suspense fallback={GlobalLoader}>
         <Routes>
           <Route path="/login"    element={<PublicRoute><div className="flex flex-col min-h-screen"><main className="flex-grow"><Login /></main><Footer /></div></PublicRoute>} />

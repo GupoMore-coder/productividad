@@ -43,6 +43,7 @@ import HistoryView from '../components/HistoryView';
 import TaskAnalytics from '../components/TaskAnalytics';
 import MonthlyReportModal from '../components/MonthlyReportModal';
 import UserDirectory from '../components/UserDirectory';
+import ExecutiveSummaryModal from '../components/ExecutiveSummaryModal';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Skeleton, TaskCardSkeleton } from '../components/ui/Skeleton';
 
@@ -120,6 +121,11 @@ export default function Tasks() {
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState(getNotificationPermissionStatus());
 
+  // Executive Summary Modal State
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryType, setSummaryType] = useState<'task' | 'order'>('task');
+
   // Monitor Notification permissions
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
@@ -134,7 +140,7 @@ export default function Tasks() {
     if (granted) triggerHaptic('success');
   };
 
-  const myUserId = user?.id || user?.email;
+  const myUserId = user?.id;
   const avatar = user?.avatar || '👤';
   const fullName = user?.full_name || user?.username || 'Usuario';
   const todayKey = format(new Date(), 'yyyy-MM-dd');
@@ -409,7 +415,16 @@ export default function Tasks() {
             <div className="space-y-3">
               {/* Service Orders - Highlighted style */}
               {dailyOrders.map(order => (
-                <div key={order.id} className="relative group">
+                <div 
+                  key={order.id} 
+                  className="relative group cursor-pointer"
+                  onClick={() => {
+                    setSummaryData(order);
+                    setSummaryType('order');
+                    setShowSummary(true);
+                    triggerHaptic('light');
+                  }}
+                >
                    <div className="absolute inset-0 bg-amber-500/5 rounded-2xl border border-amber-500/20 group-hover:bg-amber-500/10 transition-colors" />
                    <div className="relative p-4 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
@@ -435,7 +450,17 @@ export default function Tasks() {
               ))}
 
               {dailyTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onToggleComplete={toggleTask} />
+                <TaskCard 
+                  key={task.id} 
+                  task={task} 
+                  onToggleComplete={toggleTask} 
+                  onSelect={(t) => {
+                    setSummaryData(t);
+                    setSummaryType('task');
+                    setShowSummary(true);
+                    triggerHaptic('light');
+                  }}
+                />
               ))}
               
               {/* Infinite Scroll Sentinel */}
@@ -499,6 +524,13 @@ export default function Tasks() {
       
       {showMonthlyReport && <MonthlyReportModal tasks={tasks} onClose={() => setShowMonthlyReport(false)} />}
       {zoomedImg && <ImageZoomModal src={zoomedImg} onClose={() => setZoomedImg(null)} />}
+      
+      <ExecutiveSummaryModal 
+        isOpen={showSummary} 
+        onClose={() => setShowSummary(false)} 
+        data={summaryData} 
+        type={summaryType} 
+      />
     </div>
   );
 }
