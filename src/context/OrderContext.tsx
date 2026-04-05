@@ -276,11 +276,24 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             description: `Estado actualizado a "${updates.status}" por ${uName}` 
           });
         }
+        
+        // Skip history for totalCost changes if User is Master Admin (as requested)
+        const isMaster = user.role === 'Administrador maestro';
+        const isTotalCostChange = updates.totalCost !== undefined && updates.totalCost !== existingOrder.totalCost;
+        
         if (updates.depositAmount !== undefined && updates.depositAmount > existingOrder.depositAmount) {
           const added = updates.depositAmount - existingOrder.depositAmount;
           await supabase.from('order_history').insert({ 
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Nuevo abono recibido: $${added.toLocaleString()} • Total abonado: $${updates.depositAmount.toLocaleString()}` 
+          });
+        }
+        
+        // Only log modification if it's NOT a silent financial correction by Master
+        if (isTotalCostChange && !isMaster) {
+           await supabase.from('order_history').insert({ 
+            order_id: id, type: 'financiero', user_name: uName, 
+            description: `Corrección de costo total: $${existingOrder.totalCost.toLocaleString()} -> $${updates.totalCost.toLocaleString()}` 
           });
         }
       } else {

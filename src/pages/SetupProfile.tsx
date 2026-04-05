@@ -18,6 +18,9 @@ export default function SetupProfile() {
   const [phone, setPhone] = useState('');
   const [secondaryPhone, setSecondaryPhone] = useState('');
   const [secondaryEmail, setSecondaryEmail] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyRelationship, setEmergencyRelationship] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [avatar, setAvatar] = useState('');
   const [error, setError] = useState('');
@@ -77,6 +80,9 @@ export default function SetupProfile() {
         phone, 
         secondaryPhone,
         secondaryEmail,
+        emergencyName,
+        emergencyRelationship,
+        emergencyPhone,
         birth_date: birthDate, 
         avatar 
       });
@@ -218,6 +224,56 @@ export default function SetupProfile() {
                 placeholder="Opcional"
                 className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
               />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+               <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <AlertCircle size={14} className="text-red-400" />
+               </div>
+               <span className="text-[0.6rem] uppercase tracking-[0.2em] font-black text-slate-400">Contacto de Emergencia (Opcional)</span>
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nombre del contacto</label>
+              <input 
+                type="text" 
+                value={emergencyName}
+                onChange={e => setEmergencyName(e.target.value)}
+                placeholder="Persona de confianza"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Parentesco</label>
+                <select 
+                  value={emergencyRelationship}
+                  onChange={e => setEmergencyRelationship(e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white appearance-none focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="Madre">Madre</option>
+                  <option value="Padre">Padre</option>
+                  <option value="Hijo/a">Hijo/a</option>
+                  <option value="Hermano/a">Hermano/a</option>
+                  <option value="Esposo/a">Esposo/a</option>
+                  <option value="Amigo/a">Amigo/a</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Celular de Emergencia</label>
+                <input 
+                  type="tel" 
+                  value={emergencyPhone}
+                  onChange={e => setEmergencyPhone(e.target.value)}
+                  placeholder="3xx xxxxxxx"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText } from 'lucide-react';
+import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText, Lock, Unlock, TrendingUp } from 'lucide-react';
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -23,6 +23,10 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
   const { user } = useAuth();
   
   const activeResponsible = user?.full_name || user?.username || user?.email || 'Usuario';
+  const isMaster = user?.role === 'Administrador maestro';
+  const [isFinancialUnlocked, setIsFinancialUnlocked] = useState(false);
+  const [newDepositAmount, setNewDepositAmount] = useState<number>(0);
+  const [isRegisteringDeposit, setIsRegisteringDeposit] = useState(false);
 
   const {
     register,
@@ -116,8 +120,10 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
       };
       if (initialOrder) await updateOrder(initialOrder.id, orderData);
       else await createOrder(orderData);
+      
       triggerHaptic('success');
       onClose();
+      setIsFinancialUnlocked(false);
     } catch (err: any) {
       console.error('Error submitting order:', err);
       triggerHaptic('error');
@@ -207,20 +213,92 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                 {errors.services && <p className="text-[0.6rem] text-red-400 font-bold mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.services.message}</p>}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Calendar size={12}/> Fecha Entrega</label>
+                <input {...register('deliveryDate')} type="date" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark" />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6 items-end">
                 <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Calendar size={12}/> Fecha Entrega</label>
-                  <input {...register('deliveryDate')} type="date" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark" />
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black">Costo Total ($)</label>
+                    {initialOrder && isMaster && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsFinancialUnlocked(!isFinancialUnlocked); triggerHaptic('medium'); }}
+                        className={`text-[0.6rem] font-black uppercase flex items-center gap-1 transition-colors ${isFinancialUnlocked ? 'text-amber-400' : 'text-slate-500 hover:text-white'}`}
+                      >
+                        {isFinancialUnlocked ? <Unlock size={10}/> : <Lock size={10}/>}
+                        {isFinancialUnlocked ? 'Desbloqueado' : 'Desbloquear'}
+                      </button>
+                    )}
+                  </div>
+                  <input 
+                    {...register('totalCost', { valueAsNumber: true })} 
+                    type="number" 
+                    disabled={initialOrder && !isFinancialUnlocked}
+                    className={`w-full bg-black/20 border rounded-2xl px-4 py-3.5 text-sm transition-all ${initialOrder && !isFinancialUnlocked ? 'border-white/5 opacity-50 cursor-not-allowed' : 'border-white/10 text-white focus:ring-2 focus:ring-purple-500/20'}`} 
+                  />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Costo Total ($)</label>
-                  <input {...register('totalCost', { valueAsNumber: true })} type="number" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-purple-500/20" />
-                </div>
+                
                 <div className="space-y-2">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Abono Inicial ($)</label>
-                  <input {...register('depositAmount', { valueAsNumber: true })} type="number" className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-emerald-400 focus:ring-2 focus:ring-emerald-500/20 font-bold" />
+                  <input 
+                    {...register('depositAmount', { valueAsNumber: true })} 
+                    type="number" 
+                    disabled={!!initialOrder}
+                    className={`w-full bg-black/20 border rounded-2xl px-4 py-3.5 text-sm font-bold transition-all ${initialOrder ? 'border-white/5 text-emerald-500/50 cursor-not-allowed' : 'border-white/10 text-emerald-400 focus:ring-2 focus:ring-emerald-500/20'}`} 
+                  />
                 </div>
               </div>
+
+              {initialOrder && (
+                <div className="p-5 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp size={14} className="text-purple-400" />
+                      <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-slate-400">Gestión de Abonos</span>
+                    </div>
+                    <div className="px-3 py-1 bg-purple-500/10 rounded-full">
+                       <span className="text-[0.6rem] font-black text-purple-400">SALDO: ${Math.max(0, watch('totalCost') - watch('depositAmount')).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex-1 relative">
+                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                       <input 
+                         type="number"
+                         value={newDepositAmount || ''}
+                         onChange={(e) => setNewDepositAmount(Number(e.target.value))}
+                         placeholder="Nuevo abono..."
+                         className="w-full bg-black/40 border border-white/10 rounded-2xl pl-8 pr-4 py-3.5 text-sm text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                       />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!newDepositAmount || isRegisteringDeposit}
+                      onClick={async () => {
+                        if (!newDepositAmount) return;
+                        setIsRegisteringDeposit(true);
+                        try {
+                          const { registerDeposit } = (useOrders as any)();
+                          await registerDeposit(initialOrder.id, newDepositAmount);
+                          const currentTotal = watch('depositAmount') + newDepositAmount;
+                          setValue('depositAmount', currentTotal);
+                          setNewDepositAmount(0);
+                          triggerHaptic('success');
+                        } finally {
+                          setIsRegisteringDeposit(false);
+                        }
+                      }}
+                      className="px-6 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-2xl font-black text-[0.6rem] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isRegisteringDeposit ? '...' : 'Registrar'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-3">
                 <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Estado de Pago</label>
