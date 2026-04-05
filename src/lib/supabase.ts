@@ -1,18 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 import imageCompression from 'browser-image-compression';
 
-// --- MOCK MODE CONFIGURATION ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://demo-antigravity.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'demo-key-1234567890';
+// --- CONFIGURACIÓN DINÁMICA DE SUPABASE ---
+// Para funcionar con tu base de datos real, crea un archivo '.env' en la raíz del proyecto.
+// Copia '.env.example' y rellena tus valores desde: https://supabase.com/dashboard
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const isSupabaseConfigured = !!import.meta.env.VITE_SUPABASE_URL && 
-                                    !import.meta.env.VITE_SUPABASE_URL.includes('your-project');
+// isSupabaseConfigured: true SOLO cuando ambas variables de entorno son reales
+export const isSupabaseConfigured = 
+  !!supabaseUrl && 
+  !!supabaseAnonKey && 
+  !supabaseUrl.includes('your-project') &&
+  !supabaseAnonKey.includes('demo-key');
 
 if (!isSupabaseConfigured) {
-  console.warn('⚠️ [Antigravity] Ejecutando en MODO DEMO/MOCK. Las funciones de Supabase usarán valores de prueba.');
+  console.warn('⚠️ [Antigravity] Ejecutando en MODO DEMO/LOCAL. Las tareas se guardan en localStorage. Para conectar a la base de datos real, crea un archivo .env con tus credenciales de Supabase.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Cliente Supabase: usa valores reales si están configurados, si no usa placeholders seguros
+export const supabase = createClient(
+  supabaseUrl || 'https://grsaehpmaihrztusehkb.supabase.co',
+  supabaseAnonKey || 'local-demo-mode-no-network-calls'
+);
 
 /**
  * Uploads a file to a specific Supabase storage bucket and returns its public URL.

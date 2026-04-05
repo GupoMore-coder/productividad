@@ -49,8 +49,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryFn: async () => {
       if (!user) return [];
       if (!isSupabaseConfigured) {
-        const saved = localStorage.getItem('mock_tasks');
-        return saved ? JSON.parse(saved) : [];
+        // MODO LOCAL: lee tareas de localStorage filtrando por usuario
+        const saved = localStorage.getItem(`mock_tasks_${user.id}`);
+        const allTasks: Task[] = saved ? JSON.parse(saved) : [];
+        return allTasks;
       }
 
       const { data: myMemberships } = await supabase
@@ -137,7 +139,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) throw error;
         return transformFromDb(data, user?.id);
       }
-      return { ...newTask, id: Math.random().toString(36).substring(7) };
+      // MODO LOCAL: persiste en localStorage
+      const localTask: Task = {
+        ...newTask,
+        id: `local_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        userId: newTask.user_id,
+        isShared: newTask.is_shared,
+        createdBy: newTask.created_by,
+        failureReason: newTask.failure_reason,
+        imageUrl: newTask.image_url,
+        isGroupTask: false,
+        completed: false,
+      } as Task;
+      const storageKey = `mock_tasks_${user?.id}`;
+      const existingRaw = localStorage.getItem(storageKey);
+      const existing: Task[] = existingRaw ? JSON.parse(existingRaw) : [];
+      localStorage.setItem(storageKey, JSON.stringify([localTask, ...existing]));
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      return localTask;
     },
     {
       mutationKey: ['tasks'],

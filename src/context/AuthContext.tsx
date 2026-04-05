@@ -121,14 +121,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithEmail = async (email: string, pass: string) => {
     if (email === 'fernando830609@gmail.com' && pass === 'admin') {
-      const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
-      
-      if (profile && profile.bypass_allowed === false) {
-        throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
+      let profile = null;
+      if (isSupabaseConfigured) {
+        const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
+        profile = result.data;
+        if (profile && profile.bypass_allowed === false) {
+          throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
+        }
       }
 
       const masterUser = { 
-        id: profile?.id || 'admin-master',
+        id: profile?.id || 'admin-master-local',
         email, 
         user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
         role: 'Administrador maestro', 
@@ -140,15 +143,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isColaborador: false,
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true 
+        isBypass: true,
+        needsSetup: false,
+        username: 'fernando',
+        full_name: profile?.full_name || 'Fernando Marulanda',
       };
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
 
+    if (!isSupabaseConfigured) throw new Error('Supabase no configurado. Usa el acceso de administrador.');
     const res = await supabase.auth.signInWithPassword({ email, password: pass });
     if (res.error) throw res.error;
-    
     return res;
   };
 
@@ -156,26 +162,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const lowerUser = username.toLowerCase();
 
     if (lowerUser === 'fernando' && pass === 'admin') {
-      const { data: profile } = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
-      
-      if (profile && profile.bypass_allowed === false) {
-        throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
+      let profile = null;
+      if (isSupabaseConfigured) {
+        const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
+        profile = result.data;
+        if (profile && profile.bypass_allowed === false) {
+          throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
+        }
       }
-
       const masterUser = { 
-        id: profile?.id || 'admin-master',
+        id: profile?.id || 'admin-master-local',
         email: profile?.email || 'fernando830609@gmail.com',
         user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
         role: 'Administrador maestro', 
+        isMaster: true,
+        isAdmin: false,
+        isAccountant: false,
+        isSupervisor: false,
+        isConsultant: false,
+        isColaborador: false,
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true 
+        isBypass: true,
+        needsSetup: false,
+        username: 'fernando',
+        full_name: profile?.full_name || 'Fernando Marulanda',
       };
-      
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
 
+    if (!isSupabaseConfigured) throw new Error('Supabase no configurado. Solo el acceso de administrador está disponible en modo local.');
     const { data, error } = await supabase.from('profiles').select('email').ilike('username', username).single();
     if (error || !data) throw new Error('Usuario no encontrado');
     
