@@ -579,9 +579,64 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
       doc.text(`$ ${order.pendingBalance.toLocaleString()}`, 150, fy);
 
+      // --- HELPERS FOR MULTI-PAGE & FOOTER ---
+      const renderFooter = (pdf: any, pageNum: number) => {
+        const footY = 270;
+        pdf.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
+        pdf.rect(0, footY, 210, 27, 'F');
+        pdf.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+        pdf.rect(0, footY, 210, 0.5, 'F');
+
+        pdf.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+        pdf.setFontSize(7);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("LEGALIDAD Y DATOS", 15, footY + 7);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(160, 160, 170);
+        pdf.text("Privacidad (Habeas Data)", 15, footY + 12);
+        pdf.text("Términos de Servicio", 15, footY + 16);
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+        pdf.text("SOPORTE Y CONTACTO", 75, footY + 7);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(160, 160, 170);
+        pdf.text("morepaper2024@gmail.com", 75, footY + 12);
+        pdf.text("Barranquilla, Colombia", 75, footY + 16);
+        pdf.text("Tel: 304 526 7493 / 318 380 6342", 75, footY + 20);
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+        pdf.text("NUESTRAS REDES", 145, footY + 7);
+        pdf.addImage(qrInstagram, 'PNG', 145, footY + 9, 12, 12);
+        pdf.addImage(qrWAMorePaper, 'PNG', 165, footY + 9, 12, 12);
+        pdf.addImage(qrWAMoreDesign, 'PNG', 185, footY + 9, 12, 12);
+        
+        pdf.setFontSize(5);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text("INSTAGRAM", 145, footY + 23);
+        pdf.text("WA PAPER", 165, footY + 23);
+        pdf.text("WA DESIGN", 185, footY + 23);
+
+        pdf.setFontSize(6);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
+        pdf.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 294);
+        
+        pdf.text(`Página ${pageNum}`, 195, 294);
+      };
+
+      const addNewPage = (pdf: any) => {
+        renderFooter(pdf, pdf.internal.getNumberOfPages());
+        pdf.addPage();
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(0, 0, 210, 297, 'F');
+        return 25; // Reset Y
+      };
+
       // --- AUDIT TRAIL (HISTORY) ---
       y += 45;
-      if (y > 220) { doc.addPage(); y = 25; }
+      if (y > 220) { y = addNewPage(doc); }
       
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
@@ -597,9 +652,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const splitDesc = doc.splitTextToSize(descText, 165);
         const rowHeight = Math.max(8, (splitDesc.length * 4) + 4);
 
-        if (y + rowHeight > 250) { doc.addPage(); y = 25; } 
+        if (y + rowHeight > 250) { y = addNewPage(doc); } 
         
-        // Alternating background
         if (index % 2 === 0) {
           doc.setFillColor(240, 240, 250);
           doc.rect(10, y - 4, 190, rowHeight, 'F');
@@ -621,7 +675,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // --- ATTACHED IMAGES (4 COLUMNS) ---
       if (order.photos && order.photos.length > 0) {
         y += 10;
-        if (y > 230) { doc.addPage(); y = 25; }
+        if (y > 230) { y = addNewPage(doc); }
         
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
@@ -636,14 +690,17 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const colWidth = (190 - (spacing * (colCount - 1))) / colCount;
         const imgHeight = colWidth;
 
+        let rowOnPage = 0;
         for (let i = 0; i < order.photos.length; i++) {
           const colIdx = i % colCount;
-          const rowIdx = Math.floor(i / colCount);
-          const currentY = y + (rowIdx * (imgHeight + spacing));
+          if (i > 0 && colIdx === 0) rowOnPage++;
           
-          if (currentY + imgHeight > 275) {
-             doc.addPage();
-             y = 25;
+          let currentY = y + (rowOnPage * (imgHeight + spacing));
+          
+          if (currentY + imgHeight > 260) {
+             y = addNewPage(doc);
+             rowOnPage = 0;
+             currentY = y;
           }
 
           try {
@@ -654,54 +711,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // --- FOOTER BRANDING & LEGAL ---
-      const footY = 270;
-      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.rect(0, footY, 210, 27, 'F');
-      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.rect(0, footY, 210, 0.5, 'F');
+      // Final Footer
+      renderFooter(doc, doc.internal.getNumberOfPages());
 
-      // Column 1: Legal
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("LEGALIDAD Y DATOS", 15, footY + 7);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(160, 160, 170);
-      doc.text("Privacidad (Habeas Data)", 15, footY + 12);
-      doc.text("Términos de Servicio", 15, footY + 16);
-
-      // Column 2: Support
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.text("SOPORTE Y CONTACTO", 75, footY + 7);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(160, 160, 170);
-      doc.text("morepaper2024@gmail.com", 75, footY + 12);
-      doc.text("Barranquilla, Colombia", 75, footY + 16);
-      doc.text("Tel: 304 526 7493 / 318 380 6342", 75, footY + 20);
-
-      // Column 3: Social QRs
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.text("NUESTRAS REDES", 145, footY + 7);
-      
-      // QR Icons with labels
-      const qrSize = 12;
-      doc.addImage(qrInstagram, 'PNG', 145, footY + 9, qrSize, qrSize);
-      doc.addImage(qrWAMorePaper, 'PNG', 165, footY + 9, qrSize, qrSize);
-      doc.addImage(qrWAMoreDesign, 'PNG', 185, footY + 9, qrSize, qrSize);
-      
-      doc.setFontSize(5);
-      doc.setTextColor(100, 116, 139);
-      doc.text("INSTAGRAM", 145, footY + 23);
-      doc.text("WA PAPER", 165, footY + 23);
-      doc.text("WA DESIGN", 185, footY + 23);
-
-      doc.setFontSize(6);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 294);
 
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');
