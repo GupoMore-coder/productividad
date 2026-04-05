@@ -627,7 +627,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       const addNewPage = (pdf: any) => {
-        renderFooter(pdf, pdf.internal.getNumberOfPages());
+        renderFooter(pdf, pdf.internal.pages.length - 1);
         pdf.addPage();
         pdf.setFillColor(248, 250, 252);
         pdf.rect(0, 0, 210, 297, 'F');
@@ -712,7 +712,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // Final Footer
-      renderFooter(doc, doc.internal.getNumberOfPages());
+      renderFooter(doc, doc.internal.pages.length - 1);
 
 
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
