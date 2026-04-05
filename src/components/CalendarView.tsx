@@ -100,7 +100,11 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
         </button>
       </div>
 
-      <div className="flex gap-2.5 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x">
+      {/* v12: Centered Date Strip with Android horizontal scroll fix */}
+      <div 
+        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x touch-pan-x"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {days.map((day, idx) => {
           const dayKey = format(day, "yyyy-MM-dd");
           const isSelected = dayKey === format(selectedDate, "yyyy-MM-dd");
@@ -112,23 +116,23 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
               key={idx}
               onClick={() => handleSelectDay(day)}
               className={`
-                min-w-[64px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center
+                min-w-[70px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center flex-shrink-0
                 ${isSelected 
-                  ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10' 
+                  ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10 font-black' 
                   : 'bg-white/[0.03] border border-white/5 text-slate-400 hover:bg-white/[0.07] hover:border-white/10'}
                 ${isToday && !isSelected ? 'border-purple-500/50 border-dashed' : ''}
               `}
               aria-label={`Seleccionar ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
               aria-pressed={isSelected}
             >
-              <span className={`text-[0.65rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
+              <span className={`text-[0.6rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
                 {format(day, "EEE", { locale: es })}
               </span>
               <span className="text-xl font-black tracking-tighter">
                 {format(day, "dd")}
               </span>
               {hasActivity && (
-                <div className={`w-1 h-1 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500'}`} />
+                <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500 shadow-sm shadow-purple-500/50'}`} />
               )}
             </button>
           )

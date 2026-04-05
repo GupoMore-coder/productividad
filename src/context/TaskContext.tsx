@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { SyncService } from '@/services/SyncService';
 
 export interface Task {
   id: string;
@@ -15,12 +16,13 @@ export interface Task {
   status?: 'pending_acceptance' | 'accepted' | 'declined' | 'expired' | 'cancelled_with_reason' | 'completed';
   userId?: string;
   groupId?: string;
-  group_ids?: string[]; // Multiple groups
+  group_ids?: string[];
   createdBy?: string;
   isShared?: boolean;
   failureReason?: string;
-  isGroupTask?: boolean; // Label for UI
+  isGroupTask?: boolean;
   imageUrl?: string;
+  isOfflinePending?: boolean; // New flag for UI indicator
 }
 
 interface TaskContextType {
@@ -39,9 +41,10 @@ const TaskContext = createContext<TaskContextType>({} as TaskContextType);
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [offlineTasks, setOfflineTasks] = useState<Task[]>([]);
 
-  // 1. Fetch Tasks with React Query
-  const { data: tasks = [], isLoading: loading } = useQuery({
+  // 1. Fetch Tasks with React Query (Vanguard Hybrid)
+  const { data: serverTasks = [], isLoading: loading } = useQuery({
     queryKey: ['tasks', user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -50,7 +53,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return saved ? JSON.parse(saved) : [];
       }
 
-      // Fetch my memberships
       const { data: myMemberships } = await supabase
         .from('group_memberships')
         .select('group_id')
@@ -58,7 +60,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('status', 'approved');
       
       const myGroupIds = myMemberships?.map(m => m.group_id) || [];
-
       let query = supabase.from('tasks').select('*');
 
       if (!user.isSuperAdmin) {
@@ -87,6 +88,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     enabled: !!user,
   });
 
+  // 2. Poll for Offline Pending Tasks (Persistent Visibility)
+  useEffect(() => {
+    const fetchOffline = async () => {
+      const queue = await SyncService.getQueue();
+      const pendingTasks = queue
+        .filter(a => a.endpoint === 'tasks' && a.type === 'create_task')
+        .map(a => ({
+          ...a.payload,
+          id: a.id,
+          isOfflinePending: true,
+          // Map back to CamelCase for the UI
+          userId: a.payload.user_id,
+          isShared: a.payload.is_shared,
+          createdBy: a.payload.created_by,
+          isGroupTask: a.payload.user_id !== user?.id
+        }));
+      setOfflineTasks(pendingTasks);
+    };
+
+    fetchOffline();
+    const t = setInterval(fetchOffline, 5000); 
+    return () => clearInterval(t);
+  }, [user?.id]);
+
+  // Merge server and offline data
+  const tasks = [...offlineTasks, ...serverTasks];
+
   // Real-time Sync
   useEffect(() => {
     if (isSupabaseConfigured && user?.id) {
@@ -96,71 +124,54 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
         })
         .subscribe();
-
       return () => { supabase.removeChannel(channel).catch(console.error); };
     }
   }, [isSupabaseConfigured, user?.id, queryClient]);
 
-  // 2. Local Fallback Sync
-  useEffect(() => {
-    if (!isSupabaseConfigured && tasks.length > 0) {
-      localStorage.setItem('mock_tasks', JSON.stringify(tasks));
-    }
-  }, [tasks, isSupabaseConfigured]);
-
   // 3. Mutations
   const addTaskMutation = useOfflineMutation(
     async (taskData: Partial<Task>) => {
-      // 1. Sanitize for Supabase (Snake Case)
-      const newTask: any = {
-        title: taskData.title || '',
-        date: taskData.date || new Date().toISOString().split('T')[0],
-        time: taskData.time || '12:00',
-        priority: taskData.priority || 'media',
-        completed: taskData.completed || false,
-        status: taskData.status || 'accepted',
-        user_id: taskData.userId || user?.id,
-        created_by: taskData.createdBy || user?.id,
-        group_ids: taskData.group_ids || [],
-        is_shared: taskData.isShared || false,
-        image_url: taskData.imageUrl || null,
-        description: taskData.description || null,
-        failure_reason: taskData.failureReason || null
-      };
-
+      const newTask = transformToDb(taskData, user?.id);
       if (isSupabaseConfigured) {
         const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
-        if (error) {
-          console.error('Error inserting task:', error);
-          throw error;
-        }
-        // Map keys to camelCase for UI consistency
-        return {
-          ...data,
-          id: data.id,
-          title: data.title,
-          date: data.date,
-          time: data.time,
-          priority: data.priority,
-          completed: data.completed,
-          status: data.status,
-          userId: data.user_id,
-          isShared: data.is_shared,
-          createdBy: data.created_by,
-          failureReason: data.failure_reason,
-          imageUrl: data.image_url,
-          isGroupTask: data.user_id !== user?.id
-        };
-      } else {
-        return { ...newTask, id: Math.random().toString(36).substring(7) };
+        if (error) throw error;
+        return transformFromDb(data, user?.id);
       }
+      return { ...newTask, id: Math.random().toString(36).substring(7) };
     },
     {
       mutationKey: ['tasks'],
       type: 'create_task',
-      table: 'tasks'
+      table: 'tasks',
+      transform: (variables) => transformToDb(variables, user?.id)
     }
   );
+
+  const transformToDb = (taskData: Partial<Task>, uid?: string) => ({
+    title: taskData.title || '',
+    date: taskData.date || new Date().toISOString().split('T')[0],
+    time: taskData.time || '12:00',
+    priority: taskData.priority || 'media',
+    completed: taskData.completed || false,
+    status: taskData.status || 'accepted',
+    user_id: taskData.userId || uid,
+    created_by: taskData.createdBy || uid,
+    group_ids: taskData.group_ids || [],
+    is_shared: taskData.isShared || false,
+    image_url: taskData.imageUrl || null,
+    description: taskData.description || null,
+    failure_reason: taskData.failureReason || null
+  });
+
+  const transformFromDb = (data: any, uid?: string) => ({
+    ...data,
+    userId: data.user_id,
+    isShared: data.is_shared,
+    createdBy: data.created_by,
+    failureReason: data.failure_reason,
+    imageUrl: data.image_url,
+    isGroupTask: data.user_id !== uid
+  });
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Task> }) => {
@@ -173,9 +184,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data, error } = await supabase.from('tasks').update(dbUpdates).eq('id', id).select().single();
         if (error) throw error;
         return data;
-      } else {
-        return { id, ...updates };
       }
+      return { id, ...updates };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
   });
@@ -196,13 +206,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <TaskContext.Provider value={{ 
-      tasks, 
-      addTask, 
-      updateTask, 
-      deleteTask, 
-      loading, 
-      hasMore: false, 
-      loadMore: async () => {}, 
+      tasks, addTask, updateTask, deleteTask, loading, 
+      hasMore: false, loadMore: async () => {}, 
       refreshTasks: async () => { queryClient.invalidateQueries({ queryKey: ['tasks'] }) } 
     }}>
       {children}

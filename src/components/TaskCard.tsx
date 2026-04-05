@@ -26,6 +26,7 @@ export interface Task {
   status?: 'pending_acceptance' | 'accepted' | 'completed' | 'expired' | 'cancelled_with_reason' | 'declined';
   failureReason?: string;
   imageUrl?: string;
+  isOfflinePending?: boolean;
 }
 
 interface TaskCardProps {
@@ -135,6 +136,11 @@ const TaskCard = memo(function TaskCard({
               {task.isShared && task.createdBy && (
                 <div className="text-[0.65rem] text-purple-400 font-medium ml-auto">
                    @{task.createdBy.split('@')[0]}
+                </div>
+              )}
+              {task.isOfflinePending && (
+                <div className="text-[0.55rem] font-black text-amber-500 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 animate-pulse ml-auto">
+                  Sincronizando...
                 </div>
               )}
             </div>

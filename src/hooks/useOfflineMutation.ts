@@ -2,21 +2,26 @@ import { useMutation, useQueryClient, MutationFunction } from '@tanstack/react-q
 import { SyncService } from '../services/SyncService';
 import { triggerHaptic } from '../utils/haptics';
 
-interface OfflineMutationOptions {
+interface OfflineMutationOptions<TVariables> {
   mutationKey: string[];
   type: string;
   table: string;
   onSuccess?: (data: any) => void;
   onError?: (err: any) => void;
+  /**
+   * Transforms the raw mutation variables into a format suitable for the offline queue (e.g. Snake Case for DB)
+   */
+  transform?: (variables: TVariables) => any;
 }
 
 /**
- * v11: Vanguard Offline Mutation Wrapper
+ * v12: Vanguard Offline Mutation Wrapper (Stabilized)
  * Automatically enqueues actions if the network fails or the device is offline.
+ * Now supports pre-enqueue transformation to ensure database compatibility.
  */
 export function useOfflineMutation<TData = any, TVariables = any>(
   mutationFn: MutationFunction<TData, TVariables>,
-  options: OfflineMutationOptions
+  options: OfflineMutationOptions<TVariables>
 ) {
   const queryClient = useQueryClient();
 
@@ -32,9 +37,12 @@ export function useOfflineMutation<TData = any, TVariables = any>(
       }
 
       // 2. Fallback to Offline Sync Queue (Universal)
+      // v12: Transform payload if a transformer is provided (e.g. for Snake Case compatibility)
+      const payload = options.transform ? options.transform(variables) : variables;
+
       const syncId = await SyncService.enqueue(
         options.type,
-        variables,
+        payload,
         options.table
       );
       

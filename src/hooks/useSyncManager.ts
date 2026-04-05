@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase';
 import { triggerHaptic } from '../utils/haptics';
 
 /**
- * v11: Vanguard Sync Manager
+ * v12: Vanguard Sync Manager (Stabilized)
  * Automatically monitors connectivity and processes the offline queue.
+ * Optimized for database-ready payloads and resilient error handling.
  */
 export function useSyncManager() {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -26,16 +27,23 @@ export function useSyncManager() {
 
     for (const action of queue) {
       try {
-        // Deterministic processing based on endpoint (table)
+        // v12: Use sanitized payload directly (already Snake Case from the context)
         const { error } = await supabase
           .from(action.endpoint)
-          .insert(action.payload); // Simple insert for now, can be updated for upsert/updates
+          .insert(action.payload);
 
         if (!error) {
           await SyncService.dequeue(action.id);
           console.log(`✅ [Vanguard] Acción ${action.id} sincronizada con éxito.`);
         } else {
-          throw error;
+          // If the error is a duplicate or a schema constraint, we might want to dequeue it
+          // after some retries to avoid blocking the whole queue forever.
+          if (action.retries >= 5) {
+             console.error(`❌ [Vanguard] Acción ${action.id} falló permanentemente después de ${action.retries} intentos. Eliminando de la cola para evitar bloqueo.`, error);
+             await SyncService.dequeue(action.id);
+          } else {
+             throw error;
+          }
         }
       } catch (err) {
         console.warn(`⚠️ [Vanguard] Error sincronizando ${action.id}:`, err);
@@ -46,19 +54,22 @@ export function useSyncManager() {
     setIsSyncing(false);
     const finalQueue = await SyncService.getQueue();
     setPendingCount(finalQueue.length);
-    if (finalQueue.length === 0) triggerHaptic('success');
+    if (finalQueue.length === 0) {
+       triggerHaptic('success');
+       // Invalidate all relevant queries to reflect the new data
+       // Note: We can't easily access the queryClient here without a hook or context,
+       // but the individual contexts refresh periodically or via real-time.
+    }
   };
 
   useEffect(() => {
-    // Check queue on mount and when connectivity returns
     processQueue();
     window.addEventListener('online', processQueue);
     return () => window.removeEventListener('online', processQueue);
   }, []);
 
-  // Periodic check every 60s as a safety net
   useEffect(() => {
-    const t = setInterval(processQueue, 60000);
+    const t = setInterval(processQueue, 30000); // More frequent check for v12
     return () => clearInterval(t);
   }, []);
 

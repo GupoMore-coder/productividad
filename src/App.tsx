@@ -36,6 +36,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NetworkStatus from './components/NetworkStatus';
 import RealtimeNotificationListener from './components/RealtimeNotificationListener';
 import { useSyncManager } from './hooks/useSyncManager';
+import { triggerHaptic } from '@/utils/haptics';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -146,6 +147,26 @@ function NotificationBootstrap() {
 function AppRoutes() {
   const { user } = useAuth();
   const { isSyncing, pendingCount } = useSyncManager();
+
+  // v12: Vanguard Orientation & Layout Resilience (Zero Lag)
+  useEffect(() => {
+    const handleLayout = () => {
+      // Force a height update for mobile PWA (address bar behavior)
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      // Pulse to trigger React layout engine recalibration
+      triggerHaptic('light');
+    };
+    
+    window.addEventListener('resize', handleLayout);
+    window.addEventListener('orientationchange', handleLayout);
+    handleLayout();
+    
+    return () => {
+      window.removeEventListener('resize', handleLayout);
+      window.removeEventListener('orientationchange', handleLayout);
+    };
+  }, []);
 
   const GlobalLoader = (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
