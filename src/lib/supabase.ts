@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import imageCompression from 'browser-image-compression';
 
 // --- MOCK MODE CONFIGURATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://demo-antigravity.supabase.co';
@@ -22,7 +23,31 @@ export const uploadFile = async (bucket: string, path: string, file: File | Blob
     return `https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500&q=80`;
   }
 
-  const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
+  let finalFile = file;
+  
+  // v11: Vanguard Image Optimization (WebP compression)
+  if (file.type && file.type.startsWith('image/') && !file.type.includes('svg')) {
+    try {
+      const options = {
+        maxSizeMB: 0.5, // Target < 500KB for elite performance
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+        fileType: 'image/webp' as any // Elite format
+      };
+      
+      const compressedFile = await imageCompression(file as File, options);
+      finalFile = compressedFile;
+      
+      // Update path extension to .webp if it was different
+      if (!path.endsWith('.webp')) {
+        path = path.substring(0, path.lastIndexOf('.')) + '.webp';
+      }
+    } catch (err) {
+      console.warn('⚠️ [Vanguard] Error en compresión de imagen, cargando original.', err);
+    }
+  }
+
+  const { data, error } = await supabase.storage.from(bucket).upload(path, finalFile, {
     cacheControl: '3600',
     upsert: true
   });

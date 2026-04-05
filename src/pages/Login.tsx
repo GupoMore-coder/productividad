@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { Lock, Mail, AlertCircle, Eye, EyeOff, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff, CheckCircle2, Fingerprint, Loader2 } from 'lucide-react';
+import { WebAuthnService } from '../services/WebAuthnService';
 import { HoneypotField } from '../components/HoneypotField';
 import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
@@ -17,6 +18,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [hpValue, setHpValue] = useState('');
+  const [biometricLoading, setBiometricLoading] = useState(false);
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -49,6 +51,34 @@ export default function Login() {
       setError(err.message || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
+    }
+  };
+  const handleBiometricLogin = async () => {
+    if (!identifier) {
+      setError('Ingresa tu correo o usuario para usar biometría.');
+      triggerHaptic('warning');
+      return;
+    }
+    
+    setBiometricLoading(true);
+    setError('');
+    try {
+      // 1. Get userId for this identifier (In real app, fetch from backend)
+      // For this Vanguard Phase, we simulate the biometric validation with the service
+      const success = await WebAuthnService.authenticate(identifier); 
+      if (success) {
+        triggerHaptic('success');
+        // If success, we should auto-login. For now, we simulate the flow
+        // In a real banking level app, this would exchange a challenge for a JWT
+        alert("Autenticación Biométrica Exitosa (Simulación Vanguardia)");
+      } else {
+        throw new Error('Autenticación fallida o cancelada.');
+      }
+    } catch (err: any) {
+      triggerHaptic('error');
+      setError(err.message || 'Error en biometría');
+    } finally {
+      setBiometricLoading(false);
     }
   };
 
@@ -155,16 +185,31 @@ export default function Login() {
 
           <button 
             type="submit" 
-            className="w-full bg-[#d4bc8f] text-slate-900 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/10 disabled:opacity-50 mt-4 flex items-center justify-center gap-2" 
             disabled={loading}
+            className="w-full py-5 rounded-[24px] bg-[#d4bc8f] text-slate-950 font-black text-xs uppercase tracking-[0.25em] hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/10 disabled:opacity-50 flex items-center justify-center gap-3 mt-4"
           >
-            {loading ? (
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                <ShieldCheck size={18} />
-              </motion.div>
-            ) : 'Iniciar Sesión'}
-            {loading ? 'Validando...' : ''}
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <Lock size={20} />}
+            {loading ? 'Validando...' : 'Iniciar Sesión'}
           </button>
+
+          {/* v11: Vanguard Biometric Access */}
+          <div className="pt-4 flex flex-col items-center gap-4">
+            <div className="w-full h-px bg-white/5 relative">
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#1a1622] px-4 text-[0.55rem] font-black text-slate-700 uppercase tracking-widest italic">
+                O utiliza
+              </span>
+            </div>
+            
+            <button 
+              type="button"
+              onClick={handleBiometricLogin}
+              disabled={biometricLoading}
+              className="w-full py-4 rounded-2xl bg-white/5 border border-white/5 text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95 flex items-center justify-center gap-3 backdrop-blur-md group shadow-2xl"
+            >
+              {biometricLoading ? <Loader2 className="animate-spin" size={18} /> : <Fingerprint className="text-[#d4bc8f] group-hover:scale-110 transition-transform" size={18} />}
+              Acceso biométrico
+            </button>
+          </div>
         </form>
 
         <div className="mt-8 pt-6 border-t border-white/5 text-center">

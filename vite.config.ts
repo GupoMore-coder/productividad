@@ -34,8 +34,8 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
 
       manifest: {
-        name: 'Productividad GrupoMore',
-        short_name: 'GrupoMore',
+        name: 'Antigravity | Grupo More',
+        short_name: 'Antigravity',
         description: 'Sistema inteligente de gestión operativa y productividad para equipos de trabajo de Grupo More.',
         theme_color: '#1a1622',
         background_color: '#1a1622',

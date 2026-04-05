@@ -15,16 +15,22 @@ import {
   KeyRound, 
   AlertCircle, 
   CheckCircle2,
+  ShieldCheck,
+  Package,
+  FileText,
+  MessageSquare,
+  AlertTriangle,
+  Lightbulb,
   Settings,
-  Mail,
-  ShieldCheck
+  Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 import { Skeleton } from '../components/ui/Skeleton';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { usePWA } from '../hooks/usePWA';
-import { Download, Smartphone } from 'lucide-react';
+import { Download, Smartphone, Fingerprint } from 'lucide-react';
+import { WebAuthnService } from '../services/WebAuthnService';
 
 export default function Profile() {
   const { user, updateProfile, updatePassword, signInWithEmail } = useAuth();
@@ -51,6 +57,14 @@ export default function Profile() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [isLinkingBiometrics, setIsLinkingBiometrics] = useState(false);
+  const [deviceLinked, setDeviceLinked] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setDeviceLinked(WebAuthnService.isDeviceLinked(user.id));
+    }
+  }, [user]);
 
 
   useEffect(() => {
@@ -111,7 +125,11 @@ export default function Profile() {
         }
 
         try {
-          await signInWithEmail(user.email, currentPassword);
+          if (user?.email) {
+            await signInWithEmail(user.email, currentPassword);
+          } else {
+            throw new Error('Sesión de usuario no válida.');
+          }
         } catch (err) {
           throw new Error('La contraseña actual es incorrecta.');
         }
@@ -139,6 +157,25 @@ export default function Profile() {
       setError(err.message || 'Error al actualizar el perfil.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLinkBiometrics = async () => {
+    if (!user) return;
+    setIsLinkingBiometrics(true);
+    setError('');
+    try {
+      await WebAuthnService.registerDevice(user);
+      setDeviceLinked(true);
+      setSuccess('¡Seguridad Biométrica activada con éxito en este dispositivo!');
+      handleAction('success');
+    } catch (err: any) {
+      if (err.name !== 'NotAllowedError') {
+        setError('Error al vincular biometría. Asegúrate de tener un sensor activo.');
+        handleAction('error');
+      }
+    } finally {
+      setIsLinkingBiometrics(false);
     }
   };
 
@@ -201,7 +238,82 @@ export default function Profile() {
             </span>
           </div>
 
+          {/* Quick Actions per Role */}
+          <div className="mt-8 w-full max-w-sm space-y-3">
+            {/* Analista/Gestor: Contabilidad */}
+            {(user.isAccountant || user.role === 'Gestor Administrativo') && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => { handleAction('success'); /* Open Feedback Modal */ }}
+                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/20 flex items-center justify-between group overflow-hidden relative"
+              >
+                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-2xl"><FileText size={20} /></div>
+                  <div className="text-left">
+                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Modulo Beta</p>
+                    <p className="text-sm font-black">Información Contable</p>
+                  </div>
+                </div>
+                <ChevronLeft size={18} className="rotate-180 opacity-40" />
+              </motion.button>
+            )}
+
+            {/* Consultora: Actualizaciones */}
+            {user.isConsultant && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between group overflow-hidden relative"
+              >
+                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-2xl"><Package size={20} /></div>
+                  <div className="text-left">
+                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Manejo de Stock</p>
+                    <p className="text-sm font-black">Actualizaciones e Inventario</p>
+                  </div>
+                </div>
+                <ChevronLeft size={18} className="rotate-180 opacity-40" />
+              </motion.button>
+            )}
+
+            {/* Colaborador: Sugerencias Sandbox */}
+            {user.isColaborador && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-xl shadow-orange-500/20 flex items-center justify-between group overflow-hidden relative"
+              >
+                <div className="absolute inset-0 bg-white/20 animate-pulse pointer-events-none opacity-30" />
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white/20 rounded-2xl"><Lightbulb size={20} /></div>
+                  <div className="text-left">
+                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Modo Sandbox</p>
+                    <p className="text-sm font-black">Hallazgos y Sugerencias</p>
+                  </div>
+                </div>
+                <MessageSquare size={18} className="opacity-40" />
+              </motion.button>
+            )}
+          </div>
         </section>
+
+        {/* Sandbox Timer for Collaborators */}
+        {user.isColaborador && user.sandboxExpiry && (
+          <div className="p-6 bg-orange-500/10 border border-orange-500/20 rounded-[32px] space-y-3 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <AlertTriangle size={80} />
+            </div>
+            <div className="flex items-center gap-3 text-orange-400 font-black text-[0.6rem] uppercase tracking-widest">
+              <AlertCircle size={14} /> Acceso Temporal Programado
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Respetado colaborador, tu acceso expirará en menos de <span className="text-orange-500 font-bold">72 horas</span>. Por favor, contacta al administrador para asignar tu rol definitivo.
+            </p>
+          </div>
+        )}
 
         {/* Notifications */}
         <AnimatePresence mode="wait">
@@ -312,6 +424,46 @@ export default function Profile() {
             {loading ? 'Procesando...' : 'Guardar Cambios'}
           </button>
         </form>
+
+        {/* v11: Vanguard Biometrics Section */}
+        <section className="pt-10 border-t border-white/5 space-y-6">
+          <h4 className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-600 font-black ml-1 flex items-center gap-2">
+            <Fingerprint size={14} className="text-purple-500" /> Seguridad de Vanguardia
+          </h4>
+          
+          <div className={`bg-gradient-to-br ${deviceLinked ? 'from-emerald-500/10 to-teal-500/10 border-emerald-500/20' : 'from-purple-500/10 to-blue-500/10 border-purple-500/20'} border rounded-[32px] p-8 flex flex-col items-center text-center space-y-6 shadow-2xl transition-all duration-700`}>
+            <div className={`w-16 h-16 ${deviceLinked ? 'bg-emerald-500/20 text-emerald-400' : 'bg-purple-500/20 text-purple-400'} rounded-2xl flex items-center justify-center`}>
+              <Fingerprint size={32} />
+            </div>
+            <div className="space-y-2">
+              <h5 className="text-lg font-black text-white tracking-tight">
+                {deviceLinked ? 'Dispositivo Vinculado' : 'Acceso Biométrico'}
+              </h5>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-[280px] mx-auto">
+                {deviceLinked 
+                  ? 'Este dispositivo está autorizado para iniciar sesión mediante tu huella dactilar o reconocimiento facial.' 
+                  : 'Activa el acceso rápido mediante biometría (TouchID/FaceID) para entrar al sistema sin usar tu contraseña.'}
+              </p>
+            </div>
+            
+            {!deviceLinked ? (
+              <button 
+                onClick={handleLinkBiometrics}
+                disabled={isLinkingBiometrics}
+                className="w-full py-4 rounded-2xl bg-purple-500 text-slate-900 font-black text-xs uppercase tracking-widest hover:bg-purple-400 transition-all active:scale-95 flex items-center justify-center gap-3 shadow-xl shadow-purple-500/20 disabled:opacity-50"
+              >
+                {isLinkingBiometrics ? <Loader2 className="animate-spin" size={18} /> : <Fingerprint size={18} />}
+                {isLinkingBiometrics ? 'Procesando...' : 'Vincular este Equipo'}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 text-emerald-400 font-black text-[0.6rem] uppercase tracking-widest bg-emerald-500/10 px-6 py-3 rounded-full border border-emerald-500/20">
+                <CheckCircle2 size={14} /> Equipo Protegido
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* PWA Installation Section */}
 
         {/* PWA Installation Section */}
         {isInstallable && (

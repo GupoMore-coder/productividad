@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Calendar as CalendarIcon, 
@@ -37,7 +37,7 @@ interface TaskCardProps {
   onSelect?: (task: Task) => void;
 }
 
-export default function TaskCard({
+const TaskCard = memo(function TaskCard({
   task,
   onToggleComplete,
   onAccept,
@@ -188,4 +188,6 @@ export default function TaskCard({
       )}
     </>
   );
-}
+});
+
+export default TaskCard;

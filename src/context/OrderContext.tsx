@@ -6,6 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { triggerHaptic } from '@/utils/haptics';
+import { derivePaymentStatus, canCompleteOrder, TestUser } from '@/utils/businessRules';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 
 export interface ServiceOrder {
   id: string;
@@ -27,6 +29,7 @@ export interface ServiceOrder {
   cancelReason?: string;
   photos: string[];
   lastStatusChangeBy?: string;
+  is_demo?: boolean;
   history: OrderHistoryEntry[];
 }
 
@@ -65,6 +68,7 @@ interface OrderContextType {
   updateOrder: (id: string, updates: Partial<ServiceOrder> & { newObservation?: string }) => Promise<ServiceOrder>;
   registerDeposit: (id: string, amount: number) => Promise<void>;
   reactivateOrder: (id: string) => Promise<void>;
+  promoteDemoOrder: (id: string) => Promise<void>;
   downloadOrderPdf: (orderId: string) => Promise<void>;
 }
 
@@ -91,6 +95,7 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
   cancelReason: o.cancel_reason,
   photos: o.photos || [],
   lastStatusChangeBy: o.last_status_change_by,
+  is_demo: o.is_demo || false,
   history: (o.order_history || []).map((h: any) => ({
     id: h.id,
     timestamp: h.timestamp,
@@ -119,6 +124,7 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   if (o.lastStatusChangeBy !== undefined) result.last_status_change_by = o.lastStatusChangeBy;
   if (o.completedAt !== undefined) result.completed_at = o.completedAt;
   if (o.createdByRole !== undefined) result.created_by_role = o.createdByRole;
+  if (o.is_demo !== undefined) result.is_demo = o.is_demo;
   return result;
 };
 
@@ -192,8 +198,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [isSupabaseConfigured, queryClient]);
 
   // 4. Mutations
-  const createOrderMutation = useMutation({
-    mutationFn: async (orderData: any) => {
+  const createOrderMutation = useOfflineMutation(
+    async (orderData: any) => {
       if (!user) throw new Error('Usuario no autenticado');
       const computedBalance = orderData.totalCost - (orderData.depositAmount || 0);
       const uName = user?.full_name || user?.username || user?.email || 'Sistema';
@@ -204,16 +210,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         createdBy: user.id || user.email,
         createdByRole: user.role || 'Colaborador',
         status: 'recibida',
+        paymentStatus: derivePaymentStatus(orderData.totalCost, orderData.depositAmount || 0),
         pendingBalance: Math.max(0, computedBalance),
         photos: orderData.photos || []
       };
 
+      const isDemo = user.isColaborador || user.role === 'Colaborador';
+      const demoId = `DEMO-${Math.floor(1000 + Math.random() * 9000)}-${user.username.toUpperCase()}`;
+
       if (isSupabaseConfigured) {
         const dbOrder = { 
           ...mapOrderToDB(newOrderPayload), 
+          id: isDemo ? demoId : undefined, // Let DB generate UUID for real orders, or use manual ID if specified
           created_by: user.id,
           created_at: newOrderPayload.createdAt,
-          created_by_role: newOrderPayload.createdByRole
+          created_by_role: newOrderPayload.createdByRole,
+          is_demo: isDemo
         };
 
         const { data: created, error: orderError } = await supabase
@@ -247,13 +259,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return completedOrder;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    {
+      mutationKey: ['orders'],
+      type: 'create_order',
+      table: 'service_orders'
     }
-  });
+  );
 
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: any }) => {
+      if (!user) throw new Error('Usuario no autenticado');
       const existingOrder = orders.find(o => o.id === id);
       if (!existingOrder) throw new Error('Orden no encontrada');
 
@@ -263,6 +278,26 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const tc = updates.totalCost ?? existingOrder.totalCost;
         const da = updates.depositAmount ?? existingOrder.depositAmount;
         computedBalance = Math.max(0, tc - da);
+        updates.paymentStatus = derivePaymentStatus(tc, da);
+      }
+
+      // v3.1: Guarda de Despacho
+      if (updates.status === 'completada' && existingOrder.status !== 'completada') {
+         const guardUser: TestUser = { 
+           id: user.id, 
+           username: user.username, 
+           role: user.role, 
+           isMaster: user.isMaster 
+         };
+         const check = canCompleteOrder({ 
+           totalCost: updates.totalCost ?? existingOrder.totalCost, 
+           depositAmount: updates.depositAmount ?? existingOrder.depositAmount 
+         }, guardUser);
+
+         if (!check.allowed) {
+            triggerHaptic('error');
+            throw new Error(check.message);
+         }
       }
 
       if (isSupabaseConfigured) {
@@ -290,7 +325,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         
         // Only log modification if it's NOT a silent financial correction by Master
-        if (isTotalCostChange && !isMaster) {
+        // Only log modification if it's NOT a silent financial correction by Master
+        if (isTotalCostChange && user && !isMaster) {
+           const uName = user?.full_name || user?.username || user?.email || 'Sistema';
            await supabase.from('order_history').insert({ 
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Corrección de costo total: $${existingOrder.totalCost.toLocaleString()} -> $${updates.totalCost.toLocaleString()}` 
@@ -378,6 +415,32 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     triggerHaptic('medium');
   };
 
+  const promoteDemoOrder = async (id: string) => {
+    if (!user?.isMaster && user?.role !== 'Director General (CEO)') {
+      triggerHaptic('error');
+      throw new Error('Solo el administrador puede oficializar órdenes de prueba.');
+    }
+    
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ is_demo: false })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      const uName = user?.full_name || user?.username || 'Maestro';
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: uName,
+        description: `Orden de prueba OFICIALIZADA (Promoción Limo) por ${uName}`
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
   // Listener para capturar motivos de cancelación desde UI
   useEffect(() => {
     const handleCancelReason = (e: any) => {
@@ -461,6 +524,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.rect(0, 0, 210, 45, 'F');
       doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
       doc.rect(0, 43, 210, 2, 'F');
+
+      // Watermark for Demo Orders
+      if (order.is_demo) {
+        doc.setFontSize(60);
+        doc.setTextColor(200, 200, 200, 0.2); // Light gray with opacity
+        doc.saveGraphicsState();
+        doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
+        doc.text("COTIZACIÓN / PRUEBA", 105, 150, { align: 'center', angle: 45 } as any);
+        doc.restoreGraphicsState();
+      }
 
       // Logo & Brand
       if (logoBase64) {
@@ -746,6 +819,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       updateOrder, 
       registerDeposit,
       reactivateOrder,
+      promoteDemoOrder,
       downloadOrderPdf 
     }}>
       {children}

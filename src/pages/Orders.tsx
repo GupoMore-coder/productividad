@@ -16,7 +16,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export default function Orders() {
   const { user } = useAuth();
   usePageTitle('Gestión de Órdenes');
-  const { orders, updateOrder, registerDeposit, reactivateOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
+  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
@@ -25,7 +25,12 @@ export default function Orders() {
 
   // Personal Stats Calculation
   const myStats = useMemo(() => {
-    const myOrders = orders.filter(o => o.responsible === user?.full_name || o.id.includes(user?.username || '---'));
+    const isAdminView = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
+    
+    const myOrders = orders.filter(o => {
+      if (isAdminView) return true;
+      return o.responsible === user?.full_name || o.createdBy === user?.id;
+    });
     const total = myOrders.length;
     const completed = myOrders.filter(o => o.status === 'completada').length;
     const pending = myOrders.filter(o => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)).length;
@@ -138,8 +143,29 @@ export default function Orders() {
   };
 
   const handleEdit = (order: ServiceOrder) => {
+    // Restricted editing logic can be added here if needed, but CreateOrderModal already handles field locking
     setEditingOrder(order);
     setShowCreateModal(true);
+  };
+
+  const handleReactivateAttempt = async (orderId: string) => {
+    if (user?.isMaster || user?.role === 'Director General (CEO)') {
+      await reactivateOrder(orderId);
+      triggerHaptic('success');
+    } else if (user?.isSupervisor || user?.role === 'Gestor Administrativo') {
+      // Create Approval Request
+      const order = orders.find(o => o.id === orderId);
+      window.dispatchEvent(new CustomEvent('open-approval-request', { 
+        detail: { 
+          type: 'reactivacion_orden', 
+          source_id: orderId,
+          details: { customerName: order?.customerName, totalCost: order?.totalCost }
+        } 
+      }));
+    } else {
+      triggerHaptic('error');
+      // Toast/Alert: No tienes permisos para reactivar
+    }
   };
 
   // PDF logic (Server-side Phase 4)
@@ -300,7 +326,8 @@ export default function Orders() {
                 onDownloadPdf={handleDownloadPdf}
                 onAddObservation={handleObsAdd}
                 onRegisterDeposit={registerDeposit}
-                onReactivate={reactivateOrder}
+                onReactivate={() => handleReactivateAttempt(order.id)}
+                onPromote={() => promoteDemoOrder(order.id)}
                 isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas'}
                 isGenerating={isGeneratingPdf === order.id}
               />

@@ -91,6 +91,54 @@ export async function cancelTaskNotifications(taskId: string): Promise<void> {
 
 // ── Alarm Checker (runs in main thread) ──────────────────────
 
+// ── Critical Alerts (Audio / Visual / Haptic) ───────────────
+
+/**
+ * High-intensity alert for critical events (Master Admin alerts)
+ */
+export async function triggerCriticalAlert(title: string, body: string) {
+  // 1. Haptic (Vibration)
+  if ('vibrate' in navigator) {
+    // Pattern: 200ms on, 100ms off, 200ms on
+    navigator.vibrate([200, 100, 200, 100, 400]);
+  }
+
+  // 2. Audio (requires user interaction first to play)
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.3);
+  } catch (e) {
+    console.warn('[Notifications] Audio alert failed (likely blocked by browser):', e);
+  }
+
+  // 3. Visual (System Notification)
+  if (hasNotificationPermission()) {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body,
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+      } as NotificationOptions);
+    } else {
+      new Notification(title, { body, requireInteraction: true });
+    }
+  }
+}
+
 /**
  * Checks IndexedDB for due alarms and fires notifications.
  * Called periodically via setInterval AND by the SW via message.
@@ -109,25 +157,27 @@ export async function checkAndFireDueAlarms(): Promise<void> {
       alarm.priority === 'media' ? '🟡' : '🟢';
 
     try {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        // Use SW's showNotification for better OS-level persistence
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification(`${emoji} ${alarm.taskTitle}`, {
-          body: alarm.body,
-          icon: '/pwa-192x192.png',
-          badge: '/pwa-192x192.png',
-          tag: alarm.id,
-          requireInteraction: true,
-          data: { taskId: alarm.taskId },
-        } as NotificationOptions);
+      if (alarm.priority === 'alta') {
+        await triggerCriticalAlert(`${emoji} ${alarm.taskTitle}`, alarm.body);
       } else {
-        // Fallback — window Notification API
-        new Notification(`${emoji} ${alarm.taskTitle}`, {
-          body: alarm.body,
-          icon: '/pwa-192x192.png',
-          tag: alarm.id,
-          requireInteraction: true,
-        });
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(`${emoji} ${alarm.taskTitle}`, {
+            body: alarm.body,
+            icon: '/pwa-192x192.png',
+            badge: '/pwa-192x192.png',
+            tag: alarm.id,
+            requireInteraction: true,
+            data: { taskId: alarm.taskId },
+          } as NotificationOptions);
+        } else {
+          new Notification(`${emoji} ${alarm.taskTitle}`, {
+            body: alarm.body,
+            icon: '/pwa-192x192.png',
+            tag: alarm.id,
+            requireInteraction: true,
+          });
+        }
       }
 
       await markAlarmFired(alarm.id);

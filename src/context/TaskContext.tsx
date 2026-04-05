@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 
 export interface Task {
   id: string;
@@ -108,8 +109,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [tasks, isSupabaseConfigured]);
 
   // 3. Mutations
-  const addTaskMutation = useMutation({
-    mutationFn: async (taskData: Partial<Task>) => {
+  const addTaskMutation = useOfflineMutation(
+    async (taskData: Partial<Task>) => {
       // 1. Sanitize for Supabase (Snake Case)
       const newTask: any = {
         title: taskData.title || '',
@@ -154,8 +155,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { ...newTask, id: Math.random().toString(36).substring(7) };
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
-  });
+    {
+      mutationKey: ['tasks'],
+      type: 'create_task',
+      table: 'tasks'
+    }
+  );
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Task> }) => {

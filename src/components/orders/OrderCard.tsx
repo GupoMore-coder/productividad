@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -33,19 +33,21 @@ interface OrderCardProps {
   onDownloadPdf: (order: ServiceOrder) => void;
   onAddObservation: (id: string, obs: string) => void;
   onRegisterDeposit: (id: string, amount: number) => Promise<void>;
-  onReactivate: (id: string) => Promise<void>;
+   onReactivate: (id: string) => Promise<void>;
+  onPromote?: (id: string) => Promise<void>;
   isOverdue?: boolean;
   isGenerating?: boolean;
 }
 
-export function OrderCard({ 
+export const OrderCard = memo(function OrderCard({ 
   order, 
   onStatusChange, 
   onEdit, 
   onDownloadPdf, 
   onAddObservation,
   onRegisterDeposit,
-  onReactivate,
+   onReactivate,
+  onPromote,
   isOverdue,
   isGenerating
 }: OrderCardProps) {
@@ -288,7 +290,17 @@ export function OrderCard({
                   <RefreshCw size={14} /> Restablecer Activa
                 </button>
               )}
-            </div>
+             </div>
+          )}
+
+          {/* Limo Promotion Button (Oficializar Demo) */}
+          {order.is_demo && (user?.isMaster || user?.role === 'Director General (CEO)') && (
+            <button 
+              onClick={() => { triggerHaptic('success'); onPromote?.(order.id); }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-[0.7rem] uppercase tracking-widest hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/20 active:scale-95"
+            >
+              <CheckCircle2 size={18} /> OFICIALIZAR (PROMOCIÓN LIMO)
+            </button>
           )}
         </div>
 
@@ -476,4 +488,4 @@ export function OrderCard({
       </div>
     </motion.div>
   );
-}
+});

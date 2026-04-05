@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useHealthMonitor } from '../hooks/useHealthMonitor';
 
 import { 
   TrendingUp, 
@@ -59,24 +60,56 @@ export default function Dashboard() {
   const { orders, loading: ordersLoading } = useOrders();
   usePageTitle('Panel de Control');
   const { tasks, loading: tasksLoading } = useTasks();
-  const { user } = useAuth();
+  const { user, extendSandbox, deleteUserSandbox } = useAuth();
+  const health = useHealthMonitor();
   
   const [activeTab, setActiveTab] = useState<'financial' | 'productivity'>('productivity');
+  const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [showUserFilter, setShowUserFilter] = useState(false);
 
   useEffect(() => {
     async function fetchUsers() {
-      if (user?.isSuperAdmin) {
+      // Permission to see other users' stats: Master, CEO, Gestor, Accountant, Supervisor
+      const hasElevatedView = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
+      
+      if (hasElevatedView) {
         const { data } = await supabase.from('profiles').select('id, username, full_name, avatar, role');
         if (data) {
           setAllUsers(data);
-          setSelectedUserIds(data.map(u => u.id)); // Default select all
+          setSelectedUserIds(data.map(u => u.id)); 
+        }
+      } else {
+        // Limited view: only self
+        if (user) {
+          setSelectedUserIds([user.id]);
+          setAllUsers([{ id: user.id, username: user.username, full_name: user.full_name, role: user.role }]);
         }
       }
     }
     fetchUsers();
+
+    // Check for expiring sandbox users (only for Master/CEO)
+    if (user?.isMaster || user?.role === 'Director General (CEO)') {
+      const checkExpiring = async () => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, username, full_name, sandbox_expiry')
+          .not('sandbox_expiry', 'is', null);
+        
+        if (data) {
+          const now = Date.now();
+          const soon = data.filter(u => {
+            const expiry = new Date(u.sandbox_expiry).getTime();
+            const hoursLeft = (expiry - now) / (1000 * 3600);
+            return hoursLeft < 24 && hoursLeft > -48; // Expiring in < 24h or expired recently
+          });
+          setExpiringUsers(soon);
+        }
+      }
+      checkExpiring();
+    }
   }, [user]);
 
   const stats = useMemo(() => {
@@ -166,6 +199,114 @@ export default function Dashboard() {
   return (
     <div className="max-w-4xl mx-auto px-4 pt-8 pb-32 animate-in fade-in duration-700">
       
+      {/* v3.1: System Health Monitor (Real-time Audit) */}
+      {(user?.isMaster || user?.role === 'Director General (CEO)') && (
+        <div className="mb-10 p-0.5 rounded-[32px] bg-gradient-to-r from-purple-500/10 via-amber-500/10 to-blue-500/10 border border-white/5">
+          <div className="bg-[#0f0a15]/80 backdrop-blur-2xl rounded-[30px] p-6 flex flex-wrap items-center justify-between gap-6">
+             <div className="flex items-center gap-4">
+                <div className={`w-3 h-3 rounded-full animate-pulse ${health.status === 'optimal' ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]' : health.status === 'degraded' ? 'bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]' : 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)]'}`} />
+                <div>
+                   <h4 className="text-[0.6rem] font-black text-slate-500 uppercase tracking-[0.25em] leading-none mb-1">Salud del Ecosistema</h4>
+                   <p className="text-sm font-black text-white uppercase tracking-tighter tabular-nums flex items-center gap-2">
+                      {health.isOnline ? 'Online' : 'Sin Conexión'} · <span className="text-purple-400">{health.dbLatency}ms</span>
+                   </p>
+                </div>
+             </div>
+
+             <div className="flex gap-8 items-center">
+                <div className="text-center sm:text-right">
+                   <span className="text-[0.55rem] font-black text-slate-600 block uppercase mb-1">Carga Latente</span>
+                   <div className="flex items-center gap-2 justify-end">
+                      <div className="flex gap-0.5">
+                         {[1,2,3,4,5].map(i => (
+                            <div key={i} className={`w-1 h-3 rounded-full ${i <= (health.dbLatency < 100 ? 5 : health.dbLatency < 300 ? 3 : 1) ? 'bg-emerald-500' : 'bg-white/10'}`} />
+                         ))}
+                      </div>
+                   </div>
+                </div>
+                <div className="text-right border-l border-white/5 pl-8">
+                   <span className="text-[0.55rem] font-black text-slate-600 block uppercase mb-1">Sincronización</span>
+                   <p className="text-[0.65rem] font-black text-slate-400 uppercase tabular-nums tracking-widest">{health.lastCheck}</p>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* v3.1: Sandbox Expiration Alerts (Master Only) */}
+      <AnimatePresence>
+        {expiringUsers.length > 0 && (user?.isMaster || user?.role === 'Director General (CEO)') && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mb-8 overflow-hidden"
+          >
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-[32px] p-6 backdrop-blur-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500">
+                  <Timer size={22} className="animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white uppercase tracking-tight">Alerta de Expiración Sandbox</h4>
+                  <p className="text-[0.6rem] text-amber-500/70 font-black uppercase tracking-widest">Acción requerida · 72h Trial Control</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {expiringUsers.map(u => {
+                  const hours = Math.round((new Date(u.sandbox_expiry).getTime() - Date.now()) / (1000 * 3600));
+                  const isExpired = hours <= 0;
+
+                  return (
+                    <div key={u.id} className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-black/20 rounded-2xl border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[0.6rem] font-black text-slate-400">
+                          {u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-white">@{u.username}</span>
+                          <p className={`text-[0.6rem] font-bold uppercase ${isExpired ? 'text-red-500' : 'text-amber-500'}`}>
+                            {isExpired ? 'EXPIRADO' : `Expira en ${hours}h`}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button 
+                          onClick={async () => {
+                            try {
+                              await extendSandbox(u.id, 3); // Extend 3 more days
+                              setExpiringUsers(prev => prev.filter(x => x.id !== u.id));
+                            } catch (e) { alert('Error al extender'); }
+                          }}
+                          className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-amber-500 text-slate-900 text-[0.6rem] font-black uppercase tracking-widest hover:bg-amber-400 transition-colors"
+                        >
+                          Extender 3d
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm(`¿Seguro que deseas ELIMINAR permanentemente los datos de @${u.username}? Esta acción no se puede deshacer.`)) {
+                              try {
+                                await deleteUserSandbox(u.id);
+                                setExpiringUsers(prev => prev.filter(x => x.id !== u.id));
+                              } catch (e) { alert('Error al liquidar'); }
+                            }
+                          }}
+                          className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-red-500/20 text-red-500 text-[0.6rem] font-black uppercase tracking-widest border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                        >
+                          Liquidar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div className="flex flex-col md:flex-row md:items-center gap-6">
           <button 
@@ -195,7 +336,7 @@ export default function Dashboard() {
            >
              Productividad
            </button>
-           {user?.isSuperAdmin && (
+           {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant) && (
              <button 
                onClick={() => { triggerHaptic('light'); setActiveTab('financial'); }}
                className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'financial' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-white'}`}
@@ -210,8 +351,8 @@ export default function Dashboard() {
         {activeTab === 'productivity' ? (
           <motion.div key="prod" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-8">
             
-            {/* Dynamic Filter (Admin) */}
-            {user?.isSuperAdmin && (
+            {/* Dynamic Filter (Elevated View) */}
+            {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor) && (
               <div className="bg-white/[0.03] border border-white/10 rounded-[32px] p-6">
                 <div className="flex justify-between items-center mb-4">
                    <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest flex items-center gap-2">
@@ -318,7 +459,11 @@ export default function Dashboard() {
                  <h4 className="text-lg font-black text-white tracking-tight uppercase">Carga de Trabajo Individual</h4>
               </div>
               <div className="grid gap-4">
-                {stats.productivityList.filter(p => !user?.isSuperAdmin ? p.label.toLowerCase() === user.username.toLowerCase() : true).map((p, i) => (
+                {stats.productivityList.filter(p => {
+                  const hasElevatedView = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
+                  if (hasElevatedView) return true;
+                  return p.label.toLowerCase() === user?.username?.toLowerCase();
+                }).map((p, i) => (
                   <div key={i} className="flex justify-between items-center bg-black/20 p-4 rounded-2xl border border-white/5 hover:border-purple-500/20 transition-all group">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-black group-hover:scale-110 transition-transform">

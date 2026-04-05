@@ -1,0 +1,39 @@
+{
+  "name": "Antigravity | Grupo More",
+  "short_name": "Antigravity",
+  "description": "Sistema Inteligente de Gestión Operativa para Grupo More",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0a15",
+  "theme_color": "#1a1622",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "business", "orders"],
+  "shortcuts": [
+    {
+      "name": "Nueva Orden",
+      "short_name": "Orden",
+      "url": "/orders",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mi Agenda",
+      "short_name": "Agenda",
+      "url": "/",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

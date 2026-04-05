@@ -137,12 +137,57 @@ export default function Navigation() {
              <span style={{ fontSize: '0.65rem' }}>Perfil</span>
           </NavLink>
 
-          {user?.isSuperAdmin && (
-            <NavLink to="/admin" style={getNavStyle} title="Administración">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="23" y2="12"/><line x1="23" y1="8" x2="19" y2="12"/></svg>
+          {/* Botón CEO (Dashboard v2 e Inventarios) */}
+          {(user?.role === 'Director General (CEO)') && (
+            <NavLink to="/dashboard" style={getNavStyle} title="Panel CEO">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <span style={{ fontSize: '0.65rem' }}>CEO</span>
+            </NavLink>
+          )}
+
+          {/* Botón Admin (Exclusivo Maestro) */}
+          {user?.isMaster && (
+            <NavLink to="/admin" style={getNavStyle} title="Administración Maestra">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span style={{ fontSize: '0.65rem' }}>Admin</span>
             </NavLink>
           )}
+
+          {/* Botón Inventarios (Supervisor/Maestro/CEO/Consultor) - Bloqueado para Colaborador */}
+          {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.isSupervisor || user?.isConsultant) && (user?.role !== 'Colaborador') && (
+            <NavLink to="/inventory" style={getNavStyle} title="Proveedores e Inventario">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+              <span style={{ fontSize: '0.65rem' }}>Stock</span>
+            </NavLink>
+          )}
+
+          <NavLink to="/profile" style={getNavStyle} title="Mi Perfil">
+             <div style={{ 
+               position: 'relative', width: '22px', height: '22px', borderRadius: '11px', 
+               overflow: 'hidden', border: '1px solid var(--accent-color)', 
+               display: 'flex', alignItems: 'center', justifyContent: 'center', 
+               fontSize: '9px', fontWeight: 900,
+               background: user?.avatar && user.avatar.length > 10 ? 'transparent' : 'linear-gradient(135deg, #d4bc8f, #b39063)'
+             }}>
+                {user?.avatar && user.avatar.length > 10 ? (
+                  <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ color: '#1a1622' }}>
+                    {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
+                {(() => {
+                    if (!user?.birth_date) return false;
+                    const bday = new Date(user.birth_date + 'T12:00:00');
+                    const today = new Date();
+                    if (bday.getDate() === today.getDate() && bday.getMonth() === today.getMonth()) {
+                        return <div style={{ position: 'absolute', top: -3, right: -3, fontSize: '8px' }}>👑</div>;
+                    }
+                    return null;
+                })()}
+             </div>
+             <span style={{ fontSize: '0.65rem' }}>Perfil</span>
+          </NavLink>
         </div>
 
         {/* ── Logout button ── */}

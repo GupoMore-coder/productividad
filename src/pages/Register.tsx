@@ -10,10 +10,6 @@ export default function Register() {
   const { signUp, isFirstUser, user } = useAuth();
   const navigate = useNavigate();
   
-  if (user) {
-    return <Navigate to="/" replace />;
-  }
-
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +18,10 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [hpValue, setHpValue] = useState('');
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

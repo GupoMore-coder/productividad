@@ -1,28 +1,41 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { triggerHaptic } from '@/utils/haptics';
+
+interface AuthUser {
+  id: string;
+  email: string;
+  username: string;
+  full_name?: string;
+  role: string;
+  avatar?: string;
+  birth_date?: string;
+  cedula?: string;
+  phone?: string;
+  isMaster: boolean;
+  isAdmin: boolean;
+  isAccountant: boolean;
+  isSupervisor: boolean;
+  isConsultant: boolean;
+  isColaborador: boolean;
+  isSuperAdmin: boolean;
+  isBypass?: boolean;
+  sandboxExpiry?: string;
+  needsSetup: boolean;
+}
 
 interface AuthContextType {
-  user: any;
+  user: AuthUser | null;
   loading: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<any>;
   signInWithUsername: (username: string, pass: string) => Promise<any>;
   signUp: (email: string, pass: string, username: string, profileData?: any) => Promise<any>;
-  updateProfile: (data: { 
-    email: string, 
-    fullName: string, 
-    cedula?: string, 
-    phone?: string, 
-    secondaryPhone?: string, 
-    secondaryEmail?: string, 
-    emergencyName?: string,
-    emergencyRelationship?: string,
-    emergencyPhone?: string,
-    avatar?: string, 
-    birth_date?: string 
-  }) => Promise<void>;
+  updateProfile: (data: any) => Promise<void>;
   updatePassword: (newPass: string) => Promise<void>;
   signOut: () => Promise<void>;
   isFirstUser: () => Promise<boolean>;
+  extendSandbox: (userId: string, days: number) => Promise<void>;
+  deleteUserSandbox: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -50,12 +63,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Error fetching profile:', error);
         }
 
-        const isSuper = profile?.is_super_admin || profile?.role === 'Administrador' || profile?.role === 'Administrador maestro' || false;
+        const role = profile?.role || 'Colaborador';
+        const isMaster = role === 'Administrador maestro';
+        const isAdmin = role === 'Director General (CEO)' || role === 'Gestor Administrativo';
+        const isAccountant = role === 'Analista Contable';
+        const isSupervisor = role === 'Supervisora Puntos de Venta';
+        const isConsultant = role === 'Consultora de Ventas';
+        const isColaborador = role === 'Colaborador';
+        
+        const isSuper = profile?.is_super_admin || isMaster || isAdmin || false;
 
         setUser({
           ...authUser,
           ...profile,
+          role,
+          isMaster,
+          isAdmin,
+          isAccountant,
+          isSupervisor,
+          isConsultant,
+          isColaborador,
           isSuperAdmin: isSuper,
+          sandboxExpiry: profile?.sandbox_expiry,
           needsSetup: profile?.needs_setup ?? true,
           username: profile?.username || authUser.user_metadata?.username || 'usuario'
         });
@@ -103,10 +132,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email, 
         user_metadata: { fullName: profile?.full_name || 'Fernando Marulanda', username: 'fernando' },
         role: 'Administrador maestro', 
+        isMaster: true,
+        isAdmin: false,
+        isAccountant: false,
+        isSupervisor: false,
+        isConsultant: false,
+        isColaborador: false,
         isSuperAdmin: true,
         bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true // Added flag
-
+        isBypass: true 
       };
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
@@ -179,6 +213,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
 
     if (data.user) {
+      // Set 72h sandbox expiry for new Colaboradores
+      const sandboxExpiry = finalRole === 'Colaborador' 
+        ? new Date(Date.now() + 72 * 3600 * 1000).toISOString() 
+        : null;
+
       // Create profile immediately
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: data.user.id,
@@ -186,7 +225,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email,
         role: finalRole,
         is_super_admin: finalIsSuper,
-        needs_setup: true
+        needs_setup: true,
+        sandbox_expiry: sandboxExpiry
       });
       if (profileError) console.error('Error creating profile during signup:', profileError);
     }
@@ -258,8 +298,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const extendSandbox = async (userId: string, days: number) => {
+    if (!user?.isMaster && user?.role !== 'Director General (CEO)') {
+      throw new Error('Solo el administrador puede extender periodos de prueba.');
+    }
+    
+    if (isSupabaseConfigured) {
+      const newExpiry = new Date(Date.now() + days * 24 * 3600 * 1000).toISOString();
+      const { error } = await supabase
+        .from('profiles')
+        .update({ sandbox_expiry: newExpiry })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      triggerHaptic('success');
+    }
+  };
+
+  const deleteUserSandbox = async (userId: string) => {
+    if (!user?.isMaster) throw new Error('Acceso restringido.');
+
+    if (isSupabaseConfigured) {
+      // 1. Eliminar órdenes y su historial (vía cascada o manual)
+      const { data: userOrders } = await supabase.from('service_orders').select('id').eq('created_by', userId);
+      
+      if (userOrders && userOrders.length > 0) {
+        const orderIds = userOrders.map(o => o.id);
+        await supabase.from('order_history').delete().in('order_id', orderIds);
+        await supabase.from('service_orders').delete().eq('created_by', userId);
+      }
+
+      // 2. Eliminar ítems faltantes
+      await supabase.from('missing_items').delete().eq('reported_by_id', userId);
+
+      // 3. Eliminar perfil
+      await supabase.from('profiles').delete().eq('id', userId);
+      
+      triggerHaptic('warning');
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithEmail, signInWithUsername, signUp, updateProfile, updatePassword, signOut, isFirstUser }}>
+    <AuthContext.Provider value={{ 
+      user, loading, signInWithEmail, signInWithUsername, signUp, 
+      updateProfile, updatePassword, signOut, isFirstUser,
+      extendSandbox, deleteUserSandbox 
+    }}>
       {children}
     </AuthContext.Provider>
   );
