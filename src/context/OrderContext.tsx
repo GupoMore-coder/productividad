@@ -403,6 +403,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const trackingUrl = `${window.location.origin}/status/${orderId}`;
       const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1, errorCorrectionLevel: 'H' });
+      
+      // Social Media QRs
+      const qrInstagram = await QRCode.toDataURL('https://instagram.com/grupomore_', { margin: 1 });
+      const qrWAMorePaper = await QRCode.toDataURL('https://wa.me/573045267493', { margin: 1 });
+      const qrWAMoreDesign = await QRCode.toDataURL('https://wa.me/573183806342', { margin: 1 });
 
       // Load Logo
       const loadLogo = (): Promise<string | null> => {
@@ -631,12 +636,54 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         y += rowHeight;
       });
 
-      // --- FOOTER BRANDING ---
-      const footY = 285;
+      // --- FOOTER BRANDING & LEGAL ---
+      const footY = 270;
+      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
+      doc.rect(0, footY, 210, 27, 'F');
+      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      doc.rect(0, footY, 210, 0.5, 'F');
+
+      // Column 1: Legal
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "bold");
+      doc.text("LEGALIDAD Y DATOS", 15, footY + 7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(160, 160, 170);
+      doc.text("Privacidad (Habeas Data)", 15, footY + 12);
+      doc.text("Términos de Servicio", 15, footY + 16);
+
+      // Column 2: Support
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text("SOPORTE Y CONTACTO", 75, footY + 7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(160, 160, 170);
+      doc.text("morepaper2024@gmail.com", 75, footY + 12);
+      doc.text("Barranquilla, Colombia", 75, footY + 16);
+      doc.text("Tel: 304 526 7493 / 318 380 6342", 75, footY + 20);
+
+      // Column 3: Social QRs
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text("NUESTRAS REDES", 145, footY + 7);
+      
+      // QR Icons with labels
+      const qrSize = 12;
+      doc.addImage(qrInstagram, 'PNG', 145, footY + 9, qrSize, qrSize);
+      doc.addImage(qrWAMorePaper, 'PNG', 165, footY + 9, qrSize, qrSize);
+      doc.addImage(qrWAMoreDesign, 'PNG', 185, footY + 9, qrSize, qrSize);
+      
+      doc.setFontSize(5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("INSTAGRAM", 145, footY + 23);
+      doc.text("WA PAPER", 165, footY + 23);
+      doc.text("WA DESIGN", 185, footY + 23);
+
       doc.setFontSize(6);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 105, footY, { align: 'center' });
+      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 105, 294, { align: 'center' });
 
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');
