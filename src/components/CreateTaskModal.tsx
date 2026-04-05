@@ -98,21 +98,27 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate }
     }
   };
 
-  const onFormSubmit = (data: TaskFormData) => {
+  const onFormSubmit = async (data: TaskFormData) => {
     if (hpValue) {
       onClose();
       return;
     }
 
-    onSave({
-      ...data,
-      status: 'accepted',
-      isShared: (data.group_ids || []).length > 0,
-      groupId: (data.group_ids || [])[0] || undefined,
-    });
+    try {
+      await onSave({
+        ...data,
+        status: 'accepted',
+        isShared: (data.group_ids || []).length > 0,
+        groupId: (data.group_ids || [])[0] || undefined,
+      });
 
-    triggerHaptic('success');
-    onClose();
+      triggerHaptic('success');
+      onClose();
+    } catch (err: any) {
+      console.error('Save Task Error:', err);
+      triggerHaptic('error');
+      alert(`Error al guardar la tarea: ${err.message || 'Verifica tu conexión o permisos.'}`);
+    }
   };
 
   return (

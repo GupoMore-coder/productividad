@@ -203,7 +203,7 @@ export default function Tasks() {
   };
 
   const dailyTasks = tasks.filter((t) => 
-    t.date === dateStr && 
+    t.date.startsWith(dateStr) && 
     t.status !== 'pending_acceptance' && 
     !t.completed && 
     t.status !== 'declined' &&
@@ -215,6 +215,11 @@ export default function Tasks() {
     o.deliveryDate.startsWith(dateStr) && 
     ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)
   );
+
+  const activityDates = Array.from(new Set([
+    ...tasks.filter(t => !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired').map(t => t.date),
+    ...orders.filter(o => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)).map(o => o.deliveryDate.split('T')[0])
+  ]));
 
   // Scanner for alerts
   useEffect(() => {
@@ -386,7 +391,7 @@ export default function Tasks() {
 
         {/* Calendar Widget */}
         <section className="bg-slate-900/40 border border-white/10 rounded-3xl p-4 backdrop-blur-md shadow-2xl">
-          <CalendarView selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <CalendarView selectedDate={selectedDate} onSelectDate={setSelectedDate} activities={activityDates} />
         </section>
 
         {/* Daily Tasks */}

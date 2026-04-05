@@ -550,14 +550,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.text(splitServices, 15, y);
       y += (splitServices.length * 6) + 4;
 
-      if (order.notes) {
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
-        const splitNotes = doc.splitTextToSize(`Nota Técnica: ${order.notes}`, 175);
-        doc.text(splitNotes, 15, y);
-        y += (splitNotes.length * 5) + 10;
-      }
+      y += (splitServices.length * 6) + 10;
 
       // --- FINANCIAL CARD (EXECUTIVE STYLE) ---
       y += 5;
@@ -598,21 +591,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.line(15, y + 2, 195, y + 2);
       
       y += 10;
-      const historyIcons: Record<string, string> = {
-        creacion: '✨',
-        cambio_estado: '🔄',
-        financiero: '💰',
-        observacion: '💬',
-        modificacion: '🛠️'
-      };
-
       const history = order.history.slice().reverse();
       history.forEach((log, index) => {
-        const descText = log.description;
-        const splitDesc = doc.splitTextToSize(descText, 160);
+        const descText = `${log.description} (por ${log.userName})`;
+        const splitDesc = doc.splitTextToSize(descText, 165);
         const rowHeight = Math.max(8, (splitDesc.length * 4) + 4);
 
-        if (y + rowHeight > 280) { doc.addPage(); y = 25; }
+        if (y + rowHeight > 250) { doc.addPage(); y = 25; } 
         
         // Alternating background
         if (index % 2 === 0) {
@@ -626,15 +611,48 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const dateStr = format(new Date(log.timestamp), "dd/MM HH:mm", { locale: es });
         doc.text(dateStr, 15, y + 1);
         
-        const icon = historyIcons[log.type] || '📌';
-        doc.text(icon, 35, y + 1);
-        
         doc.setFont("helvetica", "normal");
         doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
-        doc.text(splitDesc, 42, y + 1);
+        doc.text(splitDesc, 35, y + 1);
         
         y += rowHeight;
       });
+
+      // --- ATTACHED IMAGES (4 COLUMNS) ---
+      if (order.photos && order.photos.length > 0) {
+        y += 10;
+        if (y > 230) { doc.addPage(); y = 25; }
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+        doc.text("ANEXOS FOTOGRÁFICOS", 15, y);
+        doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.3);
+        doc.line(15, y + 2, 195, y + 2);
+        
+        y += 8;
+        const colCount = 4;
+        const spacing = 4;
+        const colWidth = (190 - (spacing * (colCount - 1))) / colCount;
+        const imgHeight = colWidth;
+
+        for (let i = 0; i < order.photos.length; i++) {
+          const colIdx = i % colCount;
+          const rowIdx = Math.floor(i / colCount);
+          const currentY = y + (rowIdx * (imgHeight + spacing));
+          
+          if (currentY + imgHeight > 275) {
+             doc.addPage();
+             y = 25;
+          }
+
+          try {
+            doc.addImage(order.photos[i], 'JPEG', 10 + (colIdx * (colWidth + spacing)), currentY, colWidth, imgHeight);
+          } catch (err) {
+            console.error("Error adding image to PDF:", err);
+          }
+        }
+      }
 
       // --- FOOTER BRANDING & LEGAL ---
       const footY = 270;
@@ -683,7 +701,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setFontSize(6);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 105, 294, { align: 'center' });
+      doc.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 294);
 
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');

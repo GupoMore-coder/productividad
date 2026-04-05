@@ -7,9 +7,10 @@ import { triggerHaptic } from '../utils/haptics';
 interface CalendarViewProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
+  activities?: string[]; // Array of 'yyyy-MM-dd' strings
 }
 
-export default function CalendarView({ selectedDate, onSelectDate }: CalendarViewProps) {
+export default function CalendarView({ selectedDate, onSelectDate, activities = [] }: CalendarViewProps) {
   // viewDate determines which week is shown in the carousel
   const [viewDate, setViewDate] = useState<Date>(selectedDate);
   
@@ -101,8 +102,10 @@ export default function CalendarView({ selectedDate, onSelectDate }: CalendarVie
 
       <div className="flex gap-2.5 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x">
         {days.map((day, idx) => {
-          const isSelected = format(day, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
-          const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+          const dayKey = format(day, "yyyy-MM-dd");
+          const isSelected = dayKey === format(selectedDate, "yyyy-MM-dd");
+          const isToday = dayKey === format(new Date(), "yyyy-MM-dd");
+          const hasActivity = activities.includes(dayKey);
 
           return (
             <button 
@@ -124,8 +127,8 @@ export default function CalendarView({ selectedDate, onSelectDate }: CalendarVie
               <span className="text-xl font-black tracking-tighter">
                 {format(day, "dd")}
               </span>
-              {isToday && !isSelected && (
-                <div className="w-1 h-1 bg-purple-500 rounded-full mt-1" />
+              {hasActivity && (
+                <div className={`w-1 h-1 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500'}`} />
               )}
             </button>
           )
