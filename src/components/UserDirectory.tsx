@@ -120,65 +120,98 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                     key={u.id} 
                     className="glass-panel" 
                     style={{ 
-                      padding: '12px 16px', 
+                      padding: '20px', 
                       display: 'flex', 
-                      gap: '12px', 
-                      alignItems: 'center', 
-                      background: isBday ? 'rgba(212, 188, 143, 0.08)' : 'rgba(255,255,255,0.01)',
-                      border: isBday ? '1px solid rgba(212, 188, 143, 0.3)' : '1px solid var(--glass-border)',
-                      transition: 'transform 0.2s ease',
+                      flexDirection: 'column',
+                      gap: '16px', 
+                      background: isBday ? 'rgba(212, 188, 143, 0.12)' : 'rgba(255,255,255,0.02)',
+                      border: isBday ? '2px solid rgba(212, 188, 143, 0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      borderRadius: '24px',
+                      position: 'relative',
+                      overflow: 'hidden'
                     }}
                   >
-                    <div 
-                      onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
-                      style={{ 
-                        position: 'relative', 
-                        width: '42px', 
-                        height: '42px', 
-                        borderRadius: '14px', 
-                        overflow: 'hidden', 
-                        border: `2px solid ${isBday ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)'}`, 
-                        flexShrink: 0, 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        background: 'rgba(0,0,0,0.3)', 
-                        fontSize: '18px', 
-                        cursor: (u.avatar && u.avatar.length > 10) ? 'pointer' : 'default',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-                      }}
-                    >
-                      {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
-                      {isBday && (
-                        <div style={{ position: 'absolute', top: -4, right: -4, fontSize: '12px', filter: 'drop-shadow(0 0 2px gold)' }} title="¡Es su cumpleaños!">🎂</div>
-                      )}
-                    </div>
-                    
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {u.full_name || u.username}
-                          {(isOnline || isAway) && (
-                            <div title={isOnline ? 'Activo' : 'Ausente'} style={{ width: 6, height: 6, borderRadius: 3, background: isOnline ? '#10b981' : '#f59e0b', flexShrink: 0 }} />
-                          )}
-                        </div>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--accent-color)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{u.role || 'Colaborador'}</div>
-                      </div>
-                      
-                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: '12px', rowGap: '1px', alignItems: 'center' }}>
-                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>ID: <span style={{ color: 'rgba(255,255,255,0.7)' }}>{u.cedula || '—'}</span></div>
-                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', textAlign: 'right' }}>📞 <span style={{ color: 'rgba(255,255,255,0.7)' }}>{u.phone || '—'}</span></div>
-                        
-                        <div style={{ gridColumn: 'span 2', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          ✉️ <span style={{ color: 'rgba(255,255,255,0.6)' }}>{u.email}</span>
-                        </div>
-                        
-                        {u.birth_date && (
-                          <div style={{ gridColumn: 'span 2', fontSize: '0.65rem', color: 'var(--accent-color)', opacity: 0.8, fontWeight: 600 }}>
-                            🎁 Celebra el {format(parseISO(u.birth_date), 'dd MMMM', { locale: es })}
-                          </div>
+                    {/* Header: Avatar, Name and Role */}
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                      <div 
+                        onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
+                        style={{ 
+                          position: 'relative', 
+                          width: '64px', 
+                          height: '64px', 
+                          borderRadius: '20px', 
+                          overflow: 'hidden', 
+                          border: `2px solid ${isBday ? 'var(--accent-color)' : 'rgba(255,255,255,0.15)'}`, 
+                          flexShrink: 0, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          background: 'rgba(0,0,0,0.4)', 
+                          fontSize: '24px', 
+                          cursor: (u.avatar && u.avatar.length > 10) ? 'pointer' : 'default',
+                          boxShadow: '0 8px 16px rgba(0,0,0,0.3)',
+                          zIndex: 2
+                        }}
+                      >
+                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                        {isBday && (
+                          <div style={{ position: 'absolute', top: -6, right: -6, fontSize: '18px', filter: 'drop-shadow(0 0 4px gold)', zIndex: 3 }} title="¡Es su cumpleaños!">🎂</div>
+                        )}
+                        {(isOnline || isAway) && (
+                          <div 
+                            title={isOnline ? 'En línea' : 'Ausente'} 
+                            style={{ 
+                              position: 'absolute', 
+                              bottom: 2, 
+                              right: 2, 
+                              width: 12, 
+                              height: 12, 
+                              borderRadius: 6, 
+                              background: isOnline ? '#10b981' : '#f59e0b', 
+                              border: '2px solid #1a1622',
+                              boxShadow: `0 0 8px ${isOnline ? '#10b981' : '#f59e0b'}`
+                            }} 
+                          />
                         )}
                       </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--accent-color)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '4px', opacity: 0.9 }}>
+                          {u.role || 'Colaborador'}
+                        </div>
+                        <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.2rem', color: 'white', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+                          {u.full_name || u.username}
+                        </h3>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontWeight: 800, marginTop: '4px', letterSpacing: '0.05em' }}>
+                          ID: <span style={{ color: 'rgba(255,255,255,0.7)' }}>{u.cedula || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
+
+                    {/* Footer: Contacts and B-Day */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ opacity: 0.6 }}>📞</span> <span style={{ color: 'white', fontWeight: 600 }}>{u.phone || '—'}</span>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <span style={{ opacity: 0.6 }}>✉️</span> <span style={{ color: 'white', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</span>
+                        </div>
+                      </div>
+
+                      {u.birth_date && (
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', borderLeft: '1px solid rgba(255,255,255,0.05)', paddingLeft: '12px' }}>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--accent-color)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>
+                            Cumpleaños
+                          </div>
+                          <div style={{ fontSize: '0.9rem', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🎁 {format(parseISO(u.birth_date), 'dd/MMM', { locale: es }).toUpperCase()}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
