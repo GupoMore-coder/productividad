@@ -548,9 +548,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const servicesText = order.services.join(" + ");
       const splitServices = doc.splitTextToSize(servicesText, 175);
       doc.text(splitServices, 15, y);
-      y += (splitServices.length * 6) + 4;
-
-      y += (splitServices.length * 6) + 10;
+      y += (splitServices.length * 4) + 6;
 
       // --- FINANCIAL CARD (EXECUTIVE STYLE) ---
       y += 5;
@@ -635,7 +633,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       // --- AUDIT TRAIL (HISTORY) ---
-      y += 45;
+      y += 38;
       if (y > 220) { y = addNewPage(doc); }
       
       doc.setFontSize(9);
