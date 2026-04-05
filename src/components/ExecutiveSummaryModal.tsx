@@ -137,6 +137,32 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type }: E
                  </div>
               </div>
 
+              {isOrder && data.services && (
+                <div className="space-y-2">
+                  <div className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <ClipboardList size={12} className="text-purple-500" /> Servicios Solicitados
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {data.services.map((s: string, idx: number) => (
+                      <span key={idx} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[0.65rem] font-bold text-slate-300">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(!isOrder && data.description) && (
+                <div className="space-y-2">
+                  <div className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <ClipboardList size={12} className="text-purple-500" /> Detalles de la Actividad
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/5 text-xs text-slate-400 leading-relaxed italic">
+                    "{data.description}"
+                  </div>
+                </div>
+              )}
+
               {isOrder && (
                 <div className="flex items-center gap-3 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
                    <Phone size={16} className="text-emerald-500" />
