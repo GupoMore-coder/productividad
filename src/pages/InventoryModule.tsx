@@ -32,9 +32,31 @@ export default function Inventory() {
   const [showAddItem, setShowAddItem] = useState(false);
   
   // Modal States
-  const [newSupplier, setNewSupplier] = useState({ name: '', nit: '', categories: [] as string[], contact_person: '', phone: '', email: '', address: '' });
+  const [newSupplier, setNewSupplier] = useState({ 
+    name: '', 
+    nit: '', 
+    categories: [] as string[], 
+    contact_person: '', 
+    phone: '', 
+    secondary_contact: '', 
+    email: '', 
+    address: '',
+    social_links: [] as string[]
+  });
   const [newItem, setNewItem] = useState({ supplier_id: '', product_name: '', brand: 'More Paper' as any, quantity: '', priority: 'media' as any, status: 'agotado' as any });
   const [catInput, setCatInput] = useState('');
+  const [socialInput, setSocialInput] = useState('');
+  const [showOtherCategory, setShowOtherCategory] = useState(false);
+
+  const defaultCategories = ['Papelería', 'Diseño', 'Insumos', 'Logística', 'Tecnología'];
+
+  const toggleCategory = (cat: string) => {
+    setNewSupplier(prev => {
+      const isSelected = prev.categories.includes(cat);
+      if (isSelected) return { ...prev, categories: prev.categories.filter(c => c !== cat) };
+      return { ...prev, categories: [...prev.categories, cat] };
+    });
+  };
 
   // Filters
   const filteredSuppliers = useMemo(() => {
@@ -201,59 +223,129 @@ export default function Inventory() {
         {showAddSupplier && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddSupplier(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-[#1a1622] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl">
-               <div className="p-8">
-                  <div className="flex justify-between items-center mb-8">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-[#1a1622] border border-white/10 rounded-[40px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+               {/* Modal Header */}
+               <div className="p-8 border-b border-white/5 bg-white/[0.02]">
+                  <div className="flex justify-between items-center">
                      <h3 className="text-xl font-black text-white uppercase tracking-tight">Nuevo Proveedor</h3>
                      <button onClick={() => setShowAddSupplier(false)} className="p-2 hover:bg-white/5 rounded-xl text-slate-500"><Plus className="rotate-45" size={24} /></button>
                   </div>
-                  
-                  <div className="space-y-4">
-                     <div className="space-y-2">
-                        <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Nombre Comercial</label>
-                        <input type="text" value={newSupplier.name} onChange={e => setNewSupplier({...newSupplier, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">NIT / ID</label>
-                           <input type="text" value={newSupplier.nit} onChange={e => setNewSupplier({...newSupplier, nit: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" />
+               </div>
+
+               <div className="p-8 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-6">
+                     {/* Segmento de Categorías (Header del Formulario) */}
+                     <div className="space-y-3">
+                        <label className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-blue-400 ml-1">Segmento de Especialidad (Múltiple)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                           {defaultCategories.map(cat => (
+                             <button 
+                               key={cat} 
+                               onClick={() => toggleCategory(cat)}
+                               className={`flex items-center gap-3 p-3 rounded-2xl border text-[0.65rem] font-black uppercase transition-all ${newSupplier.categories.includes(cat) ? 'bg-blue-500/10 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/10'}`}
+                             >
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${newSupplier.categories.includes(cat) ? 'bg-blue-500 border-blue-500 text-slate-900' : 'border-white/20'}`}>
+                                   {newSupplier.categories.includes(cat) && <CheckCircle2 size={12} />}
+                                </div>
+                                {cat}
+                             </button>
+                           ))}
+                           <button 
+                             onClick={() => setShowOtherCategory(!showOtherCategory)}
+                             className={`flex items-center gap-3 p-3 rounded-2xl border text-[0.65rem] font-black uppercase transition-all ${showOtherCategory ? 'bg-purple-500/10 border-purple-500/40 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                           >
+                              <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${showOtherCategory ? 'bg-purple-500 border-purple-500 text-white' : 'border-white/20'}`}>
+                                 {showOtherCategory && <Plus size={12} />}
+                              </div>
+                              Otro
+                           </button>
                         </div>
-                        <div className="space-y-2">
-                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Contacto</label>
-                           <input type="text" value={newSupplier.contact_person} onChange={e => setNewSupplier({...newSupplier, contact_person: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" />
-                        </div>
+                        {showOtherCategory && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="pt-2">
+                             <input 
+                               type="text" 
+                               placeholder="Especificar nueva categoría..." 
+                               value={catInput}
+                               onChange={e => setCatInput(e.target.value)}
+                               onBlur={() => {
+                                 if (catInput.trim()) {
+                                   setNewSupplier(prev => ({ ...prev, categories: Array.from(new Set([...prev.categories, catInput.trim()])) }));
+                                 }
+                               }}
+                               className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-purple-500/50 outline-none placeholder:text-slate-600"
+                             />
+                          </motion.div>
+                        )}
                      </div>
-                     <div className="space-y-2">
-                        <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Categorías (Separadas por coma)</label>
-                        <input type="text" value={catInput} onChange={e => setCatInput(e.target.value)} onBlur={() => setNewSupplier({...newSupplier, categories: catInput.split(',').map(c => c.trim()).filter(Boolean)})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" placeholder="Papelería, Diseño, Otros..." />
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+
+                     <div className="h-px bg-white/5 w-full" />
+
+                     {/* Campos Identidad Comercial */}
+                     <div className="space-y-4">
                         <div className="space-y-2">
-                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">WhatsApp / Tel</label>
-                           <input type="tel" value={newSupplier.phone} onChange={e => setNewSupplier({...newSupplier, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" />
+                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Nombre Comercial Correcto</label>
+                           <input type="text" value={newSupplier.name} onChange={e => setNewSupplier({...newSupplier, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-blue-500/50 outline-none font-bold" placeholder="Escriba el nombre oficial..." />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">NIT / ID Correcto</label>
+                              <input type="text" value={newSupplier.nit} onChange={e => setNewSupplier({...newSupplier, nit: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" placeholder="123.456.789-0" />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Contacto Principal</label>
+                              <input type="text" value={newSupplier.contact_person} onChange={e => setNewSupplier({...newSupplier, contact_person: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" placeholder="Nombre completo" />
+                           </div>
+                        </div>
+
                         <div className="space-y-2">
-                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Email</label>
-                           <input type="email" value={newSupplier.email} onChange={e => setNewSupplier({...newSupplier, email: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" />
+                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Correo Corporativo</label>
+                           <input type="email" value={newSupplier.email} onChange={e => setNewSupplier({...newSupplier, email: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" placeholder="admin@proveedor.com" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Contacto Secundario</label>
+                              <input type="tel" value={newSupplier.secondary_contact} onChange={e => setNewSupplier({...newSupplier, secondary_contact: e.target.value, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" placeholder="WhatsApp / Tel Alternativo" />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Redes Sociales (URLs)</label>
+                              <input 
+                                type="text" 
+                                value={socialInput} 
+                                onChange={e => setSocialInput(e.target.value)} 
+                                onBlur={() => setNewSupplier({...newSupplier, social_links: socialInput.split(',').map(s => s.trim()).filter(Boolean)})}
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm text-white focus:border-blue-500/50 outline-none" 
+                                placeholder="Instagram, Web, Facebook..."
+                              />
+                           </div>
+                        </div>
+
+                        <div className="space-y-2">
+                           <label className="text-[0.6rem] font-black uppercase tracking-widest text-slate-500 ml-2">Dirección Física / Logística</label>
+                           <input type="text" value={newSupplier.address} onChange={e => setNewSupplier({...newSupplier, address: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm font-medium text-white focus:border-blue-500/50 outline-none" placeholder="Ubicación de despachos..." />
                         </div>
                      </div>
                   </div>
 
                   <button 
                     onClick={async () => {
+                      if (!newSupplier.name || !newSupplier.categories.length) return alert('Nombre y al menos una categoría son obligatorios.');
                       try {
                         await addSupplier(newSupplier);
                         handleAction('success');
                         setShowAddSupplier(false);
-                        setNewSupplier({ name: '', nit: '', categories: [], contact_person: '', phone: '', email: '', address: '' });
+                        setNewSupplier({ name: '', nit: '', categories: [], contact_person: '', phone: '', secondary_contact: '', email: '', address: '', social_links: [] });
                         setCatInput('');
+                        setSocialInput('');
+                        setShowOtherCategory(false);
                       } catch (err: any) {
                         alert(err.message);
                       }
                     }}
-                    className="w-full mt-8 py-4 bg-blue-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
+                    className="w-full mt-10 py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-xs uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-blue-500/20 active:scale-95 transition-all mb-4"
                   >
-                    Guardar Proveedor
+                    Guardar Proveedor Elite
                   </button>
                </div>
             </motion.div>

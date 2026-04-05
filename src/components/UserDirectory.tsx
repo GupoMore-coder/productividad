@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
 import { format, parseISO } from 'date-fns';
@@ -89,138 +90,144 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div className="glass-panel" style={{ maxWidth: '600px', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: '24px', position: 'relative' }}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-4xl bg-[#1a1622] border border-white/10 rounded-[40px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '1.4rem' }}>👥 Directorio de Personal</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+        {/* Modal Header */}
+        <div className="p-8 border-b border-white/5 bg-white/[0.02]">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+               </div>
+               <div>
+                  <h2 className="text-xl font-black text-white uppercase tracking-tight">Directorio de Personal</h2>
+                  <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Grupo More · Conectividad Asistida</p>
+               </div>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-slate-500 transition-colors">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div className="relative group">
+            <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input 
+              type="text" 
+              placeholder="Buscar personal por nombre, usuario o rol..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium placeholder:text-slate-600"
+            />
+          </div>
         </div>
 
-        <input 
-          type="text" 
-          placeholder="Buscar personal por nombre, usuario o rol..." 
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)', marginBottom: '20px', outline: 'none' }}
-        />
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+               <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+               <p className="text-[0.65rem] font-black text-slate-500 uppercase tracking-widest animate-pulse">Sincronizando personal de élite...</p>
+            </div>
+          ) : (
+            filteredUsers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-600">
+                <svg className="mb-4 opacity-20" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <p className="text-sm font-bold uppercase tracking-widest">No se encontraron resultados</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredUsers.map(u => {
+                  const isBday = isBirthdayToday(u.birth_date);
+                  const isOnline = u.status === 'Activo';
+                  const isAway = u.status === 'Segundo Plano';
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {loading ? <p style={{textAlign: 'center', color: 'var(--text-secondary)'}}>Sincronizando personal...</p> : (
-            filteredUsers.length === 0 ? <p style={{textAlign: 'center', color: 'var(--text-secondary)'}}>No se encontraron resultados.</p> : (
-              filteredUsers.map(u => {
-                const isBday = isBirthdayToday(u.birth_date);
-                const isOnline = u.status === 'Activo';
-                const isAway = u.status === 'Segundo Plano';
-
-                return (
-                  <div 
-                    key={u.id} 
-                    className="glass-panel" 
-                    style={{ 
-                      padding: '20px', 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      gap: '16px', 
-                      background: isBday ? 'rgba(212, 188, 143, 0.12)' : 'rgba(255,255,255,0.02)',
-                      border: isBday ? '2px solid rgba(212, 188, 143, 0.4)' : '1px solid rgba(255,255,255,0.08)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      borderRadius: '24px',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {/* Header: Avatar, Name and Role */}
-                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                      <div 
-                        onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
-                        style={{ 
-                          position: 'relative', 
-                          width: '64px', 
-                          height: '64px', 
-                          borderRadius: '20px', 
-                          overflow: 'hidden', 
-                          border: `2px solid ${isBday ? 'var(--accent-color)' : 'rgba(255,255,255,0.15)'}`, 
-                          flexShrink: 0, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          background: 'rgba(0,0,0,0.4)', 
-                          fontSize: '24px', 
-                          cursor: (u.avatar && u.avatar.length > 10) ? 'pointer' : 'default',
-                          boxShadow: '0 8px 16px rgba(0,0,0,0.3)',
-                          zIndex: 2
-                        }}
-                      >
-                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
-                        {isBday && (
-                          <div style={{ position: 'absolute', top: -6, right: -6, fontSize: '18px', filter: 'drop-shadow(0 0 4px gold)', zIndex: 3 }} title="¡Es su cumpleaños!">🎂</div>
-                        )}
-                        {(isOnline || isAway) && (
-                          <div 
-                            title={isOnline ? 'En línea' : 'Ausente'} 
-                            style={{ 
-                              position: 'absolute', 
-                              bottom: 2, 
-                              right: 2, 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: 6, 
-                              background: isOnline ? '#10b981' : '#f59e0b', 
-                              border: '2px solid #1a1622',
-                              boxShadow: `0 0 8px ${isOnline ? '#10b981' : '#f59e0b'}`
-                            }} 
-                          />
-                        )}
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--accent-color)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '4px', opacity: 0.9 }}>
-                          {u.role || 'Colaborador'}
+                  return (
+                    <motion.div 
+                      key={u.id} 
+                      whileHover={{ y: -4 }}
+                      className={`relative overflow-hidden p-6 gap-6 rounded-[32px] border transition-all duration-500 group flex flex-col justify-between ${
+                        isBday ? 'bg-amber-500/10 border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10 shadow-xl shadow-black/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-5">
+                        <div 
+                          onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
+                          className={`relative w-16 h-16 rounded-[22px] overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-xl shadow-2xl transition-transform duration-500 group-hover:scale-110 ${
+                            isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border border-white/10'
+                          } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer' : 'cursor-default'}`}
+                        >
+                          {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-100 object-cover" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                          {isBday && (
+                            <div className="absolute -top-1 -right-1 text-base filter drop-shadow-[0_0_4px_gold] animate-bounce">🎂</div>
+                          )}
+                          {(isOnline || isAway) && (
+                            <div 
+                              className={`absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] shadow-[0_0_8px_currentColor] ${isOnline ? 'bg-emerald-500 text-emerald-500' : 'bg-amber-500 text-amber-500'}`}
+                              title={isOnline ? 'En línea' : 'Ausente'} 
+                            />
+                          )}
                         </div>
-                        <h3 style={{ margin: 0, fontWeight: 900, fontSize: '1.2rem', color: 'white', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-                          {u.full_name || u.username}
-                        </h3>
-                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontWeight: 800, marginTop: '4px', letterSpacing: '0.05em' }}>
-                          ID: <span style={{ color: 'rgba(255,255,255,0.7)' }}>{u.cedula || '—'}</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)' }} />
-
-                    {/* Footer: Contacts and B-Day */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ opacity: 0.6 }}>📞</span> <span style={{ color: 'white', fontWeight: 600 }}>{u.phone || '—'}</span>
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                          <span style={{ opacity: 0.6 }}>✉️</span> <span style={{ color: 'white', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</span>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-[0.6rem] font-black uppercase tracking-[0.2em] mb-1 block transition-colors ${isBday ? 'text-amber-500' : 'text-blue-400 group-hover:text-blue-300'}`}>
+                            {u.role || 'Colaborador'}
+                          </span>
+                          <h3 className="text-base font-black text-white leading-tight uppercase truncate">
+                            {u.full_name || u.username}
+                          </h3>
+                          <p className="text-[0.65rem] font-bold text-slate-500 uppercase mt-1">ID: <span className="text-slate-400">{u.cedula || '—'}</span></p>
                         </div>
                       </div>
 
-                      {u.birth_date && (
-                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', borderLeft: '1px solid rgba(255,255,255,0.05)', paddingLeft: '12px' }}>
-                          <div style={{ fontSize: '0.65rem', color: 'var(--accent-color)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px' }}>
-                            Cumpleaños
-                          </div>
-                          <div style={{ fontSize: '0.9rem', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            🎁 {format(parseISO(u.birth_date), 'dd/MMM', { locale: es }).toUpperCase()}
-                          </div>
+                      <div className="h-px bg-white/5 w-full my-1" />
+
+                      {/* Info & Quick Actions */}
+                      <div className="flex items-center justify-between gap-4 mt-2">
+                        <div className="flex flex-col gap-1 min-w-0">
+                           <div className="flex items-center gap-2 text-[0.7rem] font-bold text-slate-400 truncate group-hover:text-white transition-colors">
+                              <span className="opacity-40">✉️</span> {u.email}
+                           </div>
+                           {u.birth_date && (
+                             <div className="flex items-center gap-2 text-[0.7rem] font-black text-amber-500/80 uppercase tracking-tighter">
+                                <span className={isBday ? 'animate-pulse' : ''}>🎁</span> {format(parseISO(u.birth_date), 'dd MMMM', { locale: es }).toUpperCase()}
+                             </div>
+                           )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+
+                        {/* Adaptive Quick Actions */}
+                        <div className="flex items-center gap-2">
+                           {u.phone && (
+                             <>
+                               <a 
+                                 href={`tel:${u.phone}`}
+                                 className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-blue-600 hover:text-white hover:border-blue-500/30 transition-all shadow-lg active:scale-95"
+                                 aria-label="Llamar"
+                               >
+                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                               </a>
+                               <a 
+                                 href={`https://wa.me/${u.phone.replace(/[^0-9]/g, '')}`}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-emerald-600 hover:text-white hover:border-emerald-500/30 transition-all shadow-lg active:scale-95"
+                                 aria-label="WhatsApp"
+                               >
+                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-14 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
+                               </a>
+                             </>
+                           )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
             )
           )}
         </div>
         {zoomedImg && <ImageZoomModal src={zoomedImg} onClose={() => setZoomedImg(null)} />}
-      </div>
+      </motion.div>
     </div>
   );
 }

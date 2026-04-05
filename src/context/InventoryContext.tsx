@@ -7,12 +7,14 @@ import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 
 export interface Supplier {
   id: string;
-  name: string;
-  nit: string;
+  name: string; // Nombre Comercial
+  nit: string; // NIT / ID
   categories: string[];
-  contact_person: string;
-  phone: string;
+  contact_person: string; // Contacto Principal
+  phone: string; // Mantenido para compatibilidad interna
+  secondary_contact?: string; // Nuevo: WhatsApp / Tel
   email: string;
+  social_links?: string[]; // Nuevo: Redes Sociales
   address?: string;
   created_at: string;
 }

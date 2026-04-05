@@ -22,7 +22,8 @@ import {
   Filter,
   Trophy,
   CalendarDays,
-  ChevronRight
+  ChevronRight,
+  Users
 } from 'lucide-react';
 import UserOrdersModal from '../components/UserOrdersModal';
 import { Skeleton, StatsSkeleton } from '../components/ui/Skeleton';
@@ -171,30 +172,69 @@ export default function Dashboard() {
     const ordersActive = filteredOrders.filter(o => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)).length;
     const ordersEfficiency = ordersTotal > 0 ? (ordersCompleted / (ordersTotal - ordersActive || 1)) * 100 : 0;
 
-    const respMap: Record<string, { total: number, completed: number, collection: number }> = {};
+    const respMap: Record<string, { total: number, completed: number, collection: number, sales: number }> = {};
     filteredOrders.forEach(o => {
       const name = o.responsible || 'Sistema';
-      if (!respMap[name]) respMap[name] = { total: 0, completed: 0, collection: 0 };
+      if (!respMap[name]) respMap[name] = { total: 0, completed: 0, collection: 0, sales: 0 };
       respMap[name].total++;
+      respMap[name].sales += o.totalCost;
       if (o.status === 'completada') respMap[name].completed++;
       respMap[name].collection += o.depositAmount;
     });
 
     const productivityRanking = Object.entries(respMap)
-      .map(([label, data]) => ({ 
-        label, 
-        value: data.total,
-        completed: data.completed,
-        efficiency: data.total > 0 ? (data.completed / data.total) * 100 : 0,
-        collection: data.collection
-      }))
-      .sort((a, b) => b.completed - a.completed || b.value - a.value);
+      .map(([label, data]) => {
+        const efficiency = data.total > 0 ? (data.completed / data.total) * 100 : 0;
+        // Algoritmo de Élite: (Ventas 40%) + (Recaudo 40%) + (Eficiencia 20%)
+        // Normalizamos basado en el total del equipo para este periodo
+        const salesScore = totalSales > 0 ? (data.sales / totalSales) * 40 : 0;
+        const collectionScore = totalCollected > 0 ? (data.collection / totalCollected) * 40 : 0;
+        const efficiencyScore = (efficiency / 100) * 20;
+        const score = salesScore + collectionScore + efficiencyScore;
+
+        return { 
+          label, 
+          value: data.total,
+          completed: data.completed,
+          efficiency,
+          collection: data.collection,
+          sales: data.sales,
+          score
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    // Inteligencia Predictiva (Fase 15)
+    // 1. SLA (Tiempo Medio de Ciclo en Horas)
+    const completedWithDates = financialOrders.filter(o => o.status === 'completada' && o.completedAt);
+    const totalCycleTime = completedWithDates.reduce((acc, o) => {
+      const start = new Date(o.createdAt).getTime();
+      const end = new Date(o.completedAt!).getTime();
+      return acc + (end - start);
+    }, 0);
+    const avgSLA = completedWithDates.length > 0 ? (totalCycleTime / completedWithDates.length) / (1000 * 60 * 60) : 0;
+
+    // 2. Retención de Clientes
+    const customerMap: Record<string, number> = {};
+    financialOrders.forEach(o => {
+      customerMap[o.customerName] = (customerMap[o.customerName] || 0) + 1;
+    });
+    const recurringCustomers = Object.values(customerMap).filter(count => count > 1).length;
+    const totalUniqueCustomers = Object.keys(customerMap).length || 1;
+    const loyaltyRatio = (recurringCustomers / totalUniqueCustomers) * 100;
+
+    // 3. Pronóstico Semanal (Forecast)
+    // Determinamos el número de días en el filtro actual
+    const daysInPeriod = timeFilter === 'global' ? 30 : timeFilter === '7d' ? 7 : 30;
+    const dailyAvgSales = totalSales / daysInPeriod;
+    const weeklyForecast = dailyAvgSales * 7;
 
     return { 
       totalSales, totalCollected, totalPending, serviceRanking, 
       productivityRanking, tasksTotal, tasksCompleted, tasksCancelled, tasksEfficiency,
       ordersTotal, ordersCompleted, ordersEfficiency,
-      totalCount: orders.length || 1
+      totalCount: orders.length || 1,
+      avgSLA, loyaltyRatio, weeklyForecast
     };
   }, [orders, tasks, selectedUserIds, user, allUsers, timeFilter]);
 
@@ -489,6 +529,63 @@ export default function Dashboard() {
                </div>
             </div>
 
+            {/* Centro de Inteligencia Predictiva (Fase 15) */}
+            {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor) && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
+                   <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                         <Timer size={20} />
+                      </div>
+                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">SLA (Eficiencia)</h4>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-2xl font-black text-white tabular-nums">{stats.avgSLA.toFixed(1)}h</span>
+                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Tiempo Medio de Entrega</span>
+                   </div>
+                   <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500" 
+                        style={{ width: `${Math.min(100, (24 / (stats.avgSLA || 1)) * 100)}%` }} 
+                      />
+                   </div>
+                </motion.div>
+
+                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-emerald-600/10 to-transparent border border-emerald-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
+                   <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                         <Users size={20} />
+                      </div>
+                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">Lealtad (Retención)</h4>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-2xl font-black text-white tabular-nums">{stats.loyaltyRatio.toFixed(0)}%</span>
+                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Clientes Recurrentes</span>
+                   </div>
+                   <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500" style={{ width: `${stats.loyaltyRatio}%` }} />
+                   </div>
+                </motion.div>
+
+                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-purple-600/10 to-transparent border border-purple-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
+                   <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all">
+                         <TrendingUp size={20} />
+                      </div>
+                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">Forecast (7 Días)</h4>
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-2xl font-black text-white tabular-nums">${stats.weeklyForecast.toLocaleString()}</span>
+                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Ventas Estimadas</span>
+                   </div>
+                   <div className="mt-4 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                      <span className="text-[0.5rem] font-black text-purple-500 uppercase tracking-tighter">Proyección Analítica</span>
+                   </div>
+                </motion.div>
+              </div>
+            )}
+
             <section className="bg-white/[0.02] border border-white/5 p-8 rounded-[40px] shadow-lg">
               <div className="flex items-center justify-between mb-8">
                  <div className="flex items-center gap-3">
@@ -511,46 +608,55 @@ export default function Dashboard() {
                         triggerHaptic('light');
                         setSelectedDetailUser({ id: p.label, username: p.label });
                     }}
-                    className="w-full flex justify-between items-center bg-black/30 p-4 rounded-3xl border border-white/5 hover:border-purple-500/40 transition-all group active:scale-[0.98]"
+                    className={`w-full flex justify-between items-center p-5 rounded-[32px] border transition-all group active:scale-[0.98] ${
+                      i === 0 ? 'bg-amber-500/10 border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 
+                      i === 1 ? 'bg-slate-300/10 border-slate-300/30' :
+                      i === 2 ? 'bg-amber-800/10 border-amber-800/30' : 'bg-black/30 border-white/5 hover:border-purple-500/40'
+                    }`}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-5">
                       <div className="relative">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm ${
-                          i === 0 ? 'bg-amber-500 text-slate-900' : 
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg transition-transform group-hover:scale-105 duration-500 ${
+                          i === 0 ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 
                           i === 1 ? 'bg-slate-300 text-slate-900' :
                           i === 2 ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
                         }`}>
                           {(p.label || 'U').charAt(0).toUpperCase()}
                         </div>
                         {i < 3 && (
-                          <div className="absolute -top-2 -right-2 bg-slate-900 rounded-full p-1 border border-white/10">
-                            <Star size={12} className={i === 0 ? 'text-amber-500' : i === 1 ? 'text-slate-300' : 'text-amber-800'} />
+                          <div className="absolute -top-3 -right-3 bg-slate-950 rounded-full p-1.5 border border-white/10 shadow-xl">
+                            <Trophy size={14} className={i === 0 ? 'text-amber-500' : i === 1 ? 'text-slate-300' : 'text-amber-600'} />
                           </div>
                         )}
                       </div>
                       <div className="text-left">
                         <div className="flex items-center gap-2">
-                           <span className="text-sm font-black text-white">@{p.label} <span className="text-[0.6rem] text-slate-500 font-bold ml-1">Rank #{i+1}</span></span>
+                           <span className="text-sm font-black text-white uppercase tracking-tight">@{p.label}</span>
+                           {i < 3 && <span className={`text-[0.55rem] font-black uppercase px-2 py-0.5 rounded-full ${i === 0 ? 'bg-amber-500/20 text-amber-500' : i === 1 ? 'bg-slate-300/20 text-slate-300' : 'bg-amber-800/20 text-amber-500'}`}>ELITE #{i+1}</span>}
                         </div>
-                        <div className="flex items-center gap-3 mt-1">
-                          <div className="flex items-center gap-1">
-                             <div className="w-1 h-1 rounded-full bg-purple-500" />
-                             <span className="text-[0.6rem] text-slate-500 font-black uppercase">{p.value} ÓRDENES</span>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                          <div className="flex items-center gap-1.5">
+                             <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                             <span className="text-[0.55rem] text-slate-400 font-black uppercase">{p.value} ÓRDENES</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                             <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                             <span className="text-[0.6rem] text-emerald-400 font-black uppercase">{p.efficiency.toFixed(0)}% EFICACIA</span>
+                          <div className="flex items-center gap-1.5">
+                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                             <span className="text-[0.55rem] text-emerald-400 font-bold uppercase">{p.efficiency.toFixed(0)}% ÉXITO</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 opacity-60">
+                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                             <span className="text-[0.55rem] text-slate-500 font-bold uppercase">SCORE: {p.score.toFixed(1)}</span>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
                       <div className="text-right hidden sm:block">
-                        <div className="text-xs font-black text-white tabular-nums">${p.collection.toLocaleString()}</div>
-                        <div className="text-[0.55rem] font-black text-slate-500 uppercase tracking-widest mt-0.5">Recaudado</div>
+                        <div className="text-sm font-black text-white tabular-nums tracking-tighter leading-none">${p.sales.toLocaleString()}</div>
+                        <div className="text-[0.55rem] font-black text-slate-500 uppercase tracking-widest mt-1.5 group-hover:text-emerald-400 transition-colors">Ventas Brutas</div>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-500 group-hover:text-purple-400 transition-colors">
-                         <ChevronRight size={18} />
+                      <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 group-hover:bg-purple-500 group-hover:text-slate-900 transition-all">
+                         <ChevronRight size={20} />
                       </div>
                     </div>
                   </button>
