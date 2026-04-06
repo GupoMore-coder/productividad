@@ -164,7 +164,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: profile?.avatar
       };
       
-      localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
+      const sanitizedUser = { ...masterUser };
+      delete sanitizedUser.avatar;
+      localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -214,7 +216,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: profile?.avatar
       };
       
-      localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
+      const sanitizedUser = { ...masterUser };
+      delete sanitizedUser.avatar;
+      localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -402,7 +406,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
          full_name: profile.full_name || 'Fernando Marulanda',
          avatar: profile.avatar
        };
-       localStorage.setItem('antigravity_master_bypass', JSON.stringify(masterUser));
+       const sanitizedUser = { ...masterUser };
+       delete sanitizedUser.avatar;
+       localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
        setUser(masterUser);
        return { data: { user: masterUser }, error: null };
     }

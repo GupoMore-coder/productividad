@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Camera, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
+import { optimizeImage } from '../utils/imageOptimizer';
 
 export default function SetupProfile() {
   const { user, updateProfile, signOut } = useAuth();
@@ -36,15 +37,25 @@ export default function SetupProfile() {
 
   if (!user || user.needsSetup === false) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
+      try {
+        setLoading(true);
+        const optimized = await optimizeImage(file, 400, 400, 0.6); // Profile avatar doesn't need to be huge
+        setAvatar(optimized);
         triggerHaptic('success');
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('Error optimizing image:', err);
+        // Fallback to original if optimization fails
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAvatar(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 

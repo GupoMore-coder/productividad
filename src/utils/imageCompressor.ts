@@ -10,7 +10,7 @@ const JPEG_QUALITY  = 0.60;  // 0–1
 
 /**
  * Compress a File (JPEG/PNG/WebP) using the Canvas API.
- * Returns a base64 data URL string (image/jpeg).
+ * Returns a base64 data URL string (image/webp).
  */
 export function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -40,7 +40,7 @@ export function compressImage(file: File): Promise<string> {
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressed = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        const compressed = canvas.toDataURL('image/webp', JPEG_QUALITY);
         resolve(compressed);
       };
       img.onerror = () => reject(new Error('Could not load image'));
