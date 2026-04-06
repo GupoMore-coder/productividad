@@ -1,7 +1,7 @@
 /**
  * Utility for triggering haptic feedback (vibration) on supported devices.
  */
-export const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'warning' | 'error' = 'light') => {
+export const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'warning' | 'error' | 'heavy' | 'critical' = 'light') => {
   if (!('vibrate' in navigator)) return;
 
   switch (type) {
@@ -19,6 +19,12 @@ export const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'warning' |
       break;
     case 'error':
       navigator.vibrate([50, 100, 50, 100, 50]);
+      break;
+    case 'heavy':
+      navigator.vibrate(100);
+      break;
+    case 'critical':
+      navigator.vibrate([300, 100, 300, 100, 500]);
       break;
     default:
       navigator.vibrate(10);

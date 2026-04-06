@@ -44,6 +44,9 @@ export default function Profile() {
   const [phone, setPhone] = useState(user?.phone || '');
   const [birthDate, setBirthDate] = useState(user?.birth_date || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
+  const [emergencyName, setEmergencyName] = useState(user?.emergency_name || '');
+  const [emergencyRelationship, setEmergencyRelationship] = useState(user?.emergency_relationship || '');
+  const [emergencyPhone, setEmergencyPhone] = useState(user?.emergency_phone || '');
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -75,6 +78,9 @@ export default function Profile() {
       setPhone(user.phone || '');
       setBirthDate(user.birth_date || '');
       setAvatar(user.avatar || '');
+      setEmergencyName(user.emergency_name || '');
+      setEmergencyRelationship(user.emergency_relationship || '');
+      setEmergencyPhone(user.emergency_phone || '');
     }
   }, [user]);
 
@@ -143,7 +149,10 @@ export default function Profile() {
         cedula, 
         phone, 
         birth_date: birthDate, 
-        avatar 
+        avatar,
+        emergency_name: emergencyName,
+        emergency_relationship: emergencyRelationship,
+        emergency_phone: emergencyPhone
       });
 
       handleAction('success');
@@ -393,6 +402,38 @@ export default function Profile() {
                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" size={18} />
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} required 
                   className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-12 pr-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+              </div>
+            </div>
+          </div>
+
+          {/* v4: Contacto de Emergencia */}
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <h4 className="text-[0.65rem] uppercase tracking-[0.3em] text-slate-600 font-black ml-1 flex items-center gap-2">
+              <AlertTriangle size={14} className="text-amber-500" /> Contacto de Emergencia
+            </h4>
+            <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest ml-1 mb-2 opacity-60 italic">Información opcional para seguridad laboral</p>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Nombre del Contacto</label>
+                <input type="text" value={emergencyName} onChange={e => setEmergencyName(String(e.target.value))} 
+                  placeholder="Ej: María Pérez"
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Parentesco</label>
+                  <input type="text" value={emergencyRelationship} onChange={e => setEmergencyRelationship(String(e.target.value))} 
+                    placeholder="Ej: Madre"
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Teléfono</label>
+                  <input type="tel" value={emergencyPhone} onChange={e => setEmergencyPhone(String(e.target.value))} 
+                    placeholder="Ej: 300..."
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+                </div>
               </div>
             </div>
           </div>

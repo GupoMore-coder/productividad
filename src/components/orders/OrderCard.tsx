@@ -37,6 +37,8 @@ interface OrderCardProps {
   onPromote?: (id: string) => Promise<void>;
   isOverdue?: boolean;
   isGenerating?: boolean;
+  sequenceLabel?: string;
+  onDelete?: (id: string) => void;
 }
 
 export const OrderCard = memo(function OrderCard({ 
@@ -49,7 +51,9 @@ export const OrderCard = memo(function OrderCard({
    onReactivate,
   onPromote,
   isOverdue,
-  isGenerating
+  isGenerating,
+  sequenceLabel,
+  onDelete
 }: OrderCardProps) {
   const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -104,8 +108,8 @@ export const OrderCard = memo(function OrderCard({
       {/* Header Area */}
       <div className="p-5 pb-3">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-black tracking-widest text-slate-400 group-hover:text-purple-400 transition-colors">
-            {order.id}
+          <span className="text-sm font-black tracking-widest text-slate-400 group-hover:text-purple-400 transition-colors uppercase">
+            {sequenceLabel || order.id.slice(-6).toUpperCase()}
           </span>
           <OrderStatusPill status={order.status} />
         </div>
@@ -336,6 +340,16 @@ export const OrderCard = memo(function OrderCard({
             >
               <Edit3 size={18} />
             </button>
+
+            {user?.isMaster && onDelete && (
+              <button 
+                onClick={() => { if(confirm('¿BORRAR ORDEN SIN RASTRO?')) onDelete(order.id); }} 
+                className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95 shadow-lg"
+                title="BORRADO MAESTRO (Sin rastro)"
+              >
+                <DollarSign size={18} />
+              </button>
+            )}
           </div>
         </div>
       </div>

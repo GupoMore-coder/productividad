@@ -25,6 +25,8 @@ const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const PublicOrderStatus = lazy(() => import('./pages/PublicOrderStatus'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Accounting = lazy(() => import('./pages/Accounting'));
+const Feedback = lazy(() => import('./pages/Feedback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 
@@ -205,6 +207,8 @@ function AppRoutes() {
           <Route path="/orders"   element={<PrivateRoute><Orders /></PrivateRoute>} />
           <Route path="/inventory" element={<PrivateRoute><InventoryPage /></PrivateRoute>} />
           <Route path="/profile"  element={<PrivateRoute><Profile /></PrivateRoute>} />
+          <Route path="/accounting" element={<PrivateRoute><Accounting /></PrivateRoute>} />
+          <Route path="/sugerencias" element={<PrivateRoute><Feedback /></PrivateRoute>} />
           <Route path="/admin"    element={<AdminRoute><AdminUsers /></AdminRoute>} />
           <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
           <Route path="/status/:orderId" element={<PublicOrderStatus />} />

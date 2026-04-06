@@ -17,6 +17,9 @@ interface AppUser {
   birth_date?: string;
   role?: string;
   status?: 'Activo' | 'Segundo Plano' | 'Inactivo';
+  emergency_name?: string;
+  emergency_relationship?: string;
+  emergency_phone?: string;
 }
 
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -219,6 +222,20 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                            )}
                         </div>
                       </div>
+
+                      {/* Emergency Contact Display (v4) */}
+                      {u.emergency_name && (
+                        <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex flex-col gap-1.5 transition-all group-hover:bg-amber-500/10">
+                           <div className="flex items-center gap-2 text-[0.55rem] font-black text-amber-500 uppercase tracking-widest opacity-80">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                              Contacto de Emergencia
+                           </div>
+                           <div className="flex justify-between items-center text-[0.65rem] text-slate-400 font-bold uppercase tracking-tighter">
+                              <span className="truncate">{String(u.emergency_name)} ({String(u.emergency_relationship)})</span>
+                              <a href={`tel:${u.emergency_phone}`} className="text-amber-500 hover:text-amber-400 font-black">{String(u.emergency_phone)}</a>
+                           </div>
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}

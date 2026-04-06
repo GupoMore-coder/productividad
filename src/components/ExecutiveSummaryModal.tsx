@@ -31,8 +31,8 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
   if (!data) return null;
 
   const isOrder = type === 'order';
-  const title = isOrder ? data.customerName : data.title;
-  const subtitle = isOrder ? `Orden ${data.id}` : (data.isShared ? 'Tarea de Equipo' : 'Tarea Personal');
+  const title = String(isOrder ? data.customerName : (data.title || 'Sin título'));
+  const subtitle = isOrder ? `Orden ${String(data.id)}` : (data.isShared ? 'Tarea de Equipo' : 'Tarea Personal');
   
   // Mapping UID to Name
   const responsibleId = isOrder ? data.responsible : data.userId;
@@ -157,7 +157,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
 
               <div className="absolute bottom-6 left-8 right-8">
                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[0.6rem] font-black uppercase tracking-widest mb-3 ${getStatusColor(status)} shadow-lg`}>
-                    {status.replace('_', ' ')}
+                    {String(status).replace('_', ' ')}
                  </div>
                  <h2 className="text-2xl font-black text-white tracking-tight leading-none truncate">{title}</h2>
                  <p className="text-[0.65rem] text-slate-500 font-black uppercase tracking-[0.2em] mt-2 flex items-center gap-2">

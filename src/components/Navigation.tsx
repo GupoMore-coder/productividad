@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import HelpManualModal from './HelpManualModal';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Plus, Calendar, Users, BookOpen, LayoutDashboard, ShieldCheck, Box } from 'lucide-react';
+import { LogOut, Plus, Calendar, Users, BookOpen, LayoutDashboard, ShieldCheck, Box, FileText, Lightbulb } from 'lucide-react';
 
 /**
  * v12.3: Elite Navigation Resilience
@@ -101,7 +101,28 @@ export default function Navigation() {
              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Perfil</span>
           </NavLink>
 
-          {(user?.role === 'Director General (CEO)') && (
+          {(user?.isAccountant || user?.role === 'Gestor Administrativo' || user?.isMaster) && (
+            <NavLink to="/accounting" className={getNavClass}>
+              <FileText size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Balance</span>
+            </NavLink>
+          )}
+
+          {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.isSupervisor || user?.isConsultant) && (
+            <NavLink to="/inventory" className={getNavClass}>
+              <Box size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Stock</span>
+            </NavLink>
+          )}
+
+          {(user?.isColaborador || user?.isMaster) && (
+             <NavLink to="/sugerencias" className={getNavClass}>
+               <Lightbulb size={20} />
+               <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Hallazgos</span>
+             </NavLink>
+          )}
+
+          {(user?.role === 'Director General (CEO)' || user?.isMaster) && (
             <NavLink to="/dashboard" className={getNavClass}>
               <LayoutDashboard size={20} />
               <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">CEO</span>
@@ -111,14 +132,7 @@ export default function Navigation() {
           {user?.isMaster && (
             <NavLink to="/admin" className={getNavClass}>
               <ShieldCheck size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Admin</span>
-            </NavLink>
-          )}
-
-          {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.isSupervisor || user?.isConsultant) && (user?.role !== 'Colaborador') && (
-            <NavLink to="/inventory" className={getNavClass}>
-              <Box size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Stock</span>
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Master</span>
             </NavLink>
           )}
         </div>

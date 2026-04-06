@@ -195,7 +195,9 @@ export default function FamilyGroup() {
                       <div key={grp.id} className="flex justify-between items-center bg-[#1a1622]/50 p-4 rounded-2xl border border-white/5">
                         <div>
                           <strong className="text-white text-sm block mb-0.5">{grp.name}</strong>
-                          <span className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">Creado por {grp.creatorId.split('@')[0]}</span>
+                          <span className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">
+                            Creado por {userDirectory.find(u => u.id === grp.creatorId)?.full_name || grp.creatorId.split('@')[0]}
+                          </span>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => { handleAction('success'); acceptInvitation(grp.id); }} className="w-9 h-9 rounded-xl bg-purple-500 flex items-center justify-center text-slate-900 hover:brightness-110 active:scale-90 transition-all font-black"><Check size={18} /></button>
@@ -242,7 +244,9 @@ export default function FamilyGroup() {
                       <div>
                         <h4 className="text-lg font-black text-white leading-tight tracking-tight">{g.name}</h4>
                         <div className="flex items-center gap-2 mt-1">
-                           <span className="text-[0.6rem] text-slate-500 font-black uppercase tracking-widest">@{g.creatorId.split('@')[0]}</span>
+                           <span className="text-[0.6rem] text-slate-500 font-black uppercase tracking-widest">
+                             @{userDirectory.find(u => u.id === g.creatorId)?.full_name.split(' ')[0] || g.creatorId.split('@')[0]}
+                           </span>
                            <div className="w-1 h-1 rounded-full bg-slate-700" />
                            <span className="text-[0.6rem] text-purple-400 font-black uppercase tracking-widest">{g.memberCount} Miembros</span>
                         </div>
@@ -286,16 +290,18 @@ export default function FamilyGroup() {
               >
                 <ArrowLeft size={16} /> Volver
               </button>
-              {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && (
+              {(selectedGroup.creatorId === myUserId || user?.isMaster || user?.isSuperAdmin) && (
                 <div className="flex items-center gap-2 text-amber-400 text-[0.6rem] font-black uppercase tracking-widest bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 shadow-sm shadow-amber-500/10">
-                   <ShieldCheck size={12} /> Eres el Propietario
+                   <ShieldCheck size={12} /> {user?.isMaster ? 'Modo Administración Maestro' : 'Eres el Propietario'}
                 </div>
               )}
             </div>
             
             <header>
               <h2 className="text-4xl font-black text-white tracking-tighter leading-none mb-1">{selectedGroup.name}</h2>
-              <p className="text-slate-500 font-bold uppercase tracking-widest text-[0.65rem]">Creado por @{selectedGroup.creatorId.split('@')[0]}</p>
+              <p className="text-slate-500 font-bold uppercase tracking-widest text-[0.65rem]">
+                Líder: {userDirectory.find(u => u.id === selectedGroup.creatorId)?.full_name || selectedGroup.creatorId.split('@')[0]}
+              </p>
             </header>
             
                 <div className="relative">
@@ -348,7 +354,7 @@ export default function FamilyGroup() {
                 </div>
 
             {/* Pending Requests */}
-            {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && pendingRequests.length > 0 && (
+            {(selectedGroup.creatorId === myUserId || user?.isMaster || user?.isSuperAdmin) && pendingRequests.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-amber-400 flex items-center gap-2">
                    <Bell className="animate-bounce" size={14} /> Solicitudes Pendientes
@@ -384,7 +390,9 @@ export default function FamilyGroup() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                         <span className="text-base font-black text-white tracking-tight">@{m.userId.split('@')[0]}</span>
+                         <span className="text-base font-black text-white tracking-tight">
+                           {userDirectory.find(u => u.id === m.userId)?.full_name || m.userId.split('@')[0]}
+                         </span>
                          {m.userId === selectedGroup.creatorId && (
                            <div className="bg-amber-500/20 text-amber-500 text-[0.5rem] font-black px-2 py-0.5 rounded-md border border-amber-500/30 uppercase tracking-tighter">Líder</div>
                          )}
@@ -393,7 +401,7 @@ export default function FamilyGroup() {
                         {m.userId === selectedGroup.creatorId ? 'Coordinador General' : 'Especialista de Grupo'}
                       </div>
                     </div>
-                    {(selectedGroup.creatorId === myUserId || user?.isSuperAdmin) && m.userId !== myUserId && (
+                    {(selectedGroup.creatorId === myUserId || user?.isMaster || user?.isSuperAdmin) && m.userId !== myUserId && (
                       <button 
                         onClick={() => { handleAction('error'); removeUser(selectedGroup.id, m.userId); }} 
                         className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"

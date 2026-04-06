@@ -22,6 +22,9 @@ interface AuthUser {
   isBypass?: boolean;
   sandboxExpiry?: string;
   needsSetup: boolean;
+  emergency_name?: string;
+  emergency_relationship?: string;
+  emergency_phone?: string;
 }
 
 interface AuthContextType {

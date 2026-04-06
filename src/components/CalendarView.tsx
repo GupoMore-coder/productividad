@@ -98,16 +98,16 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
         </button>
       </div>
 
-      {/* v13: Force scroll and snap for Android stability */}
+      {/* v13: Force scroll and snap for Android stability with landscape optimization */}
       <div 
-        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x touch-pan-x overscroll-x-contain"
+        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 snap-x snap-mandatory touch-pan-x overscroll-x-contain"
         style={{ 
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none'
         }}
       >
-        <div className="flex gap-3 min-w-max pb-2">
+        <div className="flex gap-3 min-w-max pb-2 md:pb-4">
           {days.map((day, idx) => {
             const dayKey = format(day, "yyyy-MM-dd");
             const isSelected = dayKey === format(selectedDate, "yyyy-MM-dd");
@@ -119,23 +119,23 @@ export default function CalendarView({ selectedDate, onSelectDate, activities = 
                 key={idx}
                 onClick={() => handleSelectDay(day)}
                 className={`
-                  min-w-[65px] h-20 rounded-2xl flex flex-col items-center justify-center transition-all snap-center flex-shrink-0
+                  min-w-[70px] h-20 md:h-24 rounded-2xl flex flex-col items-center justify-center transition-all snap-center flex-shrink-0 border-2
                   ${isSelected 
-                    ? 'bg-purple-500 text-slate-950 shadow-xl shadow-purple-500/20 scale-105 z-10 font-black' 
-                    : 'bg-white/[0.03] border border-white/5 text-slate-400 hover:bg-white/[0.07] hover:border-white/10'}
+                    ? 'bg-purple-500 border-purple-400 text-slate-950 shadow-xl shadow-purple-500/30 scale-105 z-10 font-black' 
+                    : 'bg-white/[0.04] border-white/5 text-slate-400 hover:bg-white/[0.08] hover:border-white/10'}
                   ${isToday && !isSelected ? 'border-purple-500/50 border-dashed' : ''}
                 `}
                 aria-label={`Seleccionar ${format(day, "EEEE d 'de' MMMM", { locale: es })}`}
                 aria-pressed={isSelected}
               >
-                <span className={`text-[0.6rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-500'}`}>
+                <span className={`text-[0.65rem] font-black uppercase tracking-widest mb-1 ${isSelected ? 'text-slate-900/70' : 'text-slate-600'}`}>
                   {format(day, "EEE", { locale: es })}
                 </span>
-                <span className="text-xl font-black tracking-tighter">
+                <span className="text-xl md:text-2xl font-black tracking-tighter">
                   {format(day, "dd")}
                 </span>
                 {hasActivity && (
-                  <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-slate-900' : 'bg-purple-500 shadow-sm shadow-purple-500/50'}`} />
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${isSelected ? 'bg-slate-900' : 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]'}`} />
                 )}
               </button>
             )

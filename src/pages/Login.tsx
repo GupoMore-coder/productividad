@@ -40,10 +40,18 @@ export default function Login() {
     
     try {
       if (identifier.includes('@')) {
-        const { error: authError } = await signInWithEmail(identifier, password);
+        const { data, error: authError } = await signInWithEmail(identifier, password);
         if (authError) throw authError;
+        
+        // v11: Inicializar sesión biométrica vinculando el dispositivo tras login exitoso
+        if (data?.user?.id) {
+          localStorage.setItem(`antigravity_bio_pass_${data.user.id}`, password);
+        }
       } else {
-        await signInWithUsername(identifier, password);
+        const { data } = await signInWithUsername(identifier, password);
+        if (data?.user?.id) {
+          localStorage.setItem(`antigravity_bio_pass_${data.user.id}`, password);
+        }
       }
       triggerHaptic('success');
     } catch (err: any) {

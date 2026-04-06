@@ -16,7 +16,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export default function Orders() {
   const { user } = useAuth();
   usePageTitle('Gestión de Órdenes');
-  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, archivedOrders, downloadOrderPdf, loading } = useOrders();
+  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, deleteOrderMaster, getOrderSequenceLabel, archivedOrders, downloadOrderPdf, loading } = useOrders();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
@@ -283,7 +283,7 @@ export default function Orders() {
                 </div>
 
                 <div className="mt-10 p-4 bg-purple-500/5 border border-purple-500/10 rounded-2xl text-center">
-                   <p className="text-[0.65rem] font-black text-purple-400 uppercase tracking-[0.2em]">Sigue así, @{user?.username || 'Usuario'}</p>
+                   <p className="text-[0.65rem] font-black text-purple-400 uppercase tracking-[0.2em]">Sigue así, @{user?.full_name || user?.username || 'Usuario'}</p>
                 </div>
               </div>
             </motion.div>
@@ -328,6 +328,8 @@ export default function Orders() {
                 onRegisterDeposit={registerDeposit}
                 onReactivate={() => handleReactivateAttempt(order.id)}
                 onPromote={() => promoteDemoOrder(order.id)}
+                onDelete={deleteOrderMaster}
+                sequenceLabel={getOrderSequenceLabel(order.id)}
                 isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas'}
                 isGenerating={isGeneratingPdf === order.id}
               />

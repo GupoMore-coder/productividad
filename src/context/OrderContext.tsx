@@ -64,8 +64,10 @@ interface OrderContextType {
   serviceTypes: string[];
   teamMembers: string[];
   loading: boolean;
+  getOrderSequenceLabel: (id: string) => string;
   createOrder: (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'createdBy' | 'status' | 'pendingBalance' | 'history'>) => Promise<ServiceOrder>;
   updateOrder: (id: string, updates: Partial<ServiceOrder> & { newObservation?: string }) => Promise<ServiceOrder>;
+  deleteOrderMaster: (id: string) => Promise<void>;
   registerDeposit: (id: string, amount: number) => Promise<void>;
   reactivateOrder: (id: string) => Promise<void>;
   promoteDemoOrder: (id: string) => Promise<void>;
@@ -196,6 +198,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return () => { supabase.removeChannel(channel); };
     }
   }, [isSupabaseConfigured, queryClient]);
+
+  // 1.1 Virtual Sequencing logic
+  const getOrderSequenceLabel = (id: string): string => {
+    if (!orders || orders.length === 0) return `ORDEN 0000`;
+    // Sort orders by creation date (older first) to determine sequence
+    const sorted = [...orders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const index = sorted.findIndex(o => o.id === id);
+    if (index === -1) return `ORDEN 0000`;
+    return `ORDEN ${(index + 1).toString().padStart(4, '0')}`;
+  };
 
   // 4. Mutations
   const createOrderMutation = useOfflineMutation(
@@ -441,6 +453,28 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     triggerHaptic('success');
   };
 
+  const deleteOrderMaster = async (id: string) => {
+    if (!user?.isMaster) {
+      triggerHaptic('error');
+      throw new Error('Privilegio reservado para el Administrador Maestro.');
+    }
+
+    if (isSupabaseConfigured) {
+      // 1. Delete history first
+      await supabase.from('order_history').delete().eq('order_id', id);
+      // 2. Delete the order
+      const { error } = await supabase.from('service_orders').delete().eq('id', id);
+      if (error) throw error;
+    } else {
+      const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
+      const filtered = mockOrders.filter(o => o.id !== id);
+      await mockStorage.setItem('mock_orders', filtered);
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
   // Listener para capturar motivos de cancelación desde UI
   useEffect(() => {
     const handleCancelReason = (e: any) => {
@@ -558,7 +592,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.text("ORDEN DE SERVICIO", 150, 16);
       doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
       doc.setFontSize(14);
-      doc.text(`#${orderId.slice(-6).toUpperCase()}`, 150, 23);
+      doc.text(getOrderSequenceLabel(orderId), 150, 23);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
@@ -609,14 +643,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
-      doc.text("VALIDACIÓN DIGITAL", qrX + 28, qrY + 5);
+      doc.text("VALIDACIÓN DIGITAL", qrX + 28, qrY + 4); 
       
       doc.setFontSize(6);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
       const qrExplanation = "Escanee este código para verificar el estado de su orden en tiempo real y acceder a la trazabilidad oficial 24/7 de Grupo More.";
-      const splitQrText = doc.splitTextToSize(qrExplanation, 35);
-      doc.text(splitQrText, qrX + 28, qrY + 10);
+      const splitQrText = doc.splitTextToSize(qrExplanation, 34); 
+      doc.text(splitQrText, qrX + 28, qrY + 8);
 
       // --- SERVICES ---
       y = 105;
@@ -810,17 +844,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <OrderContext.Provider value={{ 
-      orders, 
-      archivedOrders, 
-      serviceTypes, 
-      teamMembers, 
-      loading, 
-      createOrder, 
-      updateOrder, 
+      orders,
+      archivedOrders,
+      serviceTypes,
+      teamMembers,
+      loading,
+      getOrderSequenceLabel,
+      createOrder,
+      updateOrder,
       registerDeposit,
       reactivateOrder,
       promoteDemoOrder,
-      downloadOrderPdf 
+      deleteOrderMaster,
+      downloadOrderPdf
     }}>
       {children}
     </OrderContext.Provider>

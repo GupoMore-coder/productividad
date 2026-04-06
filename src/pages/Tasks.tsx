@@ -305,7 +305,7 @@ export default function Tasks() {
           </motion.div>
           <div>
             <h2 className="text-lg font-black text-white flex items-center gap-1.5 tracking-tight line-clamp-1">
-              Hola, {fullName.split(' ')[0]}
+              Hola, {String(fullName).split(' ')[0]}
               {isSameDay(parseISO(user?.birth_date || ''), new Date()) && <PartyPopper size={18} className="text-amber-400" />}
             </h2>
             <LedIndicator user={user} onLateAlert={() => setLateAlert(true)} />

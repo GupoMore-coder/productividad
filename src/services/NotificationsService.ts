@@ -15,6 +15,7 @@ import {
   cleanFiredAlarms,
 } from '../lib/alarmDB';
 import type { Task } from '../components/TaskCard';
+import { triggerHaptic } from '../utils/haptics';
 
 // ── Config ───────────────────────────────────────────────────
 
@@ -98,10 +99,7 @@ export async function cancelTaskNotifications(taskId: string): Promise<void> {
  */
 export async function triggerCriticalAlert(title: string, body: string) {
   // 1. Haptic (Vibration)
-  if ('vibrate' in navigator) {
-    // Pattern: 200ms on, 100ms off, 200ms on
-    navigator.vibrate([200, 100, 200, 100, 400]);
-  }
+  triggerHaptic('critical');
 
   // 2. Audio (requires user interaction first to play)
   try {
@@ -115,9 +113,18 @@ export async function triggerCriticalAlert(title: string, body: string) {
     oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
     gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
 
     oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.3);
+    oscillator.stop(audioContext.currentTime + 0.4);
+    
+    // Low tone follow-up
+    const secondaryOsc = audioContext.createOscillator();
+    secondaryOsc.connect(gainNode);
+    secondaryOsc.frequency.setValueAtTime(440, audioContext.currentTime + 0.2); // A4
+    secondaryOsc.start(audioContext.currentTime + 0.2);
+    secondaryOsc.stop(audioContext.currentTime + 0.6);
+
   } catch (e) {
     console.warn('[Notifications] Audio alert failed (likely blocked by browser):', e);
   }
@@ -130,7 +137,7 @@ export async function triggerCriticalAlert(title: string, body: string) {
         body,
         icon: '/pwa-192x192.png',
         badge: '/pwa-192x192.png',
-        vibrate: [200, 100, 200],
+        vibrate: [300, 100, 300, 100, 500],
         requireInteraction: true,
       } as NotificationOptions);
     } else {
@@ -157,7 +164,7 @@ export async function checkAndFireDueAlarms(): Promise<void> {
       alarm.priority === 'media' ? '🟡' : '🟢';
 
     try {
-      if (alarm.priority === 'alta') {
+      if (alarm.priority === 'alta' || alarm.priority === 'media') {
         await triggerCriticalAlert(`${emoji} ${alarm.taskTitle}`, alarm.body);
       } else {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
