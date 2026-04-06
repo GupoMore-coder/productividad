@@ -22,12 +22,9 @@ export default function Footer() {
           >
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-white/5 overflow-hidden">
                 <img 
-                  src="/logo.svg" 
+                  src="/logo.png" 
                   alt="Grupo More Logo" 
                   className="w-full h-full object-contain p-2"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/logo.png';
-                  }}
                 />
             </div>
             <div>
