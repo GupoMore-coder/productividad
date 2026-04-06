@@ -99,8 +99,8 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/5 overflow-hidden shadow-2xl shadow-amber-500/10">
              <img 
-               src="/logo.svg" 
-               alt="Grupo More Logo" 
+               src="/logo.png" 
+               alt="Logo Grupo More" 
                className="w-full h-full object-contain p-2"
                onError={(e) => {
                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=200&q=80';

@@ -166,7 +166,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const sanitizedUser = { ...masterUser };
       delete sanitizedUser.avatar;
-      localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+      
+      try {
+        localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+      } catch (e) {
+        console.warn('Quota error, clearing storage and retrying...', e);
+        localStorage.clear();
+        try {
+          localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+        } catch (retryErr) {
+          console.error('Final storage failure:', retryErr);
+        }
+      }
+
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -218,7 +230,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const sanitizedUser = { ...masterUser };
       delete sanitizedUser.avatar;
-      localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+      
+      try {
+        localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+      } catch (e) {
+        console.warn('Quota error, clearing storage and retrying...', e);
+        localStorage.clear();
+        try {
+          localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+        } catch (retryErr) {
+          console.error('Final storage failure:', retryErr);
+        }
+      }
+
       setUser(masterUser);
       return { data: { user: masterUser }, error: null };
     }
@@ -408,7 +432,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
        };
        const sanitizedUser = { ...masterUser };
        delete sanitizedUser.avatar;
-       localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+       try {
+         localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+       } catch (e) {
+         console.warn('Quota error, clearing storage and retrying...', e);
+         localStorage.clear();
+         try {
+           localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
+         } catch (retryErr) {
+           console.error('Final storage failure:', retryErr);
+         }
+       }
        setUser(masterUser);
        return { data: { user: masterUser }, error: null };
     }
