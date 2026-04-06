@@ -21,14 +21,14 @@ export default function Footer() {
             className="flex items-center gap-3"
           >
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-white/5 overflow-hidden">
-               <img 
-                 src="/logo.png" 
-                 alt="Grupo More Logo" 
-                 className="w-full h-full object-cover"
-                 onError={(e) => {
-                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=200&q=80';
-                 }}
-               />
+                <img 
+                  src="/logo.svg" 
+                  alt="Grupo More Logo" 
+                  className="w-full h-full object-contain p-2"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/logo.png';
+                  }}
+                />
             </div>
             <div>
               <h4 className="text-lg font-black text-white tracking-tight uppercase">Grupo More</h4>

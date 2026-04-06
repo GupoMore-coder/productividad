@@ -532,7 +532,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             resolve(canvas.toDataURL('image/png'));
           };
           img.onerror = () => resolve(null);
-          img.src = '/logo.png';
+          img.src = '/logo.svg';
         });
       };
       const logoBase64 = await loadLogo();
