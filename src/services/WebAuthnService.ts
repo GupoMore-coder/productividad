@@ -48,8 +48,7 @@ export class WebAuthnService {
         credential_id: regResp.id,
         public_key: btoa(JSON.stringify(regResp.response)),
         device_type: navigator.userAgent,
-        counter: 0,
-        linked_at: new Date().toISOString()
+        counter: 0
       });
 
       if (error) throw error;

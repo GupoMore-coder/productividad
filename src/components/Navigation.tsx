@@ -104,21 +104,21 @@ export default function Navigation() {
           {(user?.isAccountant || user?.role === 'Gestor Administrativo' || user?.isMaster) && (
             <NavLink to="/accounting" className={getNavClass}>
               <FileText size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Balance</span>
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Contable</span>
             </NavLink>
           )}
 
           {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.isSupervisor || user?.isConsultant) && (
             <NavLink to="/inventory" className={getNavClass}>
               <Box size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Stock</span>
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Inventario</span>
             </NavLink>
           )}
 
           {(user?.isColaborador || user?.isMaster) && (
              <NavLink to="/sugerencias" className={getNavClass}>
                <Lightbulb size={20} />
-               <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Hallazgos</span>
+               <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Sugerencias</span>
              </NavLink>
           )}
 

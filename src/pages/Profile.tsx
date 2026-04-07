@@ -275,66 +275,6 @@ export default function Profile() {
             </span>
           </div>
 
-          {/* Quick Actions per Role */}
-          <div className="mt-8 w-full max-w-sm space-y-3">
-            {/* Analista/Gestor: Contabilidad */}
-            {(user.isAccountant || user.role === 'Gestor Administrativo') && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => { handleAction('success'); /* Open Feedback Modal */ }}
-                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/20 flex items-center justify-between group overflow-hidden relative"
-              >
-                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-2xl"><FileText size={20} /></div>
-                  <div className="text-left">
-                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Modulo Beta</p>
-                    <p className="text-sm font-black">Información Contable</p>
-                  </div>
-                </div>
-                <ChevronLeft size={18} className="rotate-180 opacity-40" />
-              </motion.button>
-            )}
-
-            {/* Consultora: Actualizaciones */}
-            {user.isConsultant && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-xl shadow-blue-500/20 flex items-center justify-between group overflow-hidden relative"
-              >
-                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 pointer-events-none" />
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-2xl"><Package size={20} /></div>
-                  <div className="text-left">
-                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Manejo de Stock</p>
-                    <p className="text-sm font-black">Actualizaciones e Inventario</p>
-                  </div>
-                </div>
-                <ChevronLeft size={18} className="rotate-180 opacity-40" />
-              </motion.button>
-            )}
-
-            {/* Colaborador: Sugerencias Sandbox */}
-            {user.isColaborador && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full p-4 rounded-[28px] bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-xl shadow-orange-500/20 flex items-center justify-between group overflow-hidden relative"
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse pointer-events-none opacity-30" />
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/20 rounded-2xl"><Lightbulb size={20} /></div>
-                  <div className="text-left">
-                    <p className="text-[0.6rem] font-black uppercase tracking-widest opacity-70">Modo Sandbox</p>
-                    <p className="text-sm font-black">Hallazgos y Sugerencias</p>
-                  </div>
-                </div>
-                <MessageSquare size={18} className="opacity-40" />
-              </motion.button>
-            )}
-          </div>
         </section>
 
         {/* Sandbox Timer for Collaborators */}
