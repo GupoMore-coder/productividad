@@ -21,8 +21,8 @@ const Accounting = () => {
         let prevRecaudo = 0;
         let prevSaldos = 0;
 
-        // Ignorar órdenes de prueba (MOCKS/DEMO) o canceladas para la contabilidad real
-        const validOrders = orders.filter(o => !o.is_demo && o.status !== 'cancelada');
+        // Ignorar órdenes de prueba (MOCKS/DEMO), canceladas o cotizaciones para la contabilidad real
+        const validOrders = orders.filter(o => !o.is_demo && o.status !== 'cancelada' && o.recordType !== 'cotizacion');
 
         for (const order of validOrders) {
              const createdAt = new Date(order.createdAt);

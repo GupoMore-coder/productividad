@@ -16,11 +16,7 @@ import {
   AlertCircle, 
   CheckCircle2,
   ShieldCheck,
-  Package,
-  FileText,
-  MessageSquare,
   AlertTriangle,
-  Lightbulb,
   Settings,
   Mail
 } from 'lucide-react';

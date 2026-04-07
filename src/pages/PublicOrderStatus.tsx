@@ -50,13 +50,30 @@ export default function PublicOrderStatus() {
         setOrder(data);
       } catch (err: any) {
         console.error('Error fetching public order:', err);
-        setError('No pudimos localizar la orden. Verifica el código o escanea el QR nuevamente.');
+        setError('Orden actualizada. Comunícate a los números de contacto: 304 526 7493 / 318 380 6342');
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrder();
+
+    // ── Realtime subscription: actualiza automáticamente cuando el estado cambia ──
+    const channel = supabase
+      .channel(`public-order-${orderId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'service_orders', filter: `id=eq.${orderId}` },
+        () => { fetchOrder(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_history', filter: `order_id=eq.${orderId}` },
+        () => { fetchOrder(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [orderId]);
 
   if (loading) {
@@ -93,12 +110,21 @@ export default function PublicOrderStatus() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6 text-center">
         <div className="max-w-md space-y-6">
-          <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center text-red-500 mx-auto">
+          <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center text-amber-500 mx-auto">
             <Info size={40} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-black text-white">Orden no Encontrada</h2>
-            <p className="text-slate-500 text-sm">{error}</p>
+            <h2 className="text-2xl font-black text-white">Orden Actualizada</h2>
+            <p className="text-slate-400 text-sm leading-relaxed">{error}</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-left space-y-2">
+            <p className="text-[0.6rem] font-black text-amber-500/70 uppercase tracking-widest mb-3">Atención al Cliente</p>
+            <a href="tel:+573045267493" className="flex items-center gap-3 text-white font-bold text-sm hover:text-amber-400 transition-colors">
+              <Phone size={16} className="text-amber-500" /> 304 526 7493
+            </a>
+            <a href="tel:+573183806342" className="flex items-center gap-3 text-white font-bold text-sm hover:text-amber-400 transition-colors">
+              <Phone size={16} className="text-amber-500" /> 318 380 6342
+            </a>
           </div>
           <Link to="/" className="inline-flex items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
             <ChevronLeft size={16} /> Volver al Inicio

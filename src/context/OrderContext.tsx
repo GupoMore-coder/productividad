@@ -31,6 +31,11 @@ export interface ServiceOrder {
   lastStatusChangeBy?: string;
   is_demo?: boolean;
   history: OrderHistoryEntry[];
+  recordType?: 'orden' | 'cotizacion';
+  customerCedula?: string;
+  quoteItems?: { item: string; unitPrice: number; quantity: number; discountPercent?: number; total: number; }[];
+  quoteExpiresAt?: string;
+  quoteExtendedDays?: number;
 }
 
 export interface OrderHistoryEntry {
@@ -72,6 +77,9 @@ interface OrderContextType {
   reactivateOrder: (id: string) => Promise<void>;
   promoteDemoOrder: (id: string) => Promise<void>;
   downloadOrderPdf: (orderId: string) => Promise<void>;
+  convertQuoteToOrder: (id: string) => Promise<void>;
+  extendQuote: (id: string) => Promise<void>;
+  archiveExpiredQuote: (id: string) => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextType>({} as OrderContextType);
@@ -98,6 +106,11 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
   photos: o.photos || [],
   lastStatusChangeBy: o.last_status_change_by,
   is_demo: o.is_demo || false,
+  recordType: o.record_type || 'orden',
+  customerCedula: o.customer_cedula || '',
+  quoteItems: o.quote_items || [],
+  quoteExpiresAt: o.quote_expires_at || null,
+  quoteExtendedDays: Number(o.quote_extended_days || 0),
   history: (o.order_history || []).map((h: any) => ({
     id: h.id,
     timestamp: h.timestamp,
@@ -127,6 +140,11 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   if (o.completedAt !== undefined) result.completed_at = o.completedAt;
   if (o.createdByRole !== undefined) result.created_by_role = o.createdByRole;
   if (o.is_demo !== undefined) result.is_demo = o.is_demo;
+  if (o.recordType !== undefined) result.record_type = o.recordType;
+  if (o.customerCedula !== undefined) result.customer_cedula = o.customerCedula;
+  if (o.quoteItems !== undefined) result.quote_items = o.quoteItems;
+  if (o.quoteExpiresAt !== undefined) result.quote_expires_at = o.quoteExpiresAt;
+  if (o.quoteExtendedDays !== undefined) result.quote_extended_days = o.quoteExtendedDays;
   return result;
 };
 
@@ -475,6 +493,110 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     triggerHaptic('success');
   };
 
+  // ──────────────────────────────────────────────
+  // Quote Lifecycle Functions
+  // ──────────────────────────────────────────────
+
+  /** Convierte una cotización en una Orden de Servicio oficial */
+  const convertQuoteToOrder = async (id: string) => {
+    const uName = user?.full_name || user?.username || 'Sistema';
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({
+          record_type: 'orden',
+          status: 'recibida',
+          payment_status: 'pendiente',
+          quote_expires_at: null,
+        })
+        .eq('id', id);
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: uName,
+        description: `Cotización CONVERTIDA a Orden de Servicio oficial por ${uName}`
+      });
+
+      await supabase.from('global_alerts').insert({
+        type: 'status_change',
+        order_id: id,
+        user_id: user?.id,
+        user_name: uName,
+        message: `✅ Cotización ${id.slice(-6).toUpperCase()} convertida a Orden de Servicio por ${uName}`
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
+  /** Extiende la cotización 5 días adicionales (solo 1 vez permitido) */
+  const extendQuote = async (id: string) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    if ((order.quoteExtendedDays || 0) >= 5) {
+      throw new Error('Esta cotización ya fue extendida una vez. No se puede extender nuevamente.');
+    }
+    const uName = user?.full_name || user?.username || 'Sistema';
+    const currentExpiry = order.quoteExpiresAt ? new Date(order.quoteExpiresAt) : new Date();
+    const newExpiry = new Date(currentExpiry.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString();
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ quote_expires_at: newExpiry, quote_extended_days: 5 })
+        .eq('id', id);
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: uName,
+        description: `Cotización EXTENDIDA 5 días adicionales por ${uName}. Nueva expiración: ${new Date(newExpiry).toLocaleDateString()}`
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
+  /** Archiva una cotización vencida: la cancela, notifica a CEO/Maestro y la marca como expirada */
+  const archiveExpiredQuote = async (id: string) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const uName = user?.full_name || user?.username || 'Sistema';
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('service_orders')
+        .update({
+          status: 'cancelada',
+          cancel_reason: 'Cotización vencida — tiempo de validez agotado',
+        })
+        .eq('id', id);
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: 'Sistema',
+        description: `Cotización ARCHIVADA automáticamente por expiración de tiempo (${order.quoteExtendedDays ? '15' : '10'} días)`
+      });
+
+      // Notify CEO, Master and creator
+      const alertMsg = `⏰ La cotización "${order.customerName}" expiró y fue archivada automáticamente. Creada por: ${uName}`;
+      await supabase.from('global_alerts').insert({
+        type: 'expiration',
+        order_id: id,
+        user_id: user?.id,
+        user_name: uName,
+        message: alertMsg
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('warning');
+  };
+
   // Listener para capturar motivos de cancelación desde UI
   useEffect(() => {
     const handleCancelReason = (e: any) => {
@@ -502,9 +624,159 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return updated;
   };
 
+  const downloadQuotePdf = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      
+      const COLORS = {
+        DEEP_BG: [15, 23, 42],
+        PURPLE: [147, 51, 234],
+        AMBER: [217, 119, 6],
+        EMERALD: [5, 150, 105],
+        SLATE_900: [15, 23, 42],
+        SLATE_700: [51, 65, 85],
+        SLATE_500: [100, 116, 139],
+        SLATE_50: [248, 250, 252],
+        WHITE: [255, 255, 255]
+      };
+
+      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
+      doc.rect(0, 0, 210, 45, 'F');
+      doc.setFillColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]); 
+      doc.rect(0, 43, 210, 2, 'F');
+      
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("GRUPO MORE", 15, 22);
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.text("Un regalo auténtico · Personalizar es identidad", 15, 28);
+      
+      doc.setFillColor(255, 255, 255, 0.08);
+      doc.roundedRect(145, 10, 55, 25, 4, 4, 'F');
+      doc.setTextColor(200, 200, 200);
+      doc.setFontSize(7);
+      doc.text("COTIZACIÓN COMERCIAL", 150, 16);
+      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.setFontSize(14);
+      doc.text(getOrderSequenceLabel(orderId), 150, 23);
+      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.setFontSize(7);
+      doc.text("VÁLIDO POR 10 DÍAS", 150, 30);
+
+      let y = 55;
+      doc.setFillColor(240, 240, 240);
+      doc.rect(10, y, 190, 8, 'F');
+      doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("SEÑOR(ES)", 12, y + 5);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerName.toUpperCase(), 40, y + 5);
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("FECHA EXP:", 145, y + 5);
+      doc.setFont("helvetica", "normal");
+      doc.text(new Date(order.createdAt).toLocaleDateString(), 170, y + 5);
+      
+      y += 8;
+      doc.rect(10, y, 190, 8, 'S');
+      doc.setFont("helvetica", "bold");
+      doc.text("TEL/CELULAR", 12, y + 5);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerPhone, 40, y + 5);
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("FECHA VENC:", 145, y + 5);
+      doc.setFont("helvetica", "normal");
+      doc.text(new Date(order.deliveryDate).toLocaleDateString(), 170, y + 5);
+      
+      y += 8;
+      doc.setFillColor(240, 240, 240);
+      doc.rect(10, y, 190, 8, 'F');
+      doc.setFont("helvetica", "bold");
+      doc.text("NIT/CC", 12, y + 5);
+      doc.setFont("helvetica", "normal");
+      doc.text(order.customerCedula || '1234567890', 40, y + 5);
+
+      y += 15;
+      doc.setFillColor(160, 160, 160);
+      doc.rect(10, y, 190, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.text("ÍTEM / SERVICIO", 12, y + 5);
+      doc.text("PRECIO", 110, y + 5, { align: 'right' } as any);
+      doc.text("CANT", 130, y + 5, { align: 'right' } as any);
+      doc.text("DESC(%)", 150, y + 5, { align: 'right' } as any);
+      doc.text("TOTAL", 195, y + 5, { align: 'right' } as any);
+
+      y += 8;
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      let subtotal = 0;
+      
+      const items = order.quoteItems && order.quoteItems.length > 0 
+          ? order.quoteItems 
+          : [{ item: order.services.join(', '), unitPrice: order.totalCost / 1.19, quantity: 1, discountPercent: 0, total: order.totalCost / 1.19 }];
+
+      for (const qi of items) {
+          doc.setFont("helvetica", "normal");
+          const splitItem = doc.splitTextToSize(qi.item, 90);
+          doc.text(splitItem, 12, y + 5);
+          doc.text(qi.unitPrice.toLocaleString(), 110, y + 5, { align: 'right' } as any);
+          doc.text((qi.quantity || 1).toString(), 130, y + 5, { align: 'right' } as any);
+          doc.text((qi.discountPercent || 0).toString() + '%', 150, y + 5, { align: 'right' } as any);
+          const lineTotal = (qi.unitPrice * (qi.quantity || 1)) * (1 - (qi.discountPercent || 0)/100);
+          subtotal += lineTotal;
+          doc.text(lineTotal.toLocaleString(), 195, y + 5, { align: 'right' } as any);
+          y += (splitItem.length * 4) + 4;
+      }
+
+      y += 10;
+      doc.setFont("helvetica", "bold");
+      doc.text("Subtotal", 160, y, { align: 'right' } as any);
+      doc.setFont("helvetica", "normal");
+      doc.text('$' + Math.round(subtotal).toLocaleString(), 195, y, { align: 'right' } as any);
+      
+      y += 6;
+      doc.setFont("helvetica", "bold");
+      doc.text("IVA 19%", 160, y, { align: 'right' } as any);
+      doc.setFont("helvetica", "normal");
+      doc.text('$' + Math.round(subtotal * 0.19).toLocaleString(), 195, y, { align: 'right' } as any);
+
+      y += 8;
+      doc.setFillColor(200, 200, 200);
+      doc.rect(150, y - 5, 50, 8, 'F');
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+      doc.text("TOTAL COP", 160, y, { align: 'right' } as any);
+      doc.text('$' + Math.round(subtotal * 1.19).toLocaleString(), 195, y, { align: 'right' } as any);
+
+      y = 250;
+      doc.line(10, y, 80, y);
+      doc.setFontSize(7);
+      doc.text("ELABORADO POR", 45, y + 4, { align: 'center' } as any);
+      doc.text(order.responsible.toUpperCase(), 45, y + 8, { align: 'center' } as any);
+
+      doc.save("Cotizacion_" + getOrderSequenceLabel(orderId) + ".pdf");
+      triggerHaptic('success');
+    } catch (err) {
+      console.error(err);
+      triggerHaptic('error');
+      alert('Error generando PDF de cotización');
+    }
+  };
+
   const downloadOrderPdf = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+    if (order.recordType === 'cotizacion') return downloadQuotePdf(orderId);
 
     try {
       const { default: jsPDF } = await import('jspdf');
@@ -856,7 +1128,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       reactivateOrder,
       promoteDemoOrder,
       deleteOrderMaster,
-      downloadOrderPdf
+      downloadOrderPdf,
+      convertQuoteToOrder,
+      extendQuote,
+      archiveExpiredQuote,
     }}>
       {children}
     </OrderContext.Provider>

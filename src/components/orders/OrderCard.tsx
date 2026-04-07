@@ -108,10 +108,16 @@ export const OrderCard = memo(function OrderCard({
       {/* Header Area */}
       <div className="p-5 pb-3">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-black tracking-widest text-slate-400 group-hover:text-purple-400 transition-colors uppercase">
-            {sequenceLabel || order.id.slice(-6).toUpperCase()}
-          </span>
-          <OrderStatusPill status={order.status} />
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black tracking-widest text-slate-400 group-hover:text-purple-400 transition-colors uppercase">
+              {sequenceLabel || order.id.slice(-6).toUpperCase()}
+            </span>
+            {order.recordType === 'cotizacion' && (
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-[0.55rem] font-bold tracking-widest border border-amber-500/20">COTIZACIÓN</span>
+            )}
+          </div>
+          {!order.is_demo && order.recordType !== 'cotizacion' && <OrderStatusPill status={order.status} />}
+          {order.is_demo && <span className="px-3 py-1 bg-amber-500 text-slate-900 text-[0.65rem] font-black uppercase tracking-widest rounded-xl animate-pulse">DEMO LIMO</span>}
         </div>
 
         <div className="flex justify-between items-start gap-4">
@@ -147,13 +153,24 @@ export const OrderCard = memo(function OrderCard({
       </div>
 
       {/* Services Pills & Thumbs */}
-      <div className="px-5 py-2 flex flex-wrap gap-1.5 overflow-hidden">
-        {order.services.map((svc, i) => (
-          <span key={i} className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[0.65rem] text-slate-400 font-medium whitespace-nowrap">
-            {svc}
-          </span>
-        ))}
-      </div>
+      {order.recordType === 'cotizacion' ? (
+        <div className="px-5 py-2 flex flex-col gap-2">
+          {order.quoteItems?.map((qi, i) => (
+             <div key={i} className="flex justify-between items-center text-xs bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                <span className="text-slate-300 font-bold truncate max-w-[150px]">{qi.quantity}x {qi.item}</span>
+                <span className="text-slate-400 font-medium">${qi.total.toLocaleString()}</span>
+             </div>
+          ))}
+        </div>
+      ) : (
+        <div className="px-5 py-2 flex flex-wrap gap-1.5 overflow-hidden">
+          {order.services.map((svc, i) => (
+            <span key={i} className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 text-[0.65rem] text-slate-400 font-medium whitespace-nowrap">
+              {svc}
+            </span>
+          ))}
+        </div>
+      )}
 
       {showPhotos && order.photos && order.photos.length > 0 && (
         <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x">
@@ -172,25 +189,32 @@ export const OrderCard = memo(function OrderCard({
       )}
 
       {/* Financial Bar */}
-      <div className="mx-5 my-3 grid grid-cols-3 p-3 rounded-2xl bg-black/30 border border-white/5 divide-x divide-white/10 group/finance relative">
-        <div className="flex flex-col px-2">
-          <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Total</span>
-          <span className="text-xs font-black text-slate-200 tracking-tight">$ {order.totalCost.toLocaleString()}</span>
+      {order.recordType === 'cotizacion' ? (
+        <div className="mx-5 my-3 grid grid-cols-1 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center relative shadow-[0_0_20px_rgba(245,158,11,0.05)]">
+          <span className="text-[0.6rem] text-amber-500/80 font-bold uppercase tracking-widest mb-1">Total Cotizado (Inc. IVA)</span>
+          <span className="text-xl font-black text-amber-400 tracking-tight">$ {order.totalCost.toLocaleString()}</span>
         </div>
-        <div className="flex flex-col px-4 text-center cursor-pointer hover:bg-emerald-500/5 transition-colors rounded-lg" onClick={() => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && setShowAbonoModal(true)}>
-          <div className="flex items-center justify-center gap-1">
-            <span className="text-[0.6rem] text-emerald-500 font-bold uppercase tracking-widest">Abono</span>
-            {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && <PlusCircle size={8} className="text-emerald-500" />}
+      ) : (
+        <div className="mx-5 my-3 grid grid-cols-3 p-3 rounded-2xl bg-black/30 border border-white/5 divide-x divide-white/10 group/finance relative">
+          <div className="flex flex-col px-2">
+            <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Total</span>
+            <span className="text-xs font-black text-slate-200 tracking-tight">$ {order.totalCost.toLocaleString()}</span>
           </div>
-          <span className="text-xs font-black text-emerald-400/90 tracking-tight">$ {order.depositAmount.toLocaleString()}</span>
+          <div className="flex flex-col px-4 text-center cursor-pointer hover:bg-emerald-500/5 transition-colors rounded-lg" onClick={() => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && setShowAbonoModal(true)}>
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[0.6rem] text-emerald-500 font-bold uppercase tracking-widest">Abono</span>
+              {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && <PlusCircle size={8} className="text-emerald-500" />}
+            </div>
+            <span className="text-xs font-black text-emerald-400/90 tracking-tight">$ {order.depositAmount.toLocaleString()}</span>
+          </div>
+          <div className="flex flex-col px-2 text-right">
+            <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Saldo</span>
+            <span className={`text-xs font-black tracking-tight ${order.pendingBalance > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
+              $ {order.pendingBalance.toLocaleString()}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col px-2 text-right">
-          <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Saldo</span>
-          <span className={`text-xs font-black tracking-tight ${order.pendingBalance > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
-            $ {order.pendingBalance.toLocaleString()}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Expandable History / Novedades */}
       <div className="px-5 pb-5">
@@ -235,7 +259,19 @@ export const OrderCard = memo(function OrderCard({
         
         {/* Status Action Buttons - Redesigned to Labels */}
         <div className="flex flex-wrap gap-2">
-          {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) ? (
+          {order.recordType === 'cotizacion' ? (
+            <button 
+              onClick={() => {
+                if(confirm('¿Convertir esta cotización en una Orden de Servicio Oficial?')) {
+                  onStatusChange(order.id, 'en_proceso'); // Will be intercepted or we can just call an overarching method. Alternatively:
+                  if (onPromote) onPromote(order.id);
+                }
+              }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500 hover:text-white transition-all font-black text-[0.65rem] uppercase tracking-widest active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+            >
+              <CheckCircle2 size={18} /> Convertir a Orden
+            </button>
+          ) : ['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) ? (
             <>
               {order.status === 'recibida' && (
                 <button 
@@ -310,13 +346,15 @@ export const OrderCard = memo(function OrderCard({
 
         <div className="flex items-center justify-between pt-2 border-t border-white/5">
           <div className="flex gap-2">
-            <button 
-              onClick={() => { triggerHaptic('light'); setShowQrModal(true); }}
-              className="p-2.5 rounded-xl bg-slate-800 text-purple-400 hover:text-purple-300 hover:bg-slate-700 transition-all border border-purple-500/10 active:scale-95 shadow-lg"
-              title="Ver Código QR de Seguimiento"
-            >
-              <QrCode size={18} />
-            </button>
+            {order.recordType !== 'cotizacion' && (
+              <button 
+                onClick={() => { triggerHaptic('light'); setShowQrModal(true); }}
+                className="p-2.5 rounded-xl bg-slate-800 text-purple-400 hover:text-purple-300 hover:bg-slate-700 transition-all border border-purple-500/10 active:scale-95 shadow-lg"
+                title="Ver Código QR de Seguimiento"
+              >
+                <QrCode size={18} />
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2">

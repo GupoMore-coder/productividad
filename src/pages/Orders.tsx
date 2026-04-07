@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { Plus, Archive, ClipboardList } from 'lucide-react';
@@ -12,16 +12,22 @@ import { OrderFilters } from '../components/orders/OrderFilters';
 import { OrderCardSkeleton, Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { QuoteExpirationAlert } from '../components/QuoteExpirationAlert';
 
 export default function Orders() {
   const { user } = useAuth();
   usePageTitle('Gestión de Órdenes');
-  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, deleteOrderMaster, getOrderSequenceLabel, archivedOrders, downloadOrderPdf, loading } = useOrders();
+  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, deleteOrderMaster, getOrderSequenceLabel, archivedOrders, downloadOrderPdf, loading, convertQuoteToOrder, extendQuote, archiveExpiredQuote } = useOrders();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | undefined>(undefined);
   const [filter, setFilter] = useState<'activas' | 'inactivas'>('activas');
+
+  // Quote expiration alert state
+  const [expiringQuoteQueue, setExpiringQuoteQueue] = useState<ServiceOrder[]>([]);
+  const [autoExpiredQueue, setAutoExpiredQueue] = useState<ServiceOrder[]>([]);
+  const processedExpiredRef = useRef<Set<string>>(new Set());
 
   // Personal Stats Calculation
   const myStats = useMemo(() => {
@@ -76,6 +82,49 @@ export default function Orders() {
       window.removeEventListener('update-order-field', handleUpdateField);
     };
   }, []);
+
+  // ── Quote expiration detector (runs every 60s) ──
+  useEffect(() => {
+    const check = () => {
+      const now = Date.now();
+      const userQuotes = orders.filter(
+        o => o.recordType === 'cotizacion'
+          && (o.status === 'recibida' || o.status === 'en_proceso')
+          && o.createdBy === user?.id
+      );
+
+      const expired10: ServiceOrder[] = [];
+      const expired15: ServiceOrder[] = [];
+
+      for (const q of userQuotes) {
+        if (!q.quoteExpiresAt) continue;
+        const key = q.id;
+        if (processedExpiredRef.current.has(key)) continue;
+
+        const expiresMs = new Date(q.quoteExpiresAt).getTime();
+        if (now >= expiresMs) {
+          if ((q.quoteExtendedDays || 0) >= 5) {
+            // 15-day auto-archive
+            expired15.push(q);
+            processedExpiredRef.current.add(key);
+            archiveExpiredQuote(q.id).catch(console.error);
+          } else {
+            // 10-day: prompt user
+            expired10.push(q);
+            processedExpiredRef.current.add(key);
+          }
+        }
+      }
+
+      if (expired10.length > 0) setExpiringQuoteQueue(prev => [...prev, ...expired10]);
+      if (expired15.length > 0) setAutoExpiredQueue(prev => [...prev, ...expired15]);
+    };
+
+    check();
+    const interval = setInterval(check, 60_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, user?.id]);
 
   // Filter Logic
   const filteredOrders = useMemo(() => {
@@ -375,6 +424,30 @@ export default function Orders() {
         targetStatus={targetOrderStatus}
         onConfirm={confirmStatusChange}
       />
+
+      {/* ── Quote Expiration Alert Queue (10-day: user decision required) ── */}
+      {expiringQuoteQueue.length > 0 && (
+        <QuoteExpirationAlert
+          quote={expiringQuoteQueue[0]}
+          onConvert={convertQuoteToOrder}
+          onExtend={extendQuote}
+          onArchive={archiveExpiredQuote}
+          onDismiss={() => setExpiringQuoteQueue(prev => prev.slice(1))}
+          isAutoExpired={false}
+        />
+      )}
+
+      {/* ── Auto-Expired Notification Queue (15-day: already archived) ── */}
+      {autoExpiredQueue.length > 0 && (
+        <QuoteExpirationAlert
+          quote={autoExpiredQueue[0]}
+          onConvert={convertQuoteToOrder}
+          onExtend={extendQuote}
+          onArchive={archiveExpiredQuote}
+          onDismiss={() => setAutoExpiredQueue(prev => prev.slice(1))}
+          isAutoExpired={true}
+        />
+      )}
     </div>
   );
 }
