@@ -46,7 +46,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
     return data.imageUrl ? [data.imageUrl] : [];
   }, [data, isOrder]);
 
-  const status = data.status || 'Pendiente';
+  const status = data?.status || 'Pendiente';
   const getStatusColor = (s: string) => {
     const s_lower = s.toLowerCase();
     if (s_lower.includes('completada') || s_lower.includes('accepted')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
