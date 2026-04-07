@@ -166,6 +166,9 @@ export async function checkAndFireDueAlarms(): Promise<void> {
     try {
       if (alarm.priority === 'alta' || alarm.priority === 'media') {
         await triggerCriticalAlert(`${emoji} ${alarm.taskTitle}`, alarm.body);
+        window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
+          detail: { id: alarm.id, type: 'critical', title: `${emoji} ${alarm.taskTitle}`, body: alarm.body }
+        }));
       } else {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           const reg = await navigator.serviceWorker.ready;
@@ -185,6 +188,15 @@ export async function checkAndFireDueAlarms(): Promise<void> {
             requireInteraction: true,
           });
         }
+        
+        window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
+          detail: { 
+            id: alarm.id, 
+            type: alarm.taskId.startsWith('order') ? 'order' : 'task', 
+            title: `${emoji} ${alarm.taskTitle}`, 
+            body: alarm.body 
+          }
+        }));
       }
 
       await markAlarmFired(alarm.id);

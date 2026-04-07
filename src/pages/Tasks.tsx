@@ -235,6 +235,7 @@ export default function Tasks() {
 
         if (diffHours > 0 && diffHours <= 2.0 && !alertedTasks.includes(t.id)) {
           scheduleLocalNotification(`🚨 La tarea grupal "${t.title}" vence pronto.`);
+          window.dispatchEvent(new CustomEvent('app:show-unified-alarm', { detail: { id: `late-${t.id}`, type: 'task', title: 'Tarea Grupal Próxima a Vencer', body: `🚨 "${t.title}" vence en menos de 2 horas.` } }));
           setAlertedTasks(a => [...a, t.id]);
         }
         if (diffMs < 0) updateTask(t.id, { status: 'expired' });

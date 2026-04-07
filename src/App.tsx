@@ -37,6 +37,7 @@ import PWAInstallBanner from './components/PWAInstallBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NetworkStatus from './components/NetworkStatus';
 import RealtimeNotificationListener from './components/RealtimeNotificationListener';
+import UnifiedAlarmModal from './components/UnifiedAlarmModal';
 import { useSyncManager } from './hooks/useSyncManager';
 import { triggerHaptic } from '@/utils/haptics';
 
@@ -193,6 +194,7 @@ function AppRoutes() {
       )}
 
       <GlobalNotificationManager />
+      <UnifiedAlarmModal />
       <PWAInstallBanner />
       {user && <RealtimeNotificationListener />}
       <Suspense fallback={GlobalLoader}>

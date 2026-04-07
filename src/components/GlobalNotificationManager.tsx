@@ -13,8 +13,8 @@ export default function GlobalNotificationManager() {
     if (!user) return;
 
     const showNotification = (title: string, body: string, id?: string) => {
-      if (!("Notification" in window)) return;
-      if (Notification.permission === "granted") {
+      // 1. Native Push
+      if ("Notification" in window && Notification.permission === "granted") {
         new Notification(title, {
           body,
           icon: '/pwa-192x192.png',
@@ -22,6 +22,16 @@ export default function GlobalNotificationManager() {
           requireInteraction: true,
         });
       }
+      
+      // 2. In-App Fullscreen Modal
+      window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
+        detail: {
+          id: id || `global-${Date.now()}`,
+          type: 'global',
+          title,
+          body
+        }
+      }));
     };
 
     // 1. REAL-TIME SUPABASE LOGIC
