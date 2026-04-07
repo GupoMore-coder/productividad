@@ -357,31 +357,34 @@ export const OrderCard = memo(function OrderCard({
       {/* QR Modal Overlay */}
       <AnimatePresence>
         {showQrModal && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 pb-[env(safe-area-inset-bottom)] pb-24">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowQrModal(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-8 rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full">
-              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mx-auto mb-6">
-                <QrCode size={32} />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full max-h-[85vh] overflow-y-auto no-scrollbar custom-scrollbar">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mx-auto mb-4 sm:mb-6 shrink-0">
+                <QrCode size={24} className="sm:hidden" />
+                <QrCode size={32} className="hidden sm:block" />
               </div>
-              <h3 className="text-xl font-black text-white mb-2 leading-tight uppercase tracking-tight">Seguimiento Digital</h3>
-              <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-8">Orden #{order.id.toString().padStart(4, '0')}</p>
+              <h3 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2 leading-tight uppercase tracking-tight">Seguimiento Digital</h3>
+              <p className="text-[0.6rem] sm:text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-4 sm:mb-8">
+                {sequenceLabel ? sequenceLabel : `Orden #${order.id.toString().slice(-6).toUpperCase()}`}
+              </p>
               
-              <div className="bg-white p-6 rounded-[32px] inline-block shadow-xl shadow-purple-500/10 mb-8 border border-white/10">
+              <div className="bg-white p-4 sm:p-6 rounded-[24px] sm:rounded-[32px] inline-block shadow-xl shadow-purple-500/10 mb-4 sm:mb-8 border border-white/10 shrink-0">
                 <QRCodeSVG 
                   value={`${window.location.origin}/status/${order.id}`} 
-                  size={200}
+                  size={160}
                   level="H"
                   includeMargin={false}
                 />
               </div>
 
-              <p className="text-[0.7rem] text-slate-400 leading-relaxed font-medium mb-8">
-                Escanee este código para que el cliente pueda seguir su <span className="text-purple-400">Estado de Orden</span> en tiempo real sin loguearse.
+              <p className="text-[0.65rem] sm:text-[0.7rem] text-slate-400 leading-relaxed font-medium mb-6 sm:mb-8 max-w-[260px] mx-auto">
+                Escanee este código para que el cliente pueda seguir su <span className="text-purple-400 font-bold">Estado de Orden</span> en tiempo real sin loguearse.
               </p>
 
               <button 
                 onClick={() => setShowQrModal(false)}
-                className="w-full py-4 rounded-2xl bg-white/5 text-slate-400 font-black text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
+                className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-white/5 text-slate-300 hover:text-white font-black text-[0.65rem] sm:text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all border border-white/5"
               >
                 Cerrar Panel
               </button>
