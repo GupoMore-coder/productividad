@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
-import { format, parseISO } from 'date-fns';
+import { formatDistanceToNow, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ImageZoomModal from './ImageZoomModal';
+import { usePresence } from '../context/PresenceContext';
 
 interface AppUser {
   id: string;
@@ -20,6 +21,7 @@ interface AppUser {
   emergency_name?: string;
   emergency_relationship?: string;
   emergency_phone?: string;
+  last_seen?: string;
 }
 
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -41,6 +43,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
+  const { onlineUsers } = usePresence();
 
   useEffect(() => {
     async function loadUsers() {
@@ -142,8 +145,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredUsers.map(u => {
                   const isBday = isBirthdayToday(u.birth_date);
-                  const isOnline = u.status === 'Activo';
-                  const isAway = u.status === 'Segundo Plano';
+                  const isOnline = onlineUsers.includes(u.id);
 
                   return (
                     <motion.div 
@@ -164,10 +166,15 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                           {isBday && (
                             <div className="absolute -top-1 -right-1 text-base filter drop-shadow-[0_0_4px_gold] animate-bounce">🎂</div>
                           )}
-                          {(isOnline || isAway) && (
+                          {isOnline ? (
                             <div 
-                              className={`absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] shadow-[0_0_8px_currentColor] ${isOnline ? 'bg-emerald-500 text-emerald-500' : 'bg-amber-500 text-amber-500'}`}
-                              title={isOnline ? 'En línea' : 'Ausente'} 
+                              className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] shadow-[0_0_8px_#10b981] bg-emerald-500 text-emerald-500 animate-pulse"
+                              title="En línea" 
+                            />
+                          ) : (
+                            <div 
+                              className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] bg-slate-600"
+                              title={u.last_seen ? `Visto ${formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}` : 'Desconectado'} 
                             />
                           )}
                         </div>
@@ -179,7 +186,12 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                           <h3 className="text-base font-black text-white leading-tight uppercase truncate">
                             {u.full_name || u.username}
                           </h3>
-                          <p className="text-[0.65rem] font-bold text-slate-500 uppercase mt-1">ID: <span className="text-slate-400">{u.cedula || '—'}</span></p>
+                          <div className="flex justify-between items-center mt-1">
+                             <p className="text-[0.65rem] font-bold text-slate-500 uppercase">ID: <span className="text-slate-400">{u.cedula || '—'}</span></p>
+                             {!isOnline && u.last_seen && (
+                                <p className="text-[0.55rem] font-bold text-slate-500/80 uppercase truncate max-w-[80px]">Visto {formatDistanceToNow(new Date(u.last_seen), { locale: es })}</p>
+                             )}
+                          </div>
                         </div>
                       </div>
 

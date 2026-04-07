@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
+import { usePresence } from '../context/PresenceContext';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface AppUser {
   id: string;
@@ -39,6 +42,7 @@ interface AppUser {
   birth_date?: string;
   role?: string;
   avatar?: string;
+  last_seen?: string;
 }
 
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -142,6 +146,7 @@ export default function AdminUsers() {
   const [confirmDelete, setConfirmDelete] = useState<AppUser | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAuditUser, setSelectedAuditUser] = useState<AppUser | null>(null);
+  const { onlineUsers } = usePresence();
 
   useEffect(() => {
     if (!user?.isSuperAdmin) navigate('/', { replace: true });
@@ -373,7 +378,7 @@ export default function AdminUsers() {
                   <td className="px-6 py-4">
                      <button 
                        onClick={() => deletePhoto(u)} 
-                       className="w-12 h-12 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-xl text-purple-400 overflow-hidden group-hover:border-purple-500/40 transition-all font-black"
+                       className="w-12 h-12 mx-auto rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center text-xl text-purple-400 overflow-hidden group-hover:border-purple-500/40 transition-all font-black"
                        aria-label="Ver o quitar foto"
                      >
                         {u.avatar && u.avatar.length > 10 ? (
@@ -384,12 +389,19 @@ export default function AdminUsers() {
                           </div>
                         )}
                      </button>
+                     <div className="mt-3 flex items-center justify-center gap-1.5 text-[0.55rem] font-bold uppercase tracking-widest text-slate-400">
+                        {onlineUsers.includes(u.id) ? (
+                           <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" /> En línea</>
+                        ) : (
+                           <><span className="w-1.5 h-1.5 rounded-full bg-slate-600" /> <span className="truncate max-w-[60px]" title={u.last_seen ? `Visto ${formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}` : 'Desconectado'}>{u.last_seen ? formatDistanceToNow(new Date(u.last_seen), { locale: es }) : 'N/A'}</span></>
+                        )}
+                     </div>
                   </td>
                   <td className="px-6 py-4">
                       <div className="text-sm font-black text-white tracking-tight">@{u.username}</div>
                       <div className="text-[0.65rem] text-slate-600 font-bold uppercase tracking-widest mt-1">ID: {u.cedula || '—'}</div>
-                      <div className={`text-[0.6rem] font-black uppercase tracking-tighter mt-1 flex items-center gap-1 ${u.blocked ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {u.blocked ? <Lock size={10} /> : <Unlock size={10} />} {u.blocked ? 'BLOQUEADO' : 'ACTIVO'}
+                      <div className={`text-[0.6rem] font-black uppercase tracking-tighter mt-1 flex items-center gap-1 ${u.blocked ? 'text-red-500' : 'text-slate-500'}`}>
+                        {u.blocked ? <Lock size={10} /> : <Unlock size={10} />} {u.blocked ? 'BLOQUEADO' : 'CUENTA ACTIVA'}
                       </div>
                   </td>
                   

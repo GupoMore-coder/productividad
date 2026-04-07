@@ -6,6 +6,7 @@ import { OrderProvider } from './context/OrderContext';
 import { TaskProvider } from './context/TaskContext';
 import { ApprovalProvider } from './context/ApprovalContext';
 import { InventoryProvider } from './context/InventoryContext';
+import { PresenceProvider } from './context/PresenceContext';
 import {
   requestNotificationPermission,
   initAlarmChecker,
@@ -232,7 +233,9 @@ export default function App() {
               <GroupProvider>
                 <OrderProvider>
                   <TaskProvider>
-                    <AppRoutes />
+                    <PresenceProvider>
+                      <AppRoutes />
+                    </PresenceProvider>
                   </TaskProvider>
                 </OrderProvider>
               </GroupProvider>
