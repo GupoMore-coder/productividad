@@ -731,10 +731,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pdf.addImage(qrWAMoreDesign, 'PNG', 185, footY + 9, 12, 12);
         
         pdf.setFontSize(5);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text("INSTAGRAM", 145, footY + 21.5);
-        pdf.text("WA More Paper", 165, footY + 21.5);
-        pdf.text("WA More Design", 185, footY + 21.5);
+        pdf.setTextColor(168, 85, 247); // Purple-400 for brand harmony and contrast
+        pdf.text("INSTAGRAM", 151, footY + 23.5, { align: 'center' } as any);
+        pdf.text("WA More Paper", 171, footY + 23.5, { align: 'center' } as any);
+        pdf.text("WA More Design", 191, footY + 23.5, { align: 'center' } as any);
 
         pdf.setFontSize(6);
         pdf.setFont("helvetica", "bold");
