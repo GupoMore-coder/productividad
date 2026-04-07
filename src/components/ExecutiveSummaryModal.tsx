@@ -28,14 +28,12 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [isUpdating, setIsUpdating] = useState(false);
   
-  if (!data) return null;
-
   const isOrder = type === 'order';
-  const title = String(isOrder ? data.customerName : (data.title || 'Sin título'));
-  const subtitle = isOrder ? `Orden ${String(data.id)}` : (data.isShared ? 'Tarea de Equipo' : 'Tarea Personal');
+  const title = String(isOrder ? data?.customerName : (data?.title || 'Sin título'));
+  const subtitle = isOrder ? `Orden ${String(data?.id)}` : (data?.isShared ? 'Tarea de Equipo' : 'Tarea Personal');
   
   // Mapping UID to Name
-  const responsibleId = isOrder ? data.responsible : data.userId;
+  const responsibleId = isOrder ? data?.responsible : data?.userId;
   const responsibleName = useMemo(() => {
     if (!responsibleId) return 'Sin asignar';
     const found = users.find(u => u.id === responsibleId || u.username === responsibleId);
@@ -43,6 +41,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
   }, [responsibleId, users]);
 
   const images = useMemo(() => {
+    if (!data) return [];
     if (isOrder) return data.photos || [];
     return data.imageUrl ? [data.imageUrl] : [];
   }, [data, isOrder]);
@@ -76,6 +75,8 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
       window.dispatchEvent(new CustomEvent('zoom-image', { detail: images[currentImgIndex] }));
     }
   };
+
+  if (!data) return null;
 
   return (
     <AnimatePresence>
