@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import HelpManualModal from './HelpManualModal';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Plus, Calendar, Users, BookOpen, LayoutDashboard, ShieldCheck, Box, FileText, Lightbulb } from 'lucide-react';
+import { LogOut, Plus, Calendar, Users, BookOpen, ShieldCheck, Box, FileText, Lightbulb } from 'lucide-react';
 
 /**
  * v12.3: Elite Navigation Resilience
@@ -122,19 +122,20 @@ export default function Navigation() {
              </NavLink>
           )}
 
-          {(user?.role === 'Director General (CEO)' || user?.isMaster) && (
-            <NavLink to="/dashboard" className={getNavClass}>
-              <LayoutDashboard size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">CEO</span>
+          {user?.isMaster && (
+            <NavLink to="/admin" className={getNavClass}>
+              <Users size={20} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Personal</span>
             </NavLink>
           )}
 
-          {user?.isMaster && (
-            <NavLink to="/admin" className={getNavClass}>
+          {(user?.role === 'Director General (CEO)' || user?.isMaster) && (
+            <NavLink to="/dashboard" className={getNavClass}>
               <ShieldCheck size={20} />
-              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Master</span>
+              <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Insights</span>
             </NavLink>
           )}
+
         </div>
 
         {/* ── Fixed: Logout ── */}

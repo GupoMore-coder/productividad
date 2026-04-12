@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { format, addDays, isSameDay, parseISO } from 'date-fns';
+import { useState, useEffect, useMemo } from 'react';
+import { format, addDays, isSameDay, parseISO, isBefore, startOfToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -26,7 +26,8 @@ import {
   cancelTaskNotifications, 
   scheduleLocalNotification,
   requestNotificationPermission,
-  getNotificationPermissionStatus 
+  getNotificationPermissionStatus,
+  scheduleBirthdayNotifications 
 } from '../services/NotificationsService';
 
 import { useOrders } from '../context/OrderContext';
@@ -94,8 +95,8 @@ export default function Tasks() {
   const { user } = useAuth();
   usePageTitle('Mi Agenda');
   const { groups, memberships } = useGroups();
-  const { tasks, addTask, updateTask, loading: tasksLoading, hasMore, loadMore } = useTasks();
-  const { orders, loading: ordersLoading } = useOrders();
+  const { tasks, addTask, updateTask, deleteTask, extendTaskSeries, loading: tasksLoading, hasMore, loadMore } = useTasks();
+  const { orders, updateOrder, loading: ordersLoading, getOrderSequenceLabel, getQuoteSequenceLabel } = useOrders();
   const { isInstallable, installApp } = usePWA();
   const [allUsers, setAllUsers] = useState<any[]>([]);
   
@@ -119,13 +120,15 @@ export default function Tasks() {
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [showDirectory, setShowDirectory] = useState(false);
   const [birthdayAlerts, setBirthdayAlerts] = useState<string[]>([]);
-  const [zoomedImg, setZoomedImg] = useState<string | null>(null);
+  const [zoomedGallery, setZoomedGallery] = useState<{ photos: string[], index: number } | null>(null);
   const [permissionStatus, setPermissionStatus] = useState(getNotificationPermissionStatus());
 
   // Executive Summary Modal State
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState<any>(null);
+  const [selectedEditTask, setSelectedEditTask] = useState<Task | null>(null);
   const [summaryType, setSummaryType] = useState<'task' | 'order'>('task');
+  const [filter, setFilter] = useState<'todos' | 'ordenes' | 'personales' | 'equipo'>('todos');
 
   // Monitor Notification permissions
   useEffect(() => {
@@ -158,6 +161,9 @@ export default function Tasks() {
         usersData = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
       }
       setAllUsers(usersData);
+      
+      // Schedule formal alarms (Fase 1)
+      scheduleBirthdayNotifications(usersData, user?.id);
 
       const today = new Date();
       const in7Days = addDays(today, 7);
@@ -166,20 +172,43 @@ export default function Tasks() {
       const newAlerts: string[] = [];
       usersData.forEach(u => {
           if (!u.birth_date || u.id === user?.id) return;
-          const bday = parseISO(u.birth_date);
-          const bdayThisYear = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
-          if (isSameDay(bdayThisYear, in7Days)) newAlerts.push(`🎉 Cumpleaños de ${u.full_name || u.username} en 1 semana`);
-          if (isSameDay(bdayThisYear, in1Day)) newAlerts.push(`🎂 ¡Mañana es el cumpleaños de ${u.full_name || u.username}!`);
+          const birthdayDate = parseISO(u.birth_date);
+          const thisYearCard = new Date(today.getFullYear(), birthdayDate.getUTCMonth(), birthdayDate.getUTCDate());
+          
+          if (isSameDay(thisYearCard, today)) {
+              newAlerts.push(`🎂 ¡Hoy es el cumpleaños de ${u.full_name || u.username}! ✨`);
+          } else if (isSameDay(thisYearCard, in1Day)) {
+              newAlerts.push(`🎁 Mañana cumple años ${u.full_name || u.username}`);
+          } else if (isSameDay(thisYearCard, in7Days)) {
+              newAlerts.push(`🎈 Próximo cumpleaños: ${u.full_name || u.username} (${format(thisYearCard, 'd MMM')})`);
+          }
       });
       setBirthdayAlerts(newAlerts);
     }
     checkBirthdays();
-  }, [user?.id]);
+  }, [supabase, user?.id, isSupabaseConfigured]);
+
+  // v2.1: Auto-Trigger Justification Modal for Overdue Tasks
+  useEffect(() => {
+    if (!tasksLoading && tasks.length > 0) {
+      const today = startOfToday();
+      const overdue = tasks.find(t => 
+        t.type === 'task' && 
+        !t.completed && 
+        t.status !== 'cancelled_with_reason' &&
+        t.date &&
+        isBefore(parseISO(t.date), today)
+      );
+      if (overdue) {
+        setExpiredModalTask(overdue);
+      }
+    }
+  }, [tasks, tasksLoading]);
 
   // FAB & Zoom Listeners
   useEffect(() => {
     const handleOpen = () => setShowCreateModal(true);
-    const handleZoom = (e: any) => setZoomedImg(e.detail);
+    const handleZoom = (e: any) => setZoomedGallery(e.detail);
     window.addEventListener('open-create-task', handleOpen);
     window.addEventListener('zoom-image', handleZoom);
     return () => {
@@ -205,7 +234,7 @@ export default function Tasks() {
   };
 
   const dailyTasks = tasks.filter((t) => 
-    t.date.startsWith(dateStr) && 
+    t.date && t.date.startsWith(dateStr) && 
     t.status !== 'pending_acceptance' && 
     !t.completed && 
     t.status !== 'declined' &&
@@ -214,21 +243,35 @@ export default function Tasks() {
   );
   
   const dailyOrders = orders.filter((o) => 
-    o.deliveryDate.startsWith(dateStr) && 
+    o.deliveryDate && o.deliveryDate.startsWith(dateStr) && 
     ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)
   );
 
-  const activityDates = Array.from(new Set([
-    ...tasks.filter(t => !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired').map(t => t.date),
-    ...orders.filter(o => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)).map(o => o.deliveryDate.split('T')[0])
-  ]));
+  const activityDetails = useMemo(() => {
+    const taskDays = tasks
+      .filter(t => !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired' && t.date)
+      .map(t => ({ 
+        date: t.date, 
+        type: t.isBirthday ? 'birthday' as const : 'task' as const 
+      }));
+    
+    const orderDays = orders
+      .filter(o => o.deliveryDate && ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status))
+      .map(o => ({ date: o.deliveryDate.split('T')[0], type: 'order' as const }));
+      
+    return [...taskDays, ...orderDays];
+  }, [tasks, orders]);
+
+  const activityDates = useMemo(() => Array.from(new Set(activityDetails.map(a => a.date))), [activityDetails]);
 
   // Scanner for alerts
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
+      
+      // 1. Scan Tasks
       tasks.forEach(t => {
-        if (!t.groupId || t.completed || t.status === 'cancelled_with_reason' || t.status === 'expired') return;
+        if (!t.groupId || t.completed || t.status === 'cancelled_with_reason' || t.status === 'expired' || !t.date || !t.time) return;
         const deadline = new Date(`${t.date}T${t.time}`);
         const diffMs = deadline.getTime() - now.getTime();
         const diffHours = diffMs / (1000 * 60 * 60);
@@ -240,9 +283,23 @@ export default function Tasks() {
         }
         if (diffMs < 0) updateTask(t.id, { status: 'expired' });
       });
+
+      // 2. Scan Orders
+      orders.forEach(o => {
+        if (!o.deliveryDate || !['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)) return;
+        const deadline = new Date(o.deliveryDate);
+        const diffMs = deadline.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffHours > 0 && diffHours <= 2.0 && !alertedTasks.includes(`ord-${o.id}`)) {
+          scheduleLocalNotification(`⏰ Orden de Servicio #${o.id} vence pronto.`);
+          window.dispatchEvent(new CustomEvent('app:show-unified-alarm', { detail: { id: `late-ord-${o.id}`, type: 'order', title: 'Orden de Servicio Vence Pronto', body: `⏰ La orden #${o.id} para ${o.customerName} vence en menos de 2 horas.` } }));
+          setAlertedTasks(a => [...a, `ord-${o.id}`]);
+        }
+      });
     }, 60000); 
     return () => clearInterval(interval);
-  }, [alertedTasks, tasks, updateTask]);
+  }, [alertedTasks, tasks, orders, updateTask]);
 
   const toggleTask = async (id: string, completed: boolean) => {
     const t = await updateTask(id, { completed, status: completed ? 'completed' : 'accepted' });
@@ -323,6 +380,13 @@ export default function Tasks() {
             </button>
           )}
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAnalytics(true)} 
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-slate-400 hover:text-purple-400 transition-all hover:bg-slate-800"
+            >
+              <LayoutGrid size={16} />
+              <span className="text-[0.6rem] font-black uppercase tracking-widest">Análisis</span>
+            </button>
             <button onClick={() => setShowDirectory(true)} className="p-2 rounded-lg bg-slate-900 border border-white/5 text-slate-400 hover:text-purple-400 transition-all">
               <Users size={18} />
             </button>
@@ -394,19 +458,36 @@ export default function Tasks() {
 
         {/* Calendar Widget */}
         <section className="bg-slate-900/40 border border-white/10 rounded-3xl p-4 backdrop-blur-md shadow-2xl">
-          <CalendarView selectedDate={selectedDate} onSelectDate={setSelectedDate} activities={activityDates} />
+          <CalendarView 
+            selectedDate={selectedDate} 
+            onSelectDate={setSelectedDate} 
+            activities={activityDates} 
+            activityDetails={activityDetails}
+          />
         </section>
 
         {/* Daily Tasks */}
         <section className="mb-0">
-          <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
-            <h3 className="text-base font-black text-white flex items-center gap-2 tracking-tight">
-              <CalendarDays size={18} className="text-purple-500" />
-              Agenda del Día
-            </h3>
-            <button onClick={() => setShowAnalytics(true)} className="text-[0.6rem] font-bold text-slate-500 hover:text-purple-400 transition-colors uppercase tracking-widest bg-white/5 px-2 py-1 rounded-md border border-white/5">
-              <LayoutGrid size={10} className="inline mr-1" /> Análisis
-            </button>
+          <div className="flex flex-col gap-4 mb-4 border-b border-white/5 pb-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-white flex items-center gap-2 tracking-tight">
+                <CalendarDays size={18} className="text-purple-500" />
+                Agenda del Día
+              </h3>
+            </div>
+
+            {/* Smart Filters */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+               {['todos', 'ordenes', 'personales', 'equipo'].map(f => (
+                 <button 
+                  key={f}
+                  onClick={() => { triggerHaptic('light'); setFilter(f as any); }}
+                  className={`px-4 py-2 rounded-xl text-[0.6rem] font-black uppercase tracking-widest transition-all border shrink-0 ${filter === f ? 'bg-purple-500 text-slate-950 border-purple-400 shadow-lg shadow-purple-500/20' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}
+                 >
+                   {f}
+                 </button>
+               ))}
+            </div>
           </div>
 
           {dailyTasks.length === 0 && dailyOrders.length === 0 ? (
@@ -420,9 +501,19 @@ export default function Tasks() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 relative">
+              {/* Timeline Indicator for Today */}
+              {isSameDay(selectedDate, new Date()) && (
+                <div 
+                  className="absolute left-[-10px] right-[-10px] h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent z-10 pointer-events-none"
+                  style={{ top: `${(new Date().getHours() * 60 + new Date().getMinutes()) / 14.4}%`, display: (new Date().getHours() >= 7 && new Date().getHours() <= 22) ? 'block' : 'none' }}
+                >
+                   <div className="absolute right-0 -top-2 px-2 py-0.5 rounded-md bg-purple-500 text-white text-[0.5rem] font-black">AHORA</div>
+                </div>
+              )}
+
               {/* Service Orders - Highlighted style */}
-              {dailyOrders.map(order => (
+              {dailyOrders.filter(o => filter === 'todos' || filter === 'ordenes').map(order => (
                 <div 
                   key={order.id} 
                   className="relative group cursor-pointer"
@@ -440,33 +531,47 @@ export default function Tasks() {
                             <ClipboardList size={20} />
                          </div>
                          <div>
-                            <span className="text-[0.6rem] font-black text-amber-500 uppercase tracking-widest block mb-0.5">Orden de Servicio · {order.id}</span>
+                            <span className="text-[0.6rem] font-black text-amber-500 uppercase tracking-widest block mb-0.5">Orden de Servicio · {getOrderSequenceLabel(order.id)}</span>
                             <h4 className="text-sm font-bold text-white truncate">{order.customerName}</h4>
                             <div className="flex items-center gap-2 text-[0.6rem] text-slate-500 font-medium uppercase mt-1">
-                               <span>{order.services.join(' + ')}</span>
+                               <span>{(order.services || []).join(' + ')}</span>
                                <span>•</span>
-                               <span className="text-amber-500/80">{order.status.replace('_', ' ')}</span>
+                               <span className="text-amber-500/80">{(order.status || '').replace('_', ' ')}</span>
                             </div>
                          </div>
                       </div>
                       <div className="text-right">
-                         <div className="text-xs font-black text-white">$ {order.totalCost.toLocaleString()}</div>
-                         <div className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">{order.deliveryDate.split('T')[1]}</div>
+                         <div className="text-xs font-black text-white">$ {(order.totalCost || 0).toLocaleString()}</div>
+                         <div className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">
+                            {order.deliveryDate?.includes('T') ? order.deliveryDate.split('T')[1].substring(0, 5) : 'S/H'}
+                         </div>
                       </div>
                    </div>
                 </div>
               ))}
 
-              {dailyTasks.map((task) => (
+              {dailyTasks
+                .filter(t => {
+                   if (filter === 'todos') return true;
+                   if (filter === 'personales') return !t.groupId;
+                   if (filter === 'equipo') return !!t.groupId;
+                   return false;
+                })
+                .map((task) => (
                 <TaskCard 
                   key={task.id} 
                   task={task} 
                   onToggleComplete={toggleTask} 
+                  onUpdate={updateTask}
                   onSelect={(t) => {
-                    setSummaryData(t);
-                    setSummaryType('task');
-                    setShowSummary(true);
                     triggerHaptic('light');
+                    if (t.type === 'reminder') {
+                      setSelectedEditTask(t);
+                    } else {
+                      setSummaryData(t);
+                      setSummaryType('task');
+                      setShowSummary(true);
+                    }
                   }}
                 />
               ))}
@@ -500,7 +605,7 @@ export default function Tasks() {
               <div className="text-4xl mb-4">🌙</div>
               <h3 className="text-xl font-bold text-red-400 mb-4 tracking-tight">Zona de Cierre Operativo</h3>
               <p className="text-sm text-slate-400 leading-relaxed font-light mb-8 italic">
-                Las órdenes generadas después de las <span className="text-white font-bold">20:30 hrs</span> serán gestionadas por <span className="text-purple-400 font-bold">Grupo More</span> a partir de las <span className="text-white font-bold">07:00 hrs</span> del día siguiente.
+                Las órdenes generadas después de las <span className="text-white font-bold">20:30 hrs</span> serán gestionadas por <span className="text-purple-400 font-bold">More Paper & Design</span> a partir de las <span className="text-white font-bold">07:00 hrs</span> del día siguiente.
               </p>
               <button onClick={() => setLateAlert(false)} className="w-full bg-red-500 text-slate-900 font-black py-3 rounded-2xl hover:bg-red-400 transition-all active:scale-95 shadow-lg shadow-red-500/20">
                 Entendido
@@ -517,21 +622,46 @@ export default function Tasks() {
       
       <CreateTaskModal 
         isOpen={showCreateModal} 
-        onClose={() => setShowCreateModal(false)} 
-        onSave={handleAddTask} 
-        initialDate={dateStr}
+        onClose={() => setShowCreateModal(false)}
+        onSave={addTask}
+        initialDate={format(selectedDate, 'yyyy-MM-dd')}
+      />
+
+      <CreateTaskModal 
+        isOpen={!!selectedEditTask} 
+        onClose={() => setSelectedEditTask(null)}
+        onSave={async (data) => {
+          if (selectedEditTask) {
+            await updateTask(selectedEditTask.id, data);
+            setSelectedEditTask(null);
+          }
+        }}
+        initialData={selectedEditTask}
+        onDelete={deleteTask}
+        onExtend={extendTaskSeries}
       />
       <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       <WelcomeDailyModal isOpen={showDailyModal} onClose={() => setShowDailyModal(false)} personalTasks={tasks.filter(t => !t.groupId && t.userId === myUserId && !t.completed && t.date < todayKey)} groupTasks={tasks.filter(t => t.groupId && myApprovedGroupIds.includes(t.groupId) && !t.completed && t.status !== 'cancelled_with_reason' && t.status !== 'expired')} onMigrateToToday={(tid) => updateTask(tid, { date: todayKey })} onReschedule={(tid, d) => updateTask(tid, { date: d })} />
       <ExpiredTeamTaskModal isOpen={!!expiredModalTask} task={expiredModalTask} onClose={() => setExpiredModalTask(null)} onSubmit={(tid, reason, decision, newDate) => {
-        if (decision === 'reprogramar') updateTask(tid, { failureReason: reason, status: 'accepted', date: newDate! });
-        else updateTask(tid, { failureReason: reason, status: 'cancelled_with_reason', completed: true });
+        if (decision === 'reprogramar') {
+          updateTask(tid, { failureReason: reason, status: 'accepted', date: newDate! });
+        } else if (decision === 'terminar') {
+          updateTask(tid, { failureReason: reason, status: 'cancelled_with_reason', completed: true });
+        } else if (decision === 'completar') {
+          updateTask(tid, { status: 'completed', completed: true });
+        }
         setExpiredModalTask(null);
       }} />
       
       {showMonthlyReport && <MonthlyReportModal tasks={tasks} onClose={() => setShowMonthlyReport(false)} />}
-      {zoomedImg && <ImageZoomModal src={zoomedImg} onClose={() => setZoomedImg(null)} />}
+      {zoomedGallery && (
+        <ImageZoomModal 
+          photos={zoomedGallery.photos} 
+          initialIndex={zoomedGallery.index} 
+          onClose={() => setZoomedGallery(null)} 
+        />
+      )}
       
       <ExecutiveSummaryModal 
         isOpen={showSummary} 
@@ -543,7 +673,7 @@ export default function Tasks() {
           if (summaryType === 'task') {
              await updateTask(id, fields);
           } else {
-             // Logic for orders if needed
+             await updateOrder(id, fields);
           }
         }}
       />

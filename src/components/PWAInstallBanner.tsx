@@ -57,7 +57,7 @@ export default function PWAInstallBanner() {
                <Download size={24} />
             </div>
             <div className="flex-1 pr-4">
-              <h4 className="text-sm font-black text-white leading-tight uppercase tracking-tight">Instalar Grupo More</h4>
+              <h4 className="text-sm font-black text-white leading-tight uppercase tracking-tight">Instalar More Paper & Design</h4>
               <p className="text-[0.7rem] text-slate-400 mt-1 leading-relaxed">
                 Accede más rápido y disfruta de la experiencia nativa a pantalla completa.
               </p>

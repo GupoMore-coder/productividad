@@ -18,7 +18,10 @@ import {
   ShieldCheck,
   AlertTriangle,
   Settings,
-  Mail
+  Mail,
+  Cake,
+  Phone,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
@@ -43,6 +46,8 @@ export default function Profile() {
   const [emergencyName, setEmergencyName] = useState(user?.emergency_name || '');
   const [emergencyRelationship, setEmergencyRelationship] = useState(user?.emergency_relationship || '');
   const [emergencyPhone, setEmergencyPhone] = useState(user?.emergency_phone || '');
+  const [secondaryPhone, setSecondaryPhone] = useState(user?.secondary_phone || '');
+  const [secondaryEmail, setSecondaryEmail] = useState(user?.secondary_email || '');
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -77,6 +82,8 @@ export default function Profile() {
       setEmergencyName(user.emergency_name || '');
       setEmergencyRelationship(user.emergency_relationship || '');
       setEmergencyPhone(user.emergency_phone || '');
+      setSecondaryPhone(user.secondary_phone || '');
+      setSecondaryEmail(user.secondary_email || '');
     }
   }, [user]);
 
@@ -146,6 +153,8 @@ export default function Profile() {
         phone, 
         birth_date: birthDate, 
         avatar,
+        secondary_phone: secondaryPhone,
+        secondary_email: secondaryEmail,
         emergency_name: emergencyName,
         emergency_relationship: emergencyRelationship,
         emergency_phone: emergencyPhone
@@ -255,9 +264,9 @@ export default function Profile() {
                 </div>
               )}
             </motion.div>
-            <label className="absolute -bottom-2 -right-2 p-3 bg-purple-500 text-slate-900 rounded-2xl shadow-xl cursor-pointer hover:scale-110 active:scale-90 transition-all border-4 border-[#1a1622]">
-              {uploadingAvatar ? <Loader2 className="animate-spin" size={20} /> : <Camera size={20} />}
-              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploadingAvatar} />
+            <label className="absolute -bottom-2 -right-2 p-2 bg-[#d4bc8f] text-slate-900 rounded-xl shadow-xl cursor-pointer hover:scale-110 active:scale-95 transition-all border-4 border-[#1a1622]">
+              <Camera size={16} />
+              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" title="Subir Avatar" placeholder="Subir Avatar" />
             </label>
           </div>
           
@@ -267,7 +276,7 @@ export default function Profile() {
               <BadgeCheck size={24} className="text-purple-400" />
             </h3>
             <span className="inline-block px-4 py-1.5 bg-white/5 text-slate-400 rounded-full text-[0.6rem] font-black uppercase tracking-widest mt-2 border border-white/5">
-              {user.role || 'Colaborador Grupo More'}
+              {user.role || 'Colaborador More Paper & Design'}
             </span>
           </div>
 
@@ -316,12 +325,16 @@ export default function Profile() {
                 <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Cédula</label>
                 <div className="relative">
                   <input type="text" value={cedula} onChange={e => setCedula(e.target.value)} required 
+                    title="Número de Cédula"
+                    placeholder="N° Documento"
                     className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Celular</label>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required 
+                  title="Número de Celular"
+                  placeholder="300 xxxxxxx"
                   className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
               </div>
             </div>
@@ -329,6 +342,8 @@ export default function Profile() {
             <div className="space-y-2">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Nombre Completo</label>
               <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required 
+                title="Nombre Completo"
+                placeholder="Nombre y Apellidos"
                 className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
             </div>
 
@@ -337,7 +352,42 @@ export default function Profile() {
               <div className="relative">
                 <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" size={18} />
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} required 
+                  title="Correo Electrónico"
+                  placeholder="empresa@ejemplo.com"
                   className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-12 pr-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none opacity-60">Celular Secundario</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={14} />
+                  <input type="tel" value={secondaryPhone} onChange={e => setSecondaryPhone(e.target.value)}
+                    placeholder="Opcional"
+                    title="Celular Secundario"
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none opacity-60">Email Secundario</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={14} />
+                  <input type="email" value={secondaryEmail} onChange={e => setSecondaryEmail(e.target.value)}
+                    placeholder="Opcional"
+                    title="Email Secundario"
+                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-[0.65rem] text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Fecha de Nacimiento</label>
+              <div className="relative">
+                <Cake className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-700" size={18} />
+                <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} required 
+                  title="Fecha de Nacimiento"
+                  className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-12 pr-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/10 focus:border-purple-500/40 transition-all font-medium color-scheme-dark" />
               </div>
             </div>
           </div>
@@ -354,21 +404,41 @@ export default function Profile() {
                 <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Nombre del Contacto</label>
                 <input type="text" value={emergencyName} onChange={e => setEmergencyName(String(e.target.value))} 
                   placeholder="Ej: María Pérez"
+                  title="Nombre del Contacto de Emergencia"
                   className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Parentesco</label>
-                  <input type="text" value={emergencyRelationship} onChange={e => setEmergencyRelationship(String(e.target.value))} 
-                    placeholder="Ej: Madre"
-                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+                  <div className="relative">
+                    <Heart className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={14} />
+                    <select 
+                      value={emergencyRelationship} 
+                      onChange={e => setEmergencyRelationship(e.target.value)}
+                      title="Parentesco de Emergencia"
+                      className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium appearance-none"
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="Madre">Madre</option>
+                      <option value="Padre">Padre</option>
+                      <option value="Hijo/a">Hijo/a</option>
+                      <option value="Hermano/a">Hermano/a</option>
+                      <option value="Esposo/a">Esposo/a</option>
+                      <option value="Amigo/a">Amigo/a</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-2 leading-none">Teléfono</label>
-                  <input type="tel" value={emergencyPhone} onChange={e => setEmergencyPhone(String(e.target.value))} 
-                    placeholder="Ej: 300..."
-                    className="w-full bg-white/[0.02] border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={14} />
+                    <input type="tel" value={emergencyPhone} onChange={e => setEmergencyPhone(String(e.target.value))} 
+                      placeholder="Ej: 300..."
+                      title="Teléfono de Emergencia"
+                      className="w-full bg-white/[0.02] border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500/40 transition-all font-medium" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -496,7 +566,7 @@ export default function Profile() {
               <div className="space-y-2">
                 <h5 className="text-lg font-black text-white tracking-tight">Instalar Aplicación</h5>
                 <p className="text-xs text-slate-400 leading-relaxed max-w-[240px] mx-auto">
-                  Agrega Grupo More a tu pantalla de inicio para un acceso rápido y experiencia de pantalla completa.
+                  Agrega More Paper & Design a tu pantalla de inicio para un acceso rápido y experiencia de pantalla completa.
                 </p>
               </div>
               <button 

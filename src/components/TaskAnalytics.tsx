@@ -14,7 +14,8 @@ export default function TaskAnalytics({ tasks, onClose }: TaskAnalyticsProps) {
 
     const monthTasks = tasks.filter(t => {
       const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      const isTask = !t.type || t.type === 'task';
+      return isTask && (d.getMonth() === currentMonth && d.getFullYear() === currentYear);
     });
 
     const completed = monthTasks.filter(t => t.completed).length;

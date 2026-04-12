@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { Plus, Archive, ClipboardList } from 'lucide-react';
+import { Plus, Archive, ClipboardList, Users, Check, Search } from 'lucide-react';
 
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import CreateOrderModal from '../components/CreateOrderModal';
 import OrderStatusModal from '../components/OrderStatusModal';
 import { OrderCard } from '../components/orders/OrderCard';
@@ -13,43 +14,117 @@ import { OrderCardSkeleton, Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { QuoteExpirationAlert } from '../components/QuoteExpirationAlert';
+import ImageZoomModal from '../components/ImageZoomModal';
 
 export default function Orders() {
   const { user } = useAuth();
+  const { 
+    orders, 
+    loading, 
+    updateOrder, 
+    deleteOrderMaster, 
+    downloadOrderPdf, 
+    reactivateOrder, 
+    promoteDemoOrder,
+    registerDeposit,
+    archivedOrders,
+    getQuoteSequenceLabel,
+    getOrderSequenceLabel,
+    convertQuoteToOrder,
+    extendQuote,
+    archiveExpiredQuote
+  } = useOrders();
+
   usePageTitle('Gestión de Órdenes');
-  const { orders, updateOrder, registerDeposit, reactivateOrder, promoteDemoOrder, deleteOrderMaster, getOrderSequenceLabel, archivedOrders, downloadOrderPdf, loading, convertQuoteToOrder, extendQuote, archiveExpiredQuote } = useOrders();
+
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPerformanceModal, setShowPerformanceModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | undefined>(undefined);
   const [filter, setFilter] = useState<'activas' | 'inactivas'>('activas');
+  const [zoomedGallery, setZoomedGallery] = useState<{ photos: string[], index: number } | null>(null);
 
   // Quote expiration alert state
   const [expiringQuoteQueue, setExpiringQuoteQueue] = useState<ServiceOrder[]>([]);
   const [autoExpiredQueue, setAutoExpiredQueue] = useState<ServiceOrder[]>([]);
   const processedExpiredRef = useRef<Set<string>>(new Set());
 
+  // ── Multi-user Analysis State (Master Admin Only) ──
+  const [analysisUserIds, setAnalysisUserIds] = useState<string[]>([]);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      setAnalysisUserIds([user.id]);
+    }
+    
+    const fetchProfiles = async () => {
+      // Robust role check: Master Admin or CEO can access the selection panel
+      const isMasterAdmin = user?.isMaster || user?.role === 'Administrador maestro' || user?.role === 'Director General (CEO)';
+      
+      if (isMasterAdmin) {
+        if (isSupabaseConfigured) {
+          try {
+            const { data, error } = await supabase.from('profiles').select('*').order('username');
+            if (error) throw error;
+            if (data && data.length > 0) {
+              setAllProfiles(data);
+            } else {
+              setAllProfiles([{ id: user.id, username: user.username, full_name: user.full_name, avatar: user.avatar }]);
+            }
+          } catch (err) {
+            console.error('Error loading profiles for analysis:', err);
+            setAllProfiles([{ id: user.id, username: user.username, full_name: user.full_name, avatar: user.avatar }]);
+          }
+        } else {
+          // Local/Demo Mode fallback
+          try {
+            const db = JSON.parse(localStorage.getItem('mock_users_db') || '[]');
+            if (db.length > 0) {
+              setAllProfiles(db.map((u: any) => ({ 
+                id: u.id, 
+                username: u.username, 
+                full_name: u.full_name || u.user_metadata?.fullName,
+                avatar: u.avatar 
+              })));
+            } else {
+              setAllProfiles([{ id: user.id, username: user.username, full_name: user.full_name, avatar: user.avatar }]);
+            }
+          } catch (e) {
+            setAllProfiles([{ id: user.id, username: user.username, full_name: user.full_name, avatar: user.avatar }]);
+          }
+        }
+      } else if (user) {
+        setAllProfiles([{ id: user.id, username: user.username, full_name: user.full_name, avatar: user.avatar }]);
+      }
+    };
+    fetchProfiles();
+  }, [user]);
+
   // Personal Stats Calculation
   const myStats = useMemo(() => {
-    const isAdminView = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
+    // Analysis group: if empty (safety check), fallback to current user
+    const targets = analysisUserIds.length > 0 ? analysisUserIds : [user?.id];
     
-    const myOrders = orders.filter(o => {
-      if (isAdminView) return true;
-      return o.responsible === user?.full_name || o.createdBy === user?.id;
-    });
+    // Analysis must strictly be based on the initial creator of the order
+    const myOrders = orders.filter(o => targets.includes(o.createdBy || ''));
+    
     const total = myOrders.length;
     const completed = myOrders.filter(o => o.status === 'completada').length;
     const pending = myOrders.filter(o => ['recibida', 'en_proceso', 'pendiente_entrega'].includes(o.status)).length;
     const totalValue = myOrders.reduce((acc, current) => acc + (current.totalCost || 0), 0);
+    
+    // Efficiency: completed / total. Cancellations remain in total, effectively lowering efficiency as requested.
     const efficiency = total > 0 ? Math.round((completed / total) * 100) : 0;
     
     return { total, completed, pending, totalValue, efficiency };
-  }, [orders, user]);
+  }, [orders, user?.id, analysisUserIds]);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [docType, setDocType] = useState<'todas' | 'ordenes' | 'cotizaciones'>('todas');
 
   // Status Modal state
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -73,13 +148,16 @@ export default function Orders() {
       const { id, fields } = e.detail;
       updateOrder(id, fields);
     };
+    const handleZoom = (e: any) => setZoomedGallery(e.detail);
     window.addEventListener('open-create-order', handleOpen);
     window.addEventListener('force-close-modals', handleForceClose);
     window.addEventListener('update-order-field', handleUpdateField);
+    window.addEventListener('zoom-image', handleZoom);
     return () => {
       window.removeEventListener('open-create-order', handleOpen);
       window.removeEventListener('force-close-modals', handleForceClose);
       window.removeEventListener('update-order-field', handleUpdateField);
+      window.removeEventListener('zoom-image', handleZoom);
     };
   }, []);
 
@@ -129,12 +207,18 @@ export default function Orders() {
   // Filter Logic
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      if (startDate && new Date(o.deliveryDate) < new Date(startDate)) return false;
+      // Date range filter
+      if (startDate && new Date(o.createdAt) < new Date(startDate)) return false;
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        if (new Date(o.deliveryDate) > end) return false;
+        if (new Date(o.createdAt) > end) return false;
       }
+      
+      // Document Type Filter
+      if (docType === 'ordenes' && o.recordType === 'cotizacion') return false;
+      if (docType === 'cotizaciones' && o.recordType !== 'cotizacion') return false;
+      
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
@@ -147,7 +231,7 @@ export default function Orders() {
       }
       return true;
     });
-  }, [orders, searchQuery, startDate, endDate]);
+  }, [orders, searchQuery, startDate, endDate, docType]);
 
   const activeOrders = useMemo(() => 
     filteredOrders.filter(o => 
@@ -293,11 +377,49 @@ export default function Orders() {
               <div className="p-8">
                 <div className="flex justify-between items-start mb-8">
                    <div>
-                      <h3 className="text-xl font-black text-white tracking-tight">Mi Rendimiento Personal</h3>
+                      <h3 className="text-xl font-black text-white tracking-tight">
+                        {analysisUserIds.length > 1 ? 'Análisis de Rendimiento Grupal' : (analysisUserIds[0] === user?.id ? 'Mi Rendimiento Personal' : 'Análisis de Rendimiento')}
+                      </h3>
                       <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">Análisis de Eficacia Operativa</p>
                    </div>
                    <button onClick={() => setShowPerformanceModal(false)} className="p-2 rounded-xl hover:bg-white/5 text-slate-500"><Plus className="rotate-45" size={24} /></button>
                 </div>
+
+                {/* Master Admin User Selector */}
+                {(user?.isMaster || user?.role === 'Administrador maestro') && (
+                  <div className="mb-8 p-4 bg-white/5 border border-white/5 rounded-2xl">
+                    <div className="flex items-center gap-2 mb-3">
+                       <Users className="text-purple-400" size={12} />
+                       <span className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest">Selector de Análisis (Master)</span>
+                       <span className="ml-auto text-[0.55rem] font-bold text-slate-600 italic">Análisis aggregate</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                       {allProfiles.map(profile => {
+                         const isSelected = analysisUserIds.includes(profile.id);
+                         return (
+                           <button
+                             key={profile.id}
+                             onClick={() => {
+                               triggerHaptic('light');
+                               setAnalysisUserIds(prev => 
+                                 prev.includes(profile.id) 
+                                   ? (prev.length > 1 ? prev.filter(id => id !== profile.id) : prev) 
+                                   : [...prev, profile.id]
+                               );
+                             }}
+                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[0.6rem] font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-lg shadow-purple-500/10' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'}`}
+                           >
+                             <div className="w-4 h-4 rounded-md bg-black/20 flex items-center justify-center text-[0.45rem] overflow-hidden">
+                               {profile.avatar && profile.avatar.length > 10 ? <img src={profile.avatar} className="w-full h-full object-cover" /> : profile.username.charAt(0).toUpperCase()}
+                             </div>
+                             <span>@{profile.username}</span>
+                             {isSelected && <Check size={10} className="ml-0.5" />}
+                           </button>
+                         );
+                       })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 mb-8">
                    <div className="bg-white/[0.02] border border-white/5 p-5 rounded-2xl">
@@ -332,7 +454,13 @@ export default function Orders() {
                 </div>
 
                 <div className="mt-10 p-4 bg-purple-500/5 border border-purple-500/10 rounded-2xl text-center">
-                   <p className="text-[0.65rem] font-black text-purple-400 uppercase tracking-[0.2em]">Sigue así, @{user?.full_name || user?.username || 'Usuario'}</p>
+                   <p className="text-[0.65rem] font-black text-purple-400 uppercase tracking-[0.2em]">
+                     {analysisUserIds.length > 1 
+                       ? 'Métricas de Equipo Consolidadas' 
+                       : (analysisUserIds[0] === user?.id 
+                           ? `Sigue así, @${user?.full_name || user?.username || 'Usuario'}` 
+                           : `Analizando a @${allProfiles.find(p => p.id === analysisUserIds[0])?.username || 'Usuario'}`)}
+                   </p>
                 </div>
               </div>
             </motion.div>
@@ -352,6 +480,8 @@ export default function Orders() {
         setFilter={setFilter}
         activeCount={activeOrders.length}
         inactiveCount={inactiveOrders.length}
+        docType={docType}
+        setDocType={setDocType}
       />
 
       {/* Orders List */}
@@ -378,8 +508,8 @@ export default function Orders() {
                 onReactivate={() => handleReactivateAttempt(order.id)}
                 onPromote={() => promoteDemoOrder(order.id)}
                 onDelete={deleteOrderMaster}
-                sequenceLabel={getOrderSequenceLabel(order.id)}
-                isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas'}
+                sequenceLabel={order.recordType === 'cotizacion' ? getQuoteSequenceLabel(order.id) : getOrderSequenceLabel(order.id)}
+                isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas' && order.recordType !== 'cotizacion'}
                 isGenerating={isGeneratingPdf === order.id}
               />
             ))
@@ -446,6 +576,14 @@ export default function Orders() {
           onArchive={archiveExpiredQuote}
           onDismiss={() => setAutoExpiredQueue(prev => prev.slice(1))}
           isAutoExpired={true}
+        />
+      )}
+
+      {zoomedGallery && (
+        <ImageZoomModal 
+          photos={zoomedGallery.photos} 
+          initialIndex={zoomedGallery.index} 
+          onClose={() => setZoomedGallery(null)} 
         />
       )}
     </div>

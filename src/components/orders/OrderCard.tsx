@@ -18,10 +18,18 @@ import {
   AlertTriangle,
   PlayCircle,
   PlusCircle,
-  DollarSign
+  DollarSign,
+  MessageCircle,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  ZoomIn
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ServiceOrder } from '../../context/OrderContext';
+import { WhatsAppService } from '../../services/whatsappService';
+import { useWhatsApp } from '../../context/WhatsAppContext';
 import { triggerHaptic } from '../../utils/haptics';
 import { OrderStatusPill } from './OrderStatusPill';
 import { OrderTimeline } from './OrderTimeline';
@@ -56,6 +64,7 @@ export const OrderCard = memo(function OrderCard({
   onDelete
 }: OrderCardProps) {
   const { user } = useAuth();
+  const { openWhatsApp } = useWhatsApp();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -64,6 +73,28 @@ export const OrderCard = memo(function OrderCard({
   const [obsValue, setObsValue] = useState('');
   const [showAbonoModal, setShowAbonoModal] = useState(false);
   const [abonoValue, setAbonoValue] = useState('');
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
+
+  const photos = order.photos || [];
+  const hasMultiplePhotos = photos.length > 1;
+
+  const nextImg = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveImgIndex((prev) => (prev + 1) % photos.length);
+  };
+
+  const prevImg = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveImgIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  };
+
+  const openZoom = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    (window as any).dispatchEvent(new CustomEvent('zoom-image', { 
+      detail: { photos, index } 
+    }));
+  };
 
   const deliveryDate = new Date(order.deliveryDate);
   const timeRemaining = formatDistanceToNow(deliveryDate, { addSuffix: true, locale: es });
@@ -100,54 +131,136 @@ export const OrderCard = memo(function OrderCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="group relative overflow-hidden rounded-3xl bg-slate-900/40 border border-white/10 backdrop-blur-md shadow-xl hover:border-purple-500/30 transition-all duration-500"
+      className={`group relative overflow-hidden rounded-3xl bg-slate-900/40 border backdrop-blur-md shadow-xl transition-all duration-500 ${
+        order.recordType === 'cotizacion' 
+          ? 'border-amber-500/20 hover:border-amber-500/40' 
+          : 'border-white/10 hover:border-purple-500/30'
+      }`}
     >
       {/* Accent Glow Line */}
-      <div className={`absolute top-0 left-0 right-0 h-[2px] opacity-40 bg-gradient-to-r from-transparent ${isOverdue ? 'via-red-500 animate-pulse' : (order.status === 'recibida' ? 'via-amber-500' : 'via-purple-500')} to-transparent`} />
+      <div className={`absolute top-0 left-0 right-0 h-[2px] opacity-40 bg-gradient-to-r from-transparent ${
+        order.recordType === 'cotizacion'
+          ? 'via-amber-500'
+          : (isOverdue ? 'via-red-500 animate-pulse' : (order.status === 'recibida' ? 'via-amber-500' : 'via-purple-500'))
+      } to-transparent`} />
 
-      {/* Header Area */}
-      <div className="p-5 pb-3">
+      {/* Header Area / Hero Carousel */}
+      <div className="relative group/hero overflow-hidden">
+        {/* Background Image / Placeholder */}
+        <div className="h-44 sm:h-52 w-full relative overflow-hidden bg-slate-800/50">
+          <AnimatePresence mode="wait">
+            {photos.length > 0 ? (
+              <motion.img
+                key={activeImgIndex}
+                src={photos[activeImgIndex]}
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.4 }}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-10">
+                <FileText size={80} className="text-white" />
+              </div>
+            )}
+          </AnimatePresence>
+          
+          {/* Overlay Gradient (Premium feel) */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1622] via-transparent to-black/40" />
+
+          {/* Carousel Controls */}
+          {hasMultiplePhotos && (
+            <>
+              <div className="absolute inset-x-0 top-6 flex justify-center z-20 pointer-events-none">
+                 <div className="px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[0.65rem] font-black text-white/90 tracking-widest pointer-events-auto shadow-2xl">
+                    {activeImgIndex + 1} / {photos.length}
+                 </div>
+              </div>
+              <div className="absolute inset-y-0 left-0 flex items-center px-2 z-20 opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                <button 
+                  onClick={prevImg}
+                  className="p-2 rounded-full bg-black/40 border border-white/10 text-white hover:bg-black/60 transition-all backdrop-blur-md"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              </div>
+              <div className="absolute inset-y-0 right-0 flex items-center px-2 z-20 opacity-0 group-hover/hero:opacity-100 transition-opacity">
+                <button 
+                  onClick={nextImg}
+                  className="p-2 rounded-full bg-black/40 border border-white/10 text-white hover:bg-black/60 transition-all backdrop-blur-md"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Quick Action Top Bar (Zoom & Chat) */}
+          <div className="absolute top-4 right-4 flex gap-2 z-20">
+            <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 const message = WhatsAppService.getDirectLink('', {
+                   customerName: order.customerName,
+                   documentNumber: sequenceLabel || order.id.slice(-6).toUpperCase(),
+                   total: order.totalCost,
+                   type: order.recordType || 'orden',
+                   deliveryDate: format(deliveryDate, 'dd MMM, HH:mm', { locale: es })
+                 }).split('text=')[1];
+                 openWhatsApp(order.customerPhone, decodeURIComponent(message));
+               }}
+               className="w-10 h-10 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/30 text-emerald-400 flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg"
+            >
+              <MessageSquare size={18} />
+            </button>
+            {photos.length > 0 && (
+              <button
+                onClick={(e) => openZoom(e, activeImgIndex)}
+                className="w-10 h-10 rounded-xl bg-purple-500/20 hover:bg-purple-500/40 border border-purple-500/30 text-purple-400 flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg"
+              >
+                <ZoomIn size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Floating Header Info */}
+        <div className="absolute bottom-4 left-5 right-5 z-20 flex flex-col gap-1">
+          <div className="flex items-center gap-2 mb-1">
+             <div className="px-2 py-0.5 rounded-full bg-purple-500/20 backdrop-blur-md text-[0.5rem] font-black text-purple-400 border border-purple-500/20 uppercase tracking-widest">
+               {sequenceLabel || order.id.slice(-6).toUpperCase()}
+             </div>
+             {order.recordType === 'cotizacion' && (
+               <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-[0.5rem] font-bold tracking-widest border border-amber-500/20 uppercase">COTIZACIÓN</span>
+             )}
+          </div>
+          <h3 className="text-xl font-black text-white truncate shadow-black drop-shadow-md">
+            {order.customerName}
+          </h3>
+          <p className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 opacity-80">
+             <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+             PRUEBA-ORDE
+          </p>
+        </div>
+      </div>
+
+      <div className="px-5 pt-5 pb-3">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="text-sm font-black tracking-widest text-slate-400 group-hover:text-purple-400 transition-colors uppercase">
-              {sequenceLabel || order.id.slice(-6).toUpperCase()}
+              INFO CLIENTE
             </span>
-            {order.recordType === 'cotizacion' && (
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-[0.55rem] font-bold tracking-widest border border-amber-500/20">COTIZACIÓN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {order.isOfflinePending && (
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-500/20 text-purple-400 text-[0.65rem] font-black uppercase tracking-widest rounded-xl animate-pulse border border-purple-500/30">
+                <RefreshCw size={10} className="animate-spin" />
+                Sincronizando
+              </span>
             )}
-          </div>
-          {!order.is_demo && order.recordType !== 'cotizacion' && <OrderStatusPill status={order.status} />}
-          {order.is_demo && <span className="px-3 py-1 bg-amber-500 text-slate-900 text-[0.65rem] font-black uppercase tracking-widest rounded-xl animate-pulse">DEMO LIMO</span>}
-        </div>
-
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-white truncate group-hover:translate-x-1 transition-transform duration-300">
-              {order.customerName}
-            </h3>
-            <div className="flex flex-col gap-1 mt-2">
-              <div className="flex items-center gap-2 text-slate-400">
-                <Phone size={14} className="text-purple-500/70" />
-                <span className="text-sm font-light">{order.customerPhone}</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-500">
-                <div className="w-4 h-4 rounded-full bg-purple-500/20 flex items-center justify-center text-[0.5rem] font-black text-purple-400 border border-purple-500/20">
-                  {(order.responsible || 'S').charAt(0).toUpperCase()}
-                </div>
-                <span className="text-[0.65rem] font-bold uppercase tracking-widest truncate">R: {order.responsible || 'Sin Asignar'}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="text-right shrink-0">
-            <div className="text-[0.65rem] uppercase tracking-tighter text-slate-500 font-bold">Entrega</div>
-            <div className={`text-sm font-bold mt-0.5 ${isOverdue ? 'text-red-400 underline underline-offset-4 decoration-red-500/50' : 'text-slate-200'}`}>
-              {format(deliveryDate, 'dd MMM, HH:mm', { locale: es })}
-            </div>
-            <div className={`text-[0.68rem] mt-1 font-medium ${isOverdue ? 'text-red-400 animate-pulse' : 'text-amber-500/80'}`}>
-              <Clock size={10} className="inline mr-1" />
-              {timeRemaining}
-            </div>
+            {!(order.is_demo || order.isTest) && order.recordType !== 'cotizacion' && <OrderStatusPill status={order.status} />}
+            {(order.is_demo || order.isTest) && <span className="px-3 py-1 bg-amber-500 text-slate-900 text-[0.65rem] font-black uppercase tracking-widest rounded-xl animate-pulse">PRUEBA DE SISTEMA</span>}
           </div>
         </div>
       </div>
@@ -172,21 +285,22 @@ export const OrderCard = memo(function OrderCard({
         </div>
       )}
 
-      {showPhotos && order.photos && order.photos.length > 0 && (
         <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x">
-          {order.photos.map((p, i) => (
-            <div key={i} className="shrink-0 w-16 h-16 rounded-xl overflow-hidden ring-1 ring-white/10 hover:ring-[#d4bc8f]/50 transition-all cursor-zoom-in shadow-lg">
+          {photos.map((p, i) => (
+            <div 
+              key={i} 
+              onClick={(e) => setActiveImgIndex(i)}
+              className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden ring-2 transition-all cursor-pointer shadow-lg active:scale-95 ${activeImgIndex === i ? 'ring-purple-500 scale-105' : 'ring-white/10 hover:ring-white/30'}`}
+            >
               <img 
                 src={p} 
                 alt="evidencia" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover pointer-events-none"
                 loading="lazy"
-                onClick={() => (window as any).dispatchEvent(new CustomEvent('zoom-image', { detail: p }))}
               />
             </div>
           ))}
         </div>
-      )}
 
       {/* Financial Bar */}
       {order.recordType === 'cotizacion' ? (
@@ -205,7 +319,7 @@ export const OrderCard = memo(function OrderCard({
               <span className="text-[0.6rem] text-emerald-500 font-bold uppercase tracking-widest">Abono</span>
               {['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) && <PlusCircle size={8} className="text-emerald-500" />}
             </div>
-            <span className="text-xs font-black text-emerald-400/90 tracking-tight">$ {order.depositAmount.toLocaleString()}</span>
+            <span className="text-xs font-black text-emerald-400/90 tracking-tight">$ {(order.totalCost - order.pendingBalance).toLocaleString()}</span>
           </div>
           <div className="flex flex-col px-2 text-right">
             <span className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">Saldo</span>
@@ -298,13 +412,6 @@ export const OrderCard = memo(function OrderCard({
                 </button>
               )}
 
-              {/* Edit Button */}
-              <button 
-                onClick={() => onEdit(order)}
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all shadow-xl"
-              >
-                <Edit3 size={18} />
-              </button>
 
               {/* Cancel Button */}
               <button 
@@ -333,15 +440,6 @@ export const OrderCard = memo(function OrderCard({
              </div>
           )}
 
-          {/* Limo Promotion Button (Oficializar Demo) */}
-          {order.is_demo && (user?.isMaster || user?.role === 'Director General (CEO)') && (
-            <button 
-              onClick={() => { triggerHaptic('success'); onPromote?.(order.id); }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-amber-500 text-slate-950 font-black text-[0.7rem] uppercase tracking-widest hover:bg-amber-400 transition-all shadow-xl shadow-amber-500/20 active:scale-95"
-            >
-              <CheckCircle2 size={18} /> OFICIALIZAR (PROMOCIÓN LIMO)
-            </button>
-          )}
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-white/5">
@@ -355,6 +453,23 @@ export const OrderCard = memo(function OrderCard({
                 <QrCode size={18} />
               </button>
             )}
+            <button 
+              onClick={() => {
+                triggerHaptic('light');
+                const message = WhatsAppService.getDirectLink('', {
+                  customerName: order.customerName,
+                  documentNumber: sequenceLabel || order.id.slice(-6).toUpperCase(),
+                  total: order.totalCost,
+                  type: order.recordType || 'orden',
+                  deliveryDate: format(deliveryDate, 'dd MMM, HH:mm', { locale: es })
+                }).split('text=')[1];
+                openWhatsApp(order.customerPhone, decodeURIComponent(message));
+              }}
+              className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20 active:scale-95 shadow-lg"
+              title="Notificar por WhatsApp"
+            >
+              <MessageCircle size={18} />
+            </button>
           </div>
 
           <div className="flex gap-2">
@@ -379,13 +494,13 @@ export const OrderCard = memo(function OrderCard({
               <Edit3 size={18} />
             </button>
 
-            {user?.isMaster && onDelete && (
+            {user?.isMaster && onDelete && order.isTest && (
               <button 
-                onClick={() => { if(confirm('¿BORRAR ORDEN SIN RASTRO?')) onDelete(order.id); }} 
+                onClick={() => { if(confirm('¿BORRAR REGISTRO DE PRUEBA?')) onDelete(order.id); }} 
                 className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95 shadow-lg"
-                title="BORRADO MAESTRO (Sin rastro)"
+                title="BORRAR PRUEBA (Sin rastro)"
               >
-                <DollarSign size={18} />
+                <Trash2 size={18} />
               </button>
             )}
           </div>
@@ -397,35 +512,77 @@ export const OrderCard = memo(function OrderCard({
         {showQrModal && (
           <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 pb-[env(safe-area-inset-bottom)] pb-24">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowQrModal(false)} className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full max-h-[85vh] overflow-y-auto no-scrollbar custom-scrollbar">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mx-auto mb-4 sm:mb-6 shrink-0">
-                <QrCode size={24} className="sm:hidden" />
-                <QrCode size={32} className="hidden sm:block" />
-              </div>
-              <h3 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2 leading-tight uppercase tracking-tight">Seguimiento Digital</h3>
-              <p className="text-[0.6rem] sm:text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest mb-4 sm:mb-8">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#1a1622] p-5 sm:p-6 rounded-[32px] sm:rounded-[40px] border border-white/10 shadow-2xl text-center max-w-sm w-full max-h-[90vh] overflow-hidden flex flex-col items-center">
+              
+              <h3 className="text-base sm:text-lg font-black text-white mb-0.5 leading-tight uppercase tracking-tight">Seguimiento Digital</h3>
+              <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest mb-3">
                 {sequenceLabel ? sequenceLabel : `Orden #${order.id.toString().slice(-6).toUpperCase()}`}
               </p>
               
-              <div className="bg-white p-4 sm:p-6 rounded-[24px] sm:rounded-[32px] inline-block shadow-xl shadow-purple-500/10 mb-4 sm:mb-8 border border-white/10 shrink-0">
+              <div 
+                onClick={() => {
+                  // Capture the QR as an image for the zoom modal
+                  const svg = document.querySelector('.qr-container svg');
+                  if (svg) {
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const canvas = document.createElement("canvas");
+                    const svgSize = svg.getBoundingClientRect();
+                    canvas.width = svgSize.width * 4; // Higher resolution
+                    canvas.height = svgSize.height * 4;
+                    const ctx = canvas.getContext("2d");
+                    const img = new Image();
+                    img.onload = () => {
+                      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      (window as any).dispatchEvent(new CustomEvent('zoom-image', { 
+                        detail: { 
+                          photos: [canvas.toDataURL("image/png")], 
+                          index: 0 
+                        } 
+                      }));
+                    };
+                    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+                  }
+                }}
+                className="qr-container bg-white p-2.5 rounded-[20px] inline-block shadow-xl shadow-purple-500/10 mb-3 border border-white/10 cursor-zoom-in active:scale-95 transition-transform"
+              >
                 <QRCodeSVG 
                   value={`${window.location.origin}/status/${order.id}`} 
-                  size={160}
+                  size={135}
                   level="H"
                   includeMargin={false}
                 />
               </div>
 
-              <p className="text-[0.65rem] sm:text-[0.7rem] text-slate-400 leading-relaxed font-medium mb-6 sm:mb-8 max-w-[260px] mx-auto">
-                Escanee este código para que el cliente pueda seguir su <span className="text-purple-400 font-bold">Estado de Orden</span> en tiempo real sin loguearse.
+              <p className="text-[0.62rem] text-slate-400 leading-tight font-bold mb-4 px-4">
+                Escanee el código para seguimiento en tiempo real del <span className="text-purple-400">Estado de su orden.</span>
               </p>
 
-              <button 
-                onClick={() => setShowQrModal(false)}
-                className="w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-white/5 text-slate-300 hover:text-white font-black text-[0.65rem] sm:text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all border border-white/5"
-              >
-                Cerrar Panel
-              </button>
+              {/* Action Buttons Grid */}
+              <div className="grid grid-cols-2 gap-2.5 w-full">
+                <button 
+                  onClick={() => {
+                    const trackingLink = `${window.location.origin}/status/${order.id}`;
+                    const pdfLink = order.pdfUrl || 'Generando...';
+                    const signature = user?.full_name || user?.username || 'Grupo More';
+                    const message = `Hola *${order.customerName}*, te saluda el equipo de *Grupo More* ✨.\n\nAquí tienes la información de tu ${order.recordType === 'cotizacion' ? 'cotización' : 'orden'}:\n\n📲 *Seguimiento Digital:* ${trackingLink}\n📄 *Descargar PDF:* ${pdfLink}\n\nFirma: *${signature}*`;
+                    openWhatsApp(order.customerPhone, message);
+                  }}
+                  className="py-3 rounded-2xl bg-emerald-500 text-slate-900 font-black text-[0.65rem] uppercase tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95"
+                >
+                  <MessageCircle size={14} /> WHATSAPP
+                </button>
+
+                <button 
+                  onClick={() => setShowQrModal(false)}
+                  className="py-3 rounded-2xl bg-white/5 text-slate-300 hover:text-white font-black text-[0.65rem] uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5"
+                >
+                  Cerrar Panel
+                </button>
+              </div>
+
+              <p className="mt-3 text-[0.45rem] text-slate-500 uppercase font-black tracking-widest leading-none">
+                Se enviará link de seguimiento y descarga de PDF
+              </p>
             </motion.div>
           </div>
         )}

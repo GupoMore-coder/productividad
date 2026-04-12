@@ -4,6 +4,8 @@ import { FileText, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Clock, 
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useOrders } from '../context/OrderContext';
 import { isSameMonth, subMonths } from 'date-fns';
+import { exportAccountingToExcel } from '../utils/excelExport';
+import { Download } from 'lucide-react';
 
 const Accounting = () => {
     usePageTitle('Balance Contable');
@@ -69,7 +71,17 @@ const Accounting = () => {
                     <FileText size={24} />
                 </div>
                 <h1 className="text-3xl font-black text-white uppercase tracking-tight">Balance Contable</h1>
-                <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em] mt-2 italic shadow-sm">Grupo More · Gestión Financiera</p>
+                <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em] mt-2 italic shadow-sm">More Paper & Design · Gestión Financiera</p>
+                
+                <div className="mt-8 flex justify-center">
+                    <button 
+                        onClick={() => exportAccountingToExcel(orders)}
+                        className="group relative flex items-center gap-3 px-6 py-3 bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-400 hover:scale-105 transition-all active:scale-95"
+                    >
+                        <Download size={18} className="transition-transform group-hover:scale-110" />
+                        Exportar a Excel (.xlsx)
+                    </button>
+                </div>
             </header>
 
             <div className="max-w-4xl mx-auto space-y-6">

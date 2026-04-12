@@ -38,7 +38,7 @@ export default function TermsOfService() {
             </div>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-tight">Términos de Servicio</h1>
             <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-              Acuerdo Legal para el uso de la plataforma de gestión operativa de Grupo More.
+              Acuerdo Legal para el uso de la plataforma de gestión operativa de More Paper & Design.
             </p>
           </section>
 
@@ -50,7 +50,7 @@ export default function TermsOfService() {
             <div className="space-y-2">
               <p className="font-bold text-sm text-white">Aceptación de los Términos</p>
               <p className="text-sm text-slate-500 leading-relaxed italic">
-                "Al acceder o utilizar la plataforma de **Grupo More / More Paper 2024**, usted acepta cumplir y estar sujeto a los términos y condiciones aquí descritos. Si no está de acuerdo, por favor absténgase de utilizar el servicio."
+                "Al acceder o utilizar la plataforma de **More Paper & Design / More Paper 2024**, usted acepta cumplir y estar sujeto a los términos y condiciones aquí descritos. Si no está de acuerdo, por favor absténgase de utilizar el servicio."
               </p>
             </div>
           </div>
@@ -63,7 +63,7 @@ export default function TermsOfService() {
                 Descripción del Servicio
               </h2>
               <p className="text-slate-400 leading-relaxed font-medium">
-                La plataforma (en adelante, "El Sistema") es una herramienta de gestión para **More Paper 2024 / Grupo More** que facilita:
+                La plataforma (en adelante, "El Sistema") es una herramienta de gestión para **More Paper 2024 / More Paper & Design** que facilita:
               </p>
               <div className="grid gap-3 pt-2">
                 {[
@@ -91,7 +91,7 @@ export default function TermsOfService() {
               <ul className="space-y-3 list-none p-0">
                 {[
                   'Ceder el acceso a la cuenta a personal no autorizado.',
-                  'Utilizar el sistema para fines ajenos a la operación de Grupo More.',
+                  'Utilizar el sistema para fines ajenos a la operación de More Paper & Design.',
                   'Ingresar información falsa o malintencionada en las órdenes o tareas.',
                   'Intentar vulnerar la seguridad del sistema o realizar ingeniería inversa.'
                 ].map((item, i) => (
@@ -109,7 +109,7 @@ export default function TermsOfService() {
                 Propiedad Intelectual
               </h2>
               <p className="text-slate-400 leading-relaxed p-6 bg-white/5 rounded-[32px] border border-white/10">
-                Todo el software, diseño, logotipos, marcas y contenidos digitales presentes en El Sistema son propiedad exclusiva de **Grupo More / More Paper 2024** o sus licenciantes. Su reproducción o distribución sin autorización escrita está estrictamente prohibida.
+                Todo el software, diseño, logotipos, marcas y contenidos digitales presentes en El Sistema son propiedad exclusiva de **More Paper & Design / More Paper 2024** o sus licenciantes. Su reproducción o distribución sin autorización escrita está estrictamente prohibida.
               </p>
             </article>
 
@@ -119,7 +119,7 @@ export default function TermsOfService() {
                 Modificaciones
               </h2>
               <p className="text-slate-400 leading-relaxed italic border-l-2 border-blue-500 pl-4 py-2">
-                Grupo More se reserva el derecho de modificar estos términos en cualquier momento. El uso continuado de la plataforma tras dichas modificaciones constituirá la aceptación de los nuevos términos.
+                More Paper & Design se reserva el derecho de modificar estos términos en cualquier momento. El uso continuado de la plataforma tras dichas modificaciones constituirá la aceptación de los nuevos términos.
               </p>
             </article>
 
@@ -129,7 +129,7 @@ export default function TermsOfService() {
                 Contacto y Domicilio
               </h2>
               <p className="text-slate-400 leading-relaxed">
-                Para cualquier comunicación oficial, requerimiento técnico o legal, Grupo More dispone de los siguientes canales en su sede de **Barranquilla, Colombia**:
+                Para cualquier comunicación oficial, requerimiento técnico o legal, More Paper & Design dispone de los siguientes canales en su sede de **Barranquilla, Colombia**:
               </p>
               <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-sm text-slate-300">
                 <p>• Correo: morepaper2024@gmail.com</p>

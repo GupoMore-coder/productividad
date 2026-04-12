@@ -27,26 +27,86 @@ export function useSyncManager() {
 
     for (const action of queue) {
       try {
-        // v12: Use sanitized payload directly (already Snake Case from the context)
-        const { error } = await supabase
-          .from(action.endpoint)
-          .insert(action.payload);
+        let error: any = null;
+
+        // v14: Chained Sync Logic
+        // If an update targets a SYNC- ID, it means the record isn't in DB yet.
+        // We find the 'create' action for that record and merge the updates locally.
+        const targetId = action.payload?.id || action.payload?.partialUpdates?.id || (typeof action.payload === 'string' ? action.payload : null);
+        
+        if (targetId?.startsWith('SYNC-') && (action.type.includes('update') || action.type.includes('edit') || action.type.includes('patch'))) {
+           const createAction = queue.find(a => a.id === targetId && (a.type.includes('create') || a.type.includes('insert')));
+           if (createAction) {
+              const updates = action.payload.partialUpdates || action.payload.updates || action.payload;
+              const { id: _, ...cleanUpdates } = updates;
+              createAction.payload = { ...createAction.payload, ...cleanUpdates };
+              await SyncService.updateAction(createAction.id, { payload: createAction.payload });
+              await SyncService.dequeue(action.id);
+              console.log(`🔗 [Vanguard] Acción ${action.id} fusionada en cadena con creación ${createAction.id}.`);
+              continue; // Move to next action
+           }
+        }
+
+        // v14: Payload Sanitization
+        const sanitize = (data: any) => {
+          if (!data || typeof data !== 'object') return data;
+          // List of fields to EXCLUDE (frontend-only or forbidden)
+          const blackList = ['supplier_name', 'isOfflinePending', 'is_demo_local', 'requested_by_role'];
+          const clean: any = {};
+          for (const key in data) {
+            if (!blackList.includes(key)) clean[key] = data[key];
+          }
+          return clean;
+        };
+
+        if (action.type.includes('create') || action.type.includes('insert')) {
+          const cleanPayload = sanitize(action.payload);
+          const result = await supabase.from(action.endpoint).insert(cleanPayload);
+          error = result.error;
+        } 
+        else if (action.type.includes('update') || action.type.includes('patch') || action.type.includes('edit')) {
+          const id = targetId;
+          const data = action.payload.partialUpdates || action.payload.updates || action.payload;
+          
+          if (!id || id.startsWith('SYNC-')) {
+            // If it's still SYNC- but we didn't find the create action (maybe already processed?)
+            // We just skip it and let it retry or fail, but Supabase will 400 for sure if we send it.
+            if (id?.startsWith('SYNC-')) throw new Error(`UUID inválido (Temporal): ${id}. Esperando creación.`);
+            error = { message: 'ID de registro faltante' };
+          } else {
+            const { id: _, ...updateData } = sanitize(data);
+            const { error: updError } = await supabase.from(action.endpoint).update(updateData).eq('id', id);
+            error = updError;
+          }
+        }
+        else if (action.type.includes('delete') || action.type.includes('remove')) {
+          const id = targetId;
+          if (id && !id.startsWith('SYNC-')) {
+            const { error: delError } = await supabase.from(action.endpoint).delete().eq('id', id);
+            error = delError;
+          } else {
+            await SyncService.dequeue(action.id);
+            continue;
+          }
+        }
 
         if (!error) {
           await SyncService.dequeue(action.id);
-          console.log(`✅ [Vanguard] Acción ${action.id} sincronizada con éxito.`);
+          console.log(`✅ [Vanguard] Acción ${action.id} (${action.type}) sincronizada.`);
         } else {
-          // If the error is a duplicate or a schema constraint, we might want to dequeue it
-          // after some retries to avoid blocking the whole queue forever.
-          if (action.retries >= 5) {
-             console.error(`❌ [Vanguard] Acción ${action.id} falló permanentemente después de ${action.retries} intentos. Eliminando de la cola para evitar bloqueo.`, error);
+          // Improved error logging for better diagnostics
+          console.error(`❌ [Vanguard] Error en ${action.id} (${action.type}) en tabla '${action.endpoint}':`, error.message || error);
+          console.error(`📦 Payload fallido:`, action.payload);
+          
+          if (action.retries >= 5 || error.code === '23505' || error.code === '42703' || error.message?.includes('column')) { 
+             console.error(`🛑 [Vanguard] Abortando acción permanentemente por error de esquema o duplicado.`, error);
              await SyncService.dequeue(action.id);
           } else {
              throw error;
           }
         }
-      } catch (err) {
-        console.warn(`⚠️ [Vanguard] Error sincronizando ${action.id}:`, err);
+      } catch (err: any) {
+        console.warn(`⚠️ [Vanguard] Re-intentando ${action.id}: ${err.message || 'Error desconocido'}`);
         await SyncService.updateAction(action.id, { retries: (action.retries || 0) + 1 });
       }
     }
@@ -65,11 +125,15 @@ export function useSyncManager() {
   useEffect(() => {
     processQueue();
     window.addEventListener('online', processQueue);
-    return () => window.removeEventListener('online', processQueue);
+    window.addEventListener('focus', processQueue);
+    return () => {
+      window.removeEventListener('online', processQueue);
+      window.removeEventListener('focus', processQueue);
+    };
   }, []);
 
   useEffect(() => {
-    const t = setInterval(processQueue, 30000); // More frequent check for v12
+    const t = setInterval(processQueue, 15000); // v13: Double frequency for faster recovery
     return () => clearInterval(t);
   }, []);
 

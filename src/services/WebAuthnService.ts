@@ -20,7 +20,7 @@ export class WebAuthnService {
     // 1. Prepare options for a Resident Key (Passkey)
     const options: any = {
       challenge: btoa(Math.random().toString(36) + Date.now()),
-      rp: { name: 'Antigravity | Grupo More', id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname },
+      rp: { name: 'Antigravity | More Paper & Design', id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname },
       user: {
         id: btoa(user.id), // Vital: The userHandle
         name: user.username || user.email,

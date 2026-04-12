@@ -50,9 +50,28 @@ export default function RealtimeNotificationListener() {
       )
       .subscribe();
 
+    // Listen for SYSTEM ALERTS (Expulsions, etc)
+    const alertsChannel = supabase
+      .channel('public:realtime_notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'realtime_notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          handleNewEvent({
+            type: payload.new.type || 'alert',
+            title: payload.new.title || 'Notificación del Sistema',
+            body: payload.new.message,
+            id: payload.new.id,
+            navigateUrl: payload.new.type === 'group_expulsion' ? '/group' : '/'
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(alertsChannel);
     };
   }, [user?.id]);
 

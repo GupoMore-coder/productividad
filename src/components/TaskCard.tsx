@@ -1,15 +1,21 @@
 import { useState, memo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar as CalendarIcon, 
   Bell, 
+  BellOff,
   Users, 
   CheckCircle2, 
   Circle, 
-  Clock
+  Clock,
+  Volume2,
+  VolumeX,
+  Share2,
+  RefreshCw
 } from 'lucide-react';
 import CalendarExportMenu from './CalendarExportMenu';
 import { triggerHaptic } from '../utils/haptics';
+import { subHours, format } from 'date-fns';
 
 export interface Task {
   id: string;
@@ -27,6 +33,12 @@ export interface Task {
   failureReason?: string;
   imageUrl?: string;
   isOfflinePending?: boolean;
+  is_muted?: boolean;
+  muted_alarms?: number[];
+  isBirthday?: boolean;
+  type?: 'task' | 'reminder';
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  recurrenceInterval?: number;
 }
 
 interface TaskCardProps {
@@ -34,6 +46,7 @@ interface TaskCardProps {
   onToggleComplete?: (id: string, val: boolean) => void;
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
+  onUpdate?: (id: string, updates: Partial<Task>) => void;
   isReadOnly?: boolean;
   onSelect?: (task: Task) => void;
 }
@@ -43,10 +56,12 @@ const TaskCard = memo(function TaskCard({
   onToggleComplete,
   onAccept,
   onDecline,
+  onUpdate,
   isReadOnly,
   onSelect
 }: TaskCardProps) {
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showOffsets, setShowOffsets] = useState(false);
 
   const getPriorityColors = () => {
     switch (task.priority) {
@@ -57,29 +72,96 @@ const TaskCard = memo(function TaskCard({
     }
   };
 
-  const colors = getPriorityColors();
+  const getBirthdayColors = () => ({
+    border: 'border-amber-400/50',
+    text: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    accent: 'bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600'
+  });
+
+  const getAlertOffsets = () => {
+    try {
+      // Robust parsing of time (handle HH:mm:ss if present)
+      const cleanTime = task.time.split(':').slice(0, 2).join(':');
+      const taskTime = new Date(`${task.date}T${cleanTime}:00`);
+      
+      if (isNaN(taskTime.getTime())) return [];
+
+      const offsets = {
+        alta:  [72, 48, 24, 12, 6, 3],
+        media: [48, 24, 12],
+        baja:  [12, 6]
+      }[task.priority] || [];
+
+      return offsets.map(h => {
+        const d = subHours(taskTime, h);
+        let label = '';
+        if (h >= 24) label = `${Math.round(h/24)}d antes (${h}h)`;
+        else if (h >= 1) label = `${h}h antes`;
+        else label = `${Math.round(h * 60)} min antes`;
+
+        return {
+          label,
+          time: format(d, 'HH:mm'),
+          date: format(d, 'd MMM'),
+          full: format(d, 'd MMM, HH:mm')
+        };
+      });
+    } catch (e) {
+      console.error("Error calculating alerts:", e);
+      return [];
+    }
+  };
+
+  const bdayColors = getBirthdayColors();
+  const reminderColors = { bg: 'bg-amber-500/5', border: 'border-amber-500/20', text: 'text-amber-500', accent: 'bg-amber-500' };
+  const isReminder = task.type === 'reminder';
+  const colors = task.isBirthday ? bdayColors : getPriorityColors();
   const isCompleted = task.completed || task.status === 'completed';
   const isPending   = task.status === 'pending_acceptance';
   const isAccepted  = task.status === 'accepted' || (!task.status && !isPending);
   const showActions = !isPending && !isReadOnly && isAccepted && !isCompleted;
+  const isMuted = !!task.is_muted;
+  const alerts = getAlertOffsets();
+
+  const handleToggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    onUpdate?.(task.id, { is_muted: !isMuted, muted_alarms: !isMuted ? [] : task.muted_alarms });
+  };
+
+  const toggleAlarmMute = (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    const currentMuted = task.muted_alarms || [];
+    const newMuted = currentMuted.includes(idx) 
+      ? currentMuted.filter(i => i !== idx)
+      : [...currentMuted, idx];
+    onUpdate?.(task.id, { muted_alarms: newMuted });
+  };
 
   return (
     <>
       <motion.div
         layout
         initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: isCompleted && !isPending ? 0.5 : 1, y: 0 }}
-        onClick={() => onSelect?.(task)}
-        className={`group relative overflow-hidden rounded-2xl bg-slate-900/40 border border-white/10 backdrop-blur-md mb-3 transition-all duration-300 hover:border-purple-500/30 shadow-lg cursor-pointer ${isPending ? 'ring-1 ring-amber-500/30' : ''}`}
+        animate={{ opacity: isCompleted && !isPending && !task.isBirthday ? 0.5 : 1, y: 0 }}
+        onClick={() => !task.isBirthday && onSelect?.(task)}
+        className={`group relative overflow-hidden rounded-2xl border backdrop-blur-md mb-3 transition-all duration-300 shadow-lg cursor-pointer ${
+          task.isBirthday 
+            ? 'bg-amber-500/5 border-amber-500/30 hover:shadow-amber-500/10' 
+            : 'bg-slate-900/40 border-white/10 hover:border-purple-500/30'
+        } ${isPending ? 'ring-1 ring-amber-500/30' : ''}`}
       >
         {/* Priority Side Bar */}
-        <div className={`absolute left-0 top-0 bottom-0 w-1 ${colors.bg.replace('bg-', 'bg-opacity-100 bg-')}`} />
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${task.isBirthday ? bdayColors.accent : isReminder ? reminderColors.accent : colors.bg.replace('bg-', 'bg-opacity-100 bg-')}`} />
 
         <div className="p-4 flex gap-4">
           {/* Checkbox Icon */}
-          {!isPending && !isReadOnly && (
+          {!isPending && !isReadOnly && !task.isBirthday && (
             <button 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 triggerHaptic(isCompleted ? 'light' : 'success');
                 onToggleComplete?.(task.id, !isCompleted);
               }}
@@ -93,15 +175,26 @@ const TaskCard = memo(function TaskCard({
             </button>
           )}
 
+          {task.isBirthday && (
+            <div className="mt-1 shrink-0 text-amber-500 animate-bounce">
+              🎂
+            </div>
+          )}
+
           <div className="flex-1 min-w-0">
             {/* Title & Shared Icon */}
             <div className="flex items-start justify-between gap-2">
               <h4 className={`text-sm font-bold transition-all ${isCompleted && !isPending ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
                 {task.title}
               </h4>
-              {task.isShared && (
-                <Users size={14} className="text-purple-400 shrink-0 mt-0.5" />
-              )}
+              <div className="flex items-center gap-2">
+                {task.isShared && (
+                  <Users size={14} className="text-purple-400 shrink-0 mt-0.5" />
+                )}
+                {isMuted && (
+                  <BellOff size={14} className="text-slate-500 shrink-0" />
+                )}
+              </div>
             </div>
 
             {task.description && (
@@ -117,7 +210,9 @@ const TaskCard = memo(function TaskCard({
                 className="mt-3 w-20 h-20 rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group/img"
                 onClick={(e) => {
                   e.stopPropagation();
-                  (window as any).dispatchEvent(new CustomEvent('zoom-image', { detail: task.imageUrl }));
+                  (window as any).dispatchEvent(new CustomEvent('zoom-image', { 
+                    detail: { photos: [task.imageUrl], index: 0 } 
+                  }));
                 }}
               >
                 <img src={task.imageUrl} alt="evidencia" className="w-full h-full object-cover group-hover/img:opacity-80 transition-opacity" />
@@ -140,7 +235,7 @@ const TaskCard = memo(function TaskCard({
               )}
               {task.isOfflinePending && (
                 <div className="text-[0.55rem] font-black text-amber-500 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 animate-pulse ml-auto">
-                  Sincronizando...
+                   Sincronizando...
                 </div>
               )}
             </div>
@@ -148,19 +243,75 @@ const TaskCard = memo(function TaskCard({
         </div>
 
         {/* Schedule Action Row */}
-        {showActions && (
+        {showActions && !task.isBirthday && (
           <div className="px-4 py-2 bg-white/[0.02] border-t border-white/5 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-medium">
-              <Bell size={12} className={colors.text} />
-              <span>{task.priority === 'alta' ? '6' : task.priority === 'media' ? '3' : '2'} alertas activas</span>
-            </div>
-            <button
-              onClick={() => setShowCalendar(true)}
-              className="flex items-center gap-1.5 text-[0.68rem] font-bold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-xl border border-purple-500/20 transition-all active:scale-95"
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerHaptic('light');
+                setShowOffsets(!showOffsets);
+              }}
+              className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-medium hover:text-slate-300 transition-colors"
             >
-              <CalendarIcon size={12} />
-              Agendar
+              {isMuted ? <BellOff size={12} className="text-slate-500" /> : <Bell size={12} className={colors.text} />}
+              <span>{alerts.length} alertas {isMuted ? 'silenciadas' : 'activas'}</span>
             </button>
+            <div className="flex gap-2">
+              {isReminder && (
+                <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic('light');
+                    onSelect?.(task); // Opens edit/share modal
+                  }}
+                  className="p-1.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/10 hover:bg-purple-500/20 transition-all active:scale-95"
+                  title="Compartir Recordatorio"
+                >
+                  <Share2 size={12} />
+                </button>
+                {task.recurrence && task.recurrence !== 'none' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerHaptic('medium');
+                      // Logic to extend series would happen here or in modal
+                      onSelect?.(task); 
+                    }}
+                    className="p-1.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10 hover:bg-amber-500/20 transition-all active:scale-95"
+                    title="Prorrogar Serie"
+                  >
+                    <RefreshCw size={12} />
+                  </button>
+                )}
+                </>
+              )}
+              {task.isShared && (
+               <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  triggerHaptic('light');
+                  onSelect?.(task); 
+                }}
+                className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10 hover:bg-emerald-500/20 transition-all active:scale-95"
+                title="Recordatorio WhatsApp"
+              >
+                <div className="flex items-center gap-1.5 text-[0.6rem] font-black uppercase">
+                   WA
+                </div>
+              </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCalendar(true);
+                }}
+                className="flex items-center gap-1.5 text-[0.68rem] font-bold text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-xl border border-purple-500/20 transition-all active:scale-95"
+              >
+                <CalendarIcon size={12} />
+                Agendar
+              </button>
+            </div>
           </div>
         )}
 
@@ -168,7 +319,8 @@ const TaskCard = memo(function TaskCard({
         {isPending && !isReadOnly && (
           <div className="px-4 py-3 bg-white/[0.02] border-t border-white/5 flex gap-2">
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 triggerHaptic('success');
                 onAccept?.(task.id);
               }}
@@ -177,7 +329,8 @@ const TaskCard = memo(function TaskCard({
               Aceptar
             </button>
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 triggerHaptic('light');
                 onDecline?.(task.id);
               }}
@@ -187,6 +340,48 @@ const TaskCard = memo(function TaskCard({
             </button>
           </div>
         )}
+
+        {/* Offsets Popover */}
+        <AnimatePresence>
+          {showOffsets && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden bg-black/20 border-t border-white/5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black">Cronograma de Alertas</span>
+                  <button onClick={handleToggleMute} className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all ${isMuted ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
+                    {isMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                    <span className="text-[0.6rem] font-bold uppercase">{isMuted ? 'Silenciado' : 'Sonoro'}</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {alerts.map((offset, i) => {
+                    const isAlarmMuted = isMuted || (task.muted_alarms || []).includes(i);
+                    return (
+                      <div key={i} className={`flex items-center justify-between bg-white/5 border border-white/5 rounded-2xl p-3 px-4 transition-all ${isAlarmMuted ? 'opacity-50 grayscale' : ''}`}>
+                        <div className="flex flex-col">
+                           <div className="text-[0.5rem] text-slate-500 font-bold uppercase tracking-widest">{offset.label}</div>
+                           <div className="text-[0.8rem] text-white font-black">{offset.full}</div>
+                        </div>
+                        <button 
+                          onClick={(e) => toggleAlarmMute(i, e)}
+                          className={`p-2 rounded-xl border transition-all ${isAlarmMuted ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}
+                        >
+                          {isAlarmMuted ? <BellOff size={14} /> : <Bell size={14} />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {showCalendar && (

@@ -10,6 +10,7 @@ export const OrderSchema = z.object({
     if (val.startsWith('+57')) return colombianPhoneRegex.test(val);
     return true; 
   }, { message: 'Para Colombia (+57), el número debe comenzar por 3 y tener 10 dígitos.' }),
+  customerEmail: z.string().email('Email inválido').or(z.literal('')).optional(),
   services: z.array(z.string()),
   quoteItems: z.array(z.object({
     item: z.string().min(1, 'Agrega una descripción al ítem'),
@@ -24,6 +25,7 @@ export const OrderSchema = z.object({
   depositAmount: z.number().min(0),
   paymentStatus: z.enum(['pendiente', 'abono', 'pagado']),
   photos: z.array(z.string()),
+  isTest: z.boolean().default(false),
 });
 
 export const TaskSchema = z.object({
@@ -32,6 +34,9 @@ export const TaskSchema = z.object({
   date: z.string().min(1, 'La fecha es obligatoria'),
   time: z.string().min(1, 'La hora es obligatoria'),
   priority: z.enum(['alta', 'media', 'baja']),
+  type: z.enum(['task', 'reminder']).default('task'),
+  recurrence: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']).default('none'),
+  recurrenceInterval: z.number().optional(),
   group_ids: z.array(z.string()),
   isShared: z.boolean(),
   imageUrl: z.string().nullable(),

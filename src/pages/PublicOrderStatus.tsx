@@ -317,7 +317,7 @@ export default function PublicOrderStatus() {
         {/* Footer */}
         <footer className="pt-10 pb-20 text-center space-y-4">
           <div className="text-[0.65rem] font-black uppercase tracking-[0.3em] text-[#d4bc8f] opacity-50">
-            Grupo More — Personalizar es identidad
+            More Paper & Design — Personalizar es identidad
           </div>
           <div className="text-[0.6rem] text-slate-600 font-bold uppercase tracking-widest space-y-1">
             <p>© {new Date().getFullYear()} Barranquilla, Colombia</p>

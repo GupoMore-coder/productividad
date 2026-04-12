@@ -4,13 +4,15 @@ import { useAuth } from './AuthContext';
 
 interface PresenceContextType {
   onlineUsers: string[];
+  presenceState: Record<string, any>;
 }
 
-const PresenceContext = createContext<PresenceContextType>({ onlineUsers: [] });
+const PresenceContext = createContext<PresenceContextType>({ onlineUsers: [], presenceState: {} });
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [presenceState, setPresenceState] = useState<Record<string, any>>({});
 
   // Función para actualizar "Última vez visto" en la base de datos
   const updateLastSeen = async () => {
@@ -25,6 +27,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || !isSupabaseConfigured) {
       setOnlineUsers([]);
+      setPresenceState({});
       return;
     }
 
@@ -38,58 +41,51 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
+      setPresenceState(state);
       const onlineIds = Object.keys(state);
       setOnlineUsers(onlineIds);
     });
 
-    channel.on('presence', { event: 'join' }, ({ key }) => {
+    channel.on('presence', { event: 'join' }, ({ key, currentPresences }) => {
       setOnlineUsers((prev) => Array.from(new Set([...prev, key])));
     });
 
-    channel.on('presence', { event: 'leave' }, ({ key }) => {
+    channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
       setOnlineUsers((prev) => prev.filter((id) => id !== key));
     });
 
+    const trackStatus = async () => {
+      const status = document.visibilityState === 'visible' ? 'active' : 'paused';
+      await channel.track({ 
+        online_at: new Date().toISOString(),
+        status
+      });
+      if (status === 'active') updateLastSeen();
+    };
+
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        // Enviar nuestra presencia a la red
-        await channel.track({ online_at: new Date().toISOString() });
-        // También actualizamos el last_seen en base de datos al entrar
-        await updateLastSeen();
+        await trackStatus();
       }
     });
 
-    // Registrar "last_seen" cuando cerramos la app
-    const handleBeforeUnload = () => {
-      // Intentar actualizar de forma sincrona mediante beacon (no viable en todos los browsers) o update
-      // supabase.from ya no se garantiza acá, pero se despacha.
-      updateLastSeen();
-    };
-    
     // En PWA moviles, es mejor escuchar visibilitychange
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        updateLastSeen();
-      } else if (document.visibilityState === 'visible') {
-        updateLastSeen();
-      }
+      trackStatus();
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeunload', updateLastSeen);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('beforeunload', updateLastSeen);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      // Intentar marcar salida normal
-      updateLastSeen();
       supabase.removeChannel(channel);
     };
   }, [user]);
 
   return (
-    <PresenceContext.Provider value={{ onlineUsers }}>
+    <PresenceContext.Provider value={{ onlineUsers, presenceState }}>
       {children}
     </PresenceContext.Provider>
   );

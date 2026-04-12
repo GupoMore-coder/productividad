@@ -1,17 +1,19 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStorage } from '@/lib/storageService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, subHours, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { triggerHaptic } from '@/utils/haptics';
 import { derivePaymentStatus, canCompleteOrder, TestUser } from '@/utils/businessRules';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { SyncService } from '@/services/SyncService';
 
 export interface ServiceOrder {
   id: string;
   customerName: string;
+  customerCedula?: string;
   customerPhone: string;
   services: string[];
   notes: string;
@@ -21,7 +23,7 @@ export interface ServiceOrder {
   createdBy: string;
   createdByRole?: string;
   completedAt?: string;
-  status: 'recibida' | 'en_proceso' | 'pendiente_entrega' | 'completada' | 'cancelada' | 'vencida';
+  status: 'recibida' | 'en_proceso' | 'pendiente_entrega' | 'completada' | 'cancelada' | 'vencida' | 'incumplida';
   paymentStatus: 'pendiente' | 'abono' | 'pagado';
   totalCost: number;
   depositAmount: number;
@@ -30,12 +32,15 @@ export interface ServiceOrder {
   photos: string[];
   lastStatusChangeBy?: string;
   is_demo?: boolean;
+  isTest?: boolean;
+  pdfUrl?: string;
+  pdfExpiresAt?: string;
   history: OrderHistoryEntry[];
   recordType?: 'orden' | 'cotizacion';
-  customerCedula?: string;
   quoteItems?: { item: string; unitPrice: number; quantity: number; discountPercent?: number; total: number; }[];
   quoteExpiresAt?: string;
   quoteExtendedDays?: number;
+  customerEmail?: string;
 }
 
 export interface OrderHistoryEntry {
@@ -70,16 +75,17 @@ interface OrderContextType {
   teamMembers: string[];
   loading: boolean;
   getOrderSequenceLabel: (id: string) => string;
+  getQuoteSequenceLabel: (id: string) => string;
   createOrder: (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'createdBy' | 'status' | 'pendingBalance' | 'history'>) => Promise<ServiceOrder>;
   updateOrder: (id: string, updates: Partial<ServiceOrder> & { newObservation?: string }) => Promise<ServiceOrder>;
   deleteOrderMaster: (id: string) => Promise<void>;
   registerDeposit: (id: string, amount: number) => Promise<void>;
   reactivateOrder: (id: string) => Promise<void>;
-  promoteDemoOrder: (id: string) => Promise<void>;
   downloadOrderPdf: (orderId: string) => Promise<void>;
   convertQuoteToOrder: (id: string) => Promise<void>;
   extendQuote: (id: string) => Promise<void>;
   archiveExpiredQuote: (id: string) => Promise<void>;
+  promoteDemoOrder: (id: string) => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextType>({} as OrderContextType);
@@ -88,7 +94,9 @@ const OrderContext = createContext<OrderContextType>({} as OrderContextType);
 const mapOrderFromDB = (o: any): ServiceOrder => ({
   id: o.id,
   customerName: o.customer_name,
+  customerCedula: o.customer_cedula,
   customerPhone: o.customer_phone,
+  customerEmail: o.customer_email,
   services: o.services || [],
   notes: o.notes || '',
   responsible: o.responsible || 'Sistema',
@@ -106,8 +114,10 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
   photos: o.photos || [],
   lastStatusChangeBy: o.last_status_change_by,
   is_demo: o.is_demo || false,
+  isTest: o.is_demo || false,
+  pdfUrl: o.pdf_url,
+  pdfExpiresAt: o.pdf_expires_at,
   recordType: o.record_type || 'orden',
-  customerCedula: o.customer_cedula || '',
   quoteItems: o.quote_items || [],
   quoteExpiresAt: o.quote_expires_at || null,
   quoteExtendedDays: Number(o.quote_extended_days || 0),
@@ -124,6 +134,7 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
 const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   const result: any = {};
   if (o.customerName !== undefined) result.customer_name = o.customerName;
+  if (o.customerCedula !== undefined) result.customer_cedula = o.customerCedula;
   if (o.customerPhone !== undefined) result.customer_phone = o.customerPhone;
   if (o.services !== undefined) result.services = o.services;
   if (o.notes !== undefined) result.notes = o.notes;
@@ -139,12 +150,14 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   if (o.lastStatusChangeBy !== undefined) result.last_status_change_by = o.lastStatusChangeBy;
   if (o.completedAt !== undefined) result.completed_at = o.completedAt;
   if (o.createdByRole !== undefined) result.created_by_role = o.createdByRole;
-  if (o.is_demo !== undefined) result.is_demo = o.is_demo;
+  if (o.quoteExtendedDays !== undefined) result.quote_extended_days = o.quoteExtendedDays;
+  if (o.isTest !== undefined) result.is_demo = o.isTest;
+  if (o.createdAt !== undefined) result.created_at = o.createdAt;
+  if (o.createdBy !== undefined) result.created_by = o.createdBy;
   if (o.recordType !== undefined) result.record_type = o.recordType;
-  if (o.customerCedula !== undefined) result.customer_cedula = o.customerCedula;
   if (o.quoteItems !== undefined) result.quote_items = o.quoteItems;
   if (o.quoteExpiresAt !== undefined) result.quote_expires_at = o.quoteExpiresAt;
-  if (o.quoteExtendedDays !== undefined) result.quote_extended_days = o.quoteExtendedDays;
+  if (o.customerEmail !== undefined) result.customer_email = o.customerEmail;
   return result;
 };
 
@@ -153,6 +166,19 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const queryClient = useQueryClient();
   const [serviceTypes, setServiceTypes] = useState<string[]>([]);
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
+  const [offlineOrders, setOfflineOrders] = useState<ServiceOrder[]>([]);
+  const [pendingActions, setPendingActions] = useState<any[]>([]);
+
+  // Helper to strip emojis and non-standard chars that break jsPDF Helvetica
+  const cleanPdfText = (text: string = '') => {
+    // Keep standard ALPHANUMERIC and common Spanish chars
+    // Replace emojis and symbols with standard text equivalents or just remove them
+    return text
+      .replace(/📅|⏰|🚨|✨|🔄|✅|📋|🚩/g, '') // Common emojis used in logs
+      .replace(/[^\x00-\x7F\sÁÉÍÓÚáéíóúÑñÜü]/g, '') // Strip other non-standard chars
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
   // 1. Fetch Orders with React Query
   const { data: orders = [], isLoading: loading } = useQuery({
@@ -168,7 +194,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data.map(mapOrderFromDB);
+      // v19: Filtrar por is_demo (columna real) y buffer de 24h
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      return data.filter(o => 
+        !o.is_demo || (o.created_at >= cutoff)
+      ).map(mapOrderFromDB);
     },
     enabled: !!user,
   });
@@ -185,6 +215,73 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     },
     enabled: !!user,
   });
+
+  // 1.2 Poll for Offline Pending Actions (Persistent Visibility & Resilience)
+  useEffect(() => {
+    const fetchOffline = async () => {
+      if (!user) return;
+      try {
+        const queue = await SyncService.getQueue();
+        const orderActions = queue.filter(a => a.endpoint === 'service_orders');
+        setPendingActions(orderActions);
+
+        const creations = orderActions
+          .filter(a => a.type === 'create_order')
+          .map(a => {
+             const payload = mapOrderFromDB(a.payload);
+             return {
+               ...payload,
+               id: a.id, 
+               isOfflinePending: true,
+               createdAt: payload.createdAt || new Date().toISOString(),
+               history: []
+             } as ServiceOrder;
+          });
+        setOfflineOrders(creations);
+      } catch (err) {
+        console.error('Error fetching offline actions:', err);
+      }
+    };
+
+    fetchOffline();
+    const t = setInterval(fetchOffline, 4000); 
+    return () => clearInterval(t);
+  }, [user]);
+
+  // Merge server and offline data with Vanguard Overlay System (v21)
+  const allOrders = useMemo(() => {
+    // 1. Process deletions and updates (Patches)
+    const updates = pendingActions.filter(a => a.type === 'update_order');
+    const deletions = new Set(pendingActions.filter(a => a.type === 'delete_order').map(a => a.payload.id));
+
+    // 2. Apply patches to server orders
+    const patchedServerOrders = orders
+      .filter(o => !deletions.has(o.id)) // Real-time deletion resilience
+      .map(o => {
+        const action = updates.find(a => a.payload.id === o.id);
+        if (action) {
+           const patches = mapOrderFromDB(action.payload);
+           return { ...o, ...patches, isOfflinePending: true };
+        }
+        return o;
+      });
+
+    // 3. Process new creations (avoid duplicates)
+    const serverCheckSet = new Set(patchedServerOrders.map(o => `${o.customerName}|${o.customerPhone}|${o.totalCost}`));
+    
+    const pendingCreations = offlineOrders.filter(off => {
+      // 1. Check direct ID match (for updates that might have been processed as creations - safety)
+      if (patchedServerOrders.some(o => o.id === off.id)) return false;
+      
+      // 2. Check business match (highly likely for creations during sync lag)
+      const businessKey = `${off.customerName}|${off.customerPhone}|${off.totalCost}`;
+      if (serverCheckSet.has(businessKey)) return false;
+      
+      return true;
+    });
+
+    return [...pendingCreations, ...patchedServerOrders];
+  }, [pendingActions, offlineOrders, orders]);
 
   // 3. Configuration Sync
   useEffect(() => {
@@ -218,13 +315,31 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [isSupabaseConfigured, queryClient]);
 
   // 1.1 Virtual Sequencing logic
+  // 1.1 Virtual Sequencing logic
   const getOrderSequenceLabel = (id: string): string => {
-    if (!orders || orders.length === 0) return `ORDEN 0000`;
-    // Sort orders by creation date (older first) to determine sequence
-    const sorted = [...orders].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    const index = sorted.findIndex(o => o.id === id);
-    if (index === -1) return `ORDEN 0000`;
+    const order = allOrders.find(o => o.id === id);
+    if (order?.isTest) return `PRUEBA-${id.slice(0, 4).toUpperCase()}`;
+
+    const ordersHistory = allOrders.filter(o => 
+      (o.recordType === 'orden' || !o.recordType) && !o.isTest && !o.isOfflinePending
+    ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    const index = ordersHistory.findIndex(o => o.id === id);
+    if (index === -1) return `ORDEN ${(ordersHistory.length + 1).toString().padStart(4, '0')}`;
     return `ORDEN ${(index + 1).toString().padStart(4, '0')}`;
+  };
+
+  const getQuoteSequenceLabel = (id: string): string => {
+    if (!allOrders) return `COT 0000`;
+    const order = allOrders.find(o => o.id === id);
+    if (order?.isTest) return `PRUEBA-${id.slice(0, 4).toUpperCase()}`;
+
+    const quotesHistory = allOrders.filter(o => o.recordType === 'cotizacion' && !o.isTest && !o.isOfflinePending)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    const index = quotesHistory.findIndex(o => o.id === id);
+    if (index === -1) return `COT ${(quotesHistory.length + 1).toString().padStart(4, '0')}`;
+    return `COT ${(index + 1).toString().padStart(4, '0')}`;
   };
 
   // 4. Mutations
@@ -245,17 +360,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         photos: orderData.photos || []
       };
 
-      const isDemo = user.isColaborador || user.role === 'Colaborador';
-      const demoId = `DEMO-${Math.floor(1000 + Math.random() * 9000)}-${user.username.toUpperCase()}`;
-
       if (isSupabaseConfigured) {
         const dbOrder = { 
           ...mapOrderToDB(newOrderPayload), 
-          id: isDemo ? demoId : undefined, // Let DB generate UUID for real orders, or use manual ID if specified
           created_by: user.id,
           created_at: newOrderPayload.createdAt,
-          created_by_role: newOrderPayload.createdByRole,
-          is_demo: isDemo
+          created_by_role: newOrderPayload.createdByRole
         };
 
         const { data: created, error: orderError } = await supabase
@@ -281,6 +391,70 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           user_name: uName,
           message: `✨ Se ha creado la orden No. ${orderId} por ${uName}`
         });
+
+        // 3. Trigger MASSIVE CRITICAL NOTIFICATION (Only if NOT test)
+        if (!orderData.isTest) {
+          const isQuote = dbOrder.record_type === 'cotizacion';
+          const typeLabel = isQuote ? 'una Cotización' : 'una Orden de Servicio';
+          await supabase.from('global_alerts').insert({
+            type: 'critical',
+            order_id: orderId,
+            user_id: user.id,
+            user_name: uName,
+            message: `🚨 ¡ALERTA CRÍTICA! Se ha creado ${typeLabel} #${orderId} por el usuario ${uName}. Podrás verificar toda la información en la sección correspondiente.`
+          });
+        }
+
+        // v16: PDF Cloud Storage Logic (Static Original Capture)
+        setTimeout(async () => {
+           try {
+             const pdfUrl = await generateAndUploadPdf(orderId);
+             if (pdfUrl) {
+                const expiresAt = new Date();
+                expiresAt.setMonth(expiresAt.getMonth() + 1);
+                await supabase.from('service_orders').update({ 
+                  pdf_url: pdfUrl, 
+                  pdf_expires_at: expiresAt.toISOString() 
+                }).eq('id', orderId);
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+             }
+           } catch (err) {
+             console.error('Error in static PDF upload:', err);
+           }
+        }, 1500);
+
+          // 4. Schedule MILESTONES (24h, 12h, 6h) if it's an Order and NOT test
+          if (!isQuote && dbOrder.delivery_date && !orderData.isTest) {
+            const delivery = parseISO(dbOrder.delivery_date);
+            const milestones = [
+              { h: 24, label: '24 HORAS' },
+              { h: 12, label: '12 HORAS' },
+              { h: 6, label: '6 HORAS' }
+            ];
+  
+            for (const m of milestones) {
+              const fireAt = subHours(delivery, m.h);
+              if (fireAt > new Date()) {
+                await supabase.from('global_broadcast_queue').insert({
+                  fire_at: fireAt.toISOString(),
+                  title: `⏰ Recordatorio de Entrega - ${m.label}`,
+                  message: `La Orden #${orderId} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
+                  order_id: orderId,
+                  type: 'milestone'
+                });
+              }
+            }
+  
+            // 4.1 ADD BREACH CHECK AT EXACT DELIVERY TIME (0h)
+            await supabase.from('global_broadcast_queue').insert({
+              fire_at: delivery.toISOString(),
+              title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
+              message: `Verificando estado final de Orden #${orderId}`,
+              order_id: orderId,
+              type: 'breach_check'
+            });
+          }
+
         
         return mapOrderFromDB({ ...created, order_history: [] });
       } else {
@@ -292,23 +466,43 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     {
       mutationKey: ['orders'],
       type: 'create_order',
-      table: 'service_orders'
+      table: 'service_orders',
+      transform: (variables) => {
+        const computedBalance = variables.totalCost - (variables.depositAmount || 0);
+        const payload = {
+          ...variables,
+          createdAt: new Date().toISOString(),
+          createdBy: user?.id,
+          createdByRole: user?.role || 'Colaborador',
+          status: 'recibida',
+          paymentStatus: derivePaymentStatus(variables.totalCost, variables.depositAmount || 0),
+          pendingBalance: Math.max(0, computedBalance),
+        };
+        return mapOrderToDB(payload);
+      }
     }
   );
 
-  const updateOrderMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string, updates: any }) => {
+  const updateOrderMutation = useOfflineMutation(
+    async ({ id, updates }: { id: string, updates: any }) => {
       if (!user) throw new Error('Usuario no autenticado');
       const existingOrder = orders.find(o => o.id === id);
       if (!existingOrder) throw new Error('Orden no encontrada');
 
       const uName = user?.full_name || user?.username || user?.email || 'Sistema';
       let computedBalance = existingOrder.pendingBalance;
+      
+      // FIX (v21): Preserve additional deposits when updating totalCost or initial depositAmount
       if (updates.totalCost !== undefined || updates.depositAmount !== undefined) {
         const tc = updates.totalCost ?? existingOrder.totalCost;
         const da = updates.depositAmount ?? existingOrder.depositAmount;
-        computedBalance = Math.max(0, tc - da);
-        updates.paymentStatus = derivePaymentStatus(tc, da);
+        
+        // Calculate the sum of all payments EXCEPT the initial deposit
+        const additionalPayments = Math.max(0, (existingOrder.totalCost - existingOrder.pendingBalance) - existingOrder.depositAmount);
+        
+        // New balance is Total - (New Initial + Sum of Additional)
+        computedBalance = Math.max(0, tc - (da + additionalPayments));
+        updates.paymentStatus = derivePaymentStatus(tc, (da + additionalPayments));
       }
 
       // v3.1: Guarda de Despacho
@@ -336,32 +530,86 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (error) throw error;
 
         if (updates.status && updates.status !== existingOrder.status) {
-          await supabase.from('order_history').insert({ 
+          const statusLabel = updates.status.replace('_', ' ');
+          // v3.3 Non-blocking history
+          supabase.from('order_history').insert({ 
             order_id: id, type: 'cambio_estado', user_name: uName, 
-            description: `Estado actualizado a "${updates.status}" por ${uName}` 
-          });
+            description: `Estado actualizado a "${statusLabel}" por ${uName}${updates.cancelReason ? `. Justificación: ${updates.cancelReason}` : ''}` 
+          }).then(({ error: hErr }) => hErr && console.warn('History log error:', hErr));
+
+          if (updates.status === 'cancelada') {
+            supabase.from('global_alerts').insert({
+              type: 'critical',
+              order_id: id,
+              user_id: user.id,
+              user_name: uName,
+              message: `🚨 ALERTA CRÍTICA: La orden #${id} ha sido cancelada por el usuario ${uName}. Justificación: ${updates.cancelReason || 'N/A'}`
+            }).then(({ error: aErr }) => aErr && console.warn('Alert log error:', aErr));
+          }
         }
         
-        // Skip history for totalCost changes if User is Master Admin (as requested)
         const isMaster = user.role === 'Administrador maestro';
         const isTotalCostChange = updates.totalCost !== undefined && updates.totalCost !== existingOrder.totalCost;
         
-        if (updates.depositAmount !== undefined && updates.depositAmount > existingOrder.depositAmount) {
-          const added = updates.depositAmount - existingOrder.depositAmount;
-          await supabase.from('order_history').insert({ 
+        if (updates.depositAmount !== undefined && (updates.depositAmount > (existingOrder.depositAmount || 0))) {
+          const added = updates.depositAmount - (existingOrder.depositAmount || 0);
+          supabase.from('order_history').insert({ 
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Nuevo abono recibido: $${added.toLocaleString()} • Total abonado: $${updates.depositAmount.toLocaleString()}` 
-          });
+          }).then(({ error: fErr }) => fErr && console.warn('History finance error:', fErr));
         }
         
-        // Only log modification if it's NOT a silent financial correction by Master
-        // Only log modification if it's NOT a silent financial correction by Master
         if (isTotalCostChange && user && !isMaster) {
-           const uName = user?.full_name || user?.username || user?.email || 'Sistema';
-           await supabase.from('order_history').insert({ 
+           supabase.from('order_history').insert({ 
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Corrección de costo total: $${existingOrder.totalCost.toLocaleString()} -> $${updates.totalCost.toLocaleString()}` 
+          }).then(({ error: cErr }) => cErr && console.warn('History correction error:', cErr));
+        }
+
+        if (updates.deliveryDate && updates.deliveryDate !== existingOrder.deliveryDate) {
+          const oldDate = existingOrder.deliveryDate ? format(new Date(existingOrder.deliveryDate), 'dd/MM/yyyy HH:mm') : 'N/A';
+          const newDate = format(new Date(updates.deliveryDate), 'dd/MM/yyyy HH:mm');
+          
+          // 1. Log History
+          await supabase.from('order_history').insert({
+            order_id: id,
+            type: 'cambio_estado',
+            user_name: uName,
+            description: `📅 TRASLADO DE FECHA: ${oldDate} -> ${newDate} por ${uName}`
           });
+
+          // 2. Reschedule Background Alerts
+          const delivery = new Date(updates.deliveryDate);
+          if (delivery > new Date()) {
+            // Delete old ones
+            await supabase.from('global_broadcast_queue').delete().eq('order_id', id);
+            
+            const milestones = [
+              { h: 12, label: '12 HORAS' },
+              { h: 6, label: '6 HORAS' }
+            ];
+  
+            for (const m of milestones) {
+              const fireAt = subHours(delivery, m.h);
+              if (fireAt > new Date()) {
+                await supabase.from('global_broadcast_queue').insert({
+                  fire_at: fireAt.toISOString(),
+                  title: `⏰ Recordatorio de Entrega - ${m.label}`,
+                  message: `La Orden #${id} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
+                  order_id: id,
+                  type: 'milestone'
+                });
+              }
+            }
+  
+            await supabase.from('global_broadcast_queue').insert({
+              fire_at: delivery.toISOString(),
+              title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
+              message: `Verificando estado final de Orden #${id}`,
+              order_id: id,
+              type: 'breach_check'
+            });
+          }
         }
       } else {
         const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
@@ -373,24 +621,30 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    {
+      mutationKey: ['orders'],
+      type: 'update_order',
+      table: 'service_orders',
+      transform: ({ id, updates }) => ({ id, ...mapOrderToDB(updates) })
     }
-  });
+  );
 
   const registerDeposit = async (id: string, amount: number) => {
     const order = (queryClient.getQueryData(['orders']) as ServiceOrder[])?.find(o => o.id === id);
     if (!order) return;
     
-    const newTotalDeposit = order.depositAmount + amount;
-    const newBalance = Math.max(0, order.totalCost - newTotalDeposit);
+    // VALIDATION: Cannot pay more than pending balance
+    if (amount > (order.pendingBalance || 0)) {
+      throw new Error(`El abono ($${amount.toLocaleString()}) no puede ser mayor al saldo pendiente ($${(order.pendingBalance || 0).toLocaleString()})`);
+    }
+
+    const newBalance = Math.max(0, (order.pendingBalance || 0) - amount);
     const uName = user?.full_name || user?.username || user?.email || 'Sistema';
 
     if (isSupabaseConfigured) {
       const { error } = await supabase
         .from('service_orders')
         .update({ 
-          deposit_amount: newTotalDeposit, 
           pending_balance: newBalance,
           payment_status: newBalance === 0 ? 'pagado' : 'abono'
         })
@@ -398,18 +652,18 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (error) throw error;
 
-      await supabase.from('order_history').insert({
+      // v3.3: Non-blocking audit
+      supabase.from('order_history').insert({
         order_id: id,
         type: 'financiero',
         user_name: uName,
-        description: `Abono recibido: $${amount.toLocaleString()} • Total abonado: $${newTotalDeposit.toLocaleString()}`
-      });
+        description: `ABONO ADICIONAL: $${amount.toLocaleString()} | Recibido por: ${uName} | Saldo Restante: $${newBalance.toLocaleString()}`
+      }).then(({ error: hErr }) => hErr && console.warn('Deposit history error:', hErr));
     } else {
       // Mock logic
       const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
       const idx = mockOrders.findIndex(o => o.id === id);
       if (idx !== -1) {
-        mockOrders[idx].depositAmount = newTotalDeposit;
         mockOrders[idx].pendingBalance = newBalance;
         mockOrders[idx].paymentStatus = newBalance === 0 ? 'pagado' : 'abono';
         await mockStorage.setItem('mock_orders', mockOrders);
@@ -445,39 +699,35 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     triggerHaptic('medium');
   };
 
-  const promoteDemoOrder = async (id: string) => {
-    if (!user?.isMaster && user?.role !== 'Director General (CEO)') {
-      triggerHaptic('error');
-      throw new Error('Solo el administrador puede oficializar órdenes de prueba.');
-    }
-    
-    if (isSupabaseConfigured) {
-      const { error } = await supabase
-        .from('service_orders')
-        .update({ is_demo: false })
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      const uName = user?.full_name || user?.username || 'Maestro';
-      await supabase.from('order_history').insert({
-        order_id: id,
-        type: 'modificacion',
-        user_name: uName,
-        description: `Orden de prueba OFICIALIZADA (Promoción Limo) por ${uName}`
-      });
-    }
-    queryClient.invalidateQueries({ queryKey: ['orders'] });
-    triggerHaptic('success');
-  };
 
-  const deleteOrderMaster = async (id: string) => {
+   const deleteOrderMaster = async (id: string) => {
     if (!user?.isMaster) {
       triggerHaptic('error');
       throw new Error('Privilegio reservado para el Administrador Maestro.');
     }
 
     if (isSupabaseConfigured) {
+      // 0. Fetch order to check if test and get PDF URL
+      const { data: orderData } = await supabase.from('service_orders').select('is_test, pdf_url').eq('id', id).single();
+      
+      // Cleanup associated resources if it's a test order
+      if (orderData?.is_test) {
+         // a. Delete tasks (Agenda)
+         await supabase.from('tasks').delete().eq('order_id', id);
+         // b. Delete global alerts
+         await supabase.from('global_alerts').delete().eq('order_id', id);
+         // c. Delete PDF from Storage
+         if (orderData.pdf_url) {
+            try {
+              const urlParts = orderData.pdf_url.split('/');
+              const filePath = urlParts.slice(urlParts.indexOf('order-pdfs') + 1).join('/');
+              if (filePath) await supabase.storage.from('order-pdfs').remove([filePath]);
+            } catch (storageErr) {
+              console.error('Error cleaning storage:', storageErr);
+            }
+         }
+      }
+
       // 1. Delete history first
       await supabase.from('order_history').delete().eq('order_id', id);
       // 2. Delete the order
@@ -508,6 +758,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           status: 'recibida',
           payment_status: 'pendiente',
           quote_expires_at: null,
+          created_at: new Date().toISOString(),
         })
         .eq('id', id);
       if (error) throw error;
@@ -520,12 +771,44 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
 
       await supabase.from('global_alerts').insert({
-        type: 'status_change',
+        type: 'critical',
         order_id: id,
         user_id: user?.id,
         user_name: uName,
-        message: `✅ Cotización ${id.slice(-6).toUpperCase()} convertida a Orden de Servicio por ${uName}`
+        message: `🔄 ✅ La cotización #${id.slice(-6).toUpperCase()} del cliente ${orders.find(o => o.id === id)?.customerName || 'N/A'} fue convertida en la orden de servicio oficial por el usuario ${uName}. Mas informacion en la seccion correspondiente.`
       });
+
+      // Auditoría P-1: Programar hitos para la nueva orden convertida si tiene fecha de entrega
+      const orderData = (queryClient.getQueryData(['orders']) as ServiceOrder[])?.find(o => o.id === id);
+      if (orderData?.deliveryDate) {
+        const delivery = parseISO(orderData.deliveryDate);
+        const milestones = [
+          { h: 24, label: '24 HORAS' },
+          { h: 12, label: '12 HORAS' },
+          { h: 6, label: '6 HORAS' }
+        ];
+
+        for (const m of milestones) {
+          const fireAt = subHours(delivery, m.h);
+          if (fireAt > new Date()) {
+            await supabase.from('global_broadcast_queue').insert({
+              fire_at: fireAt.toISOString(),
+              title: `⏰ Recordatorio de Entrega - ${m.label}`,
+              message: `La Orden #${id} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
+              order_id: id,
+              type: 'milestone'
+            });
+          }
+        }
+
+        await supabase.from('global_broadcast_queue').insert({
+          fire_at: delivery.toISOString(),
+          title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
+          message: `Verificando estado final de Orden #${id}`,
+          order_id: id,
+          type: 'breach_check'
+        });
+      }
     }
     queryClient.invalidateQueries({ queryKey: ['orders'] });
     triggerHaptic('success');
@@ -554,6 +837,26 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         type: 'modificacion',
         user_name: uName,
         description: `Cotización EXTENDIDA 5 días adicionales por ${uName}. Nueva expiración: ${new Date(newExpiry).toLocaleDateString()}`
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    triggerHaptic('success');
+  };
+
+  const promoteDemoOrder = async (id: string) => {
+    if (isSupabaseConfigured) {
+      const uName = user?.full_name || user?.username || 'Sistema';
+      const { error } = await supabase
+        .from('service_orders')
+        .update({ is_demo: false })
+        .eq('id', id);
+      if (error) throw error;
+
+      await supabase.from('order_history').insert({
+        order_id: id,
+        type: 'modificacion',
+        user_name: uName,
+        description: `La orden fue PROMOVIDA de prueba a REAL por ${uName}`
       });
     }
     queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -617,8 +920,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const currentOrders = queryClient.getQueryData(['orders']) as ServiceOrder[] || [];
     const updated = currentOrders.find(o => o.id === id);
     if (!updated) {
-       // if refetch hasn't completed, construct best effort
-       const existing = orders.find(o => o.id === id)!;
+       const existing = allOrders.find(o => o.id === id)!;
        return { ...existing, ...updates };
     }
     return updated;
@@ -627,51 +929,79 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const downloadQuotePdf = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
-
     try {
       const { default: jsPDF } = await import('jspdf');
+      const QRCode = await import('qrcode');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      
-      const COLORS = {
-        DEEP_BG: [15, 23, 42],
-        PURPLE: [147, 51, 234],
-        AMBER: [217, 119, 6],
-        EMERALD: [5, 150, 105],
-        SLATE_900: [15, 23, 42],
-        SLATE_700: [51, 65, 85],
-        SLATE_500: [100, 116, 139],
-        SLATE_50: [248, 250, 252],
-        WHITE: [255, 255, 255]
-      };
 
-      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.rect(0, 0, 210, 45, 'F');
-      doc.setFillColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]); 
+      // --- HEADER: ABSOLUTE REPLICATION (Identical Layout) ---
+      const headerH = 45;
+      const splitXTop = 90;
+      const splitXBottom = 68;
+
+      // Right Side: Lavender/Gray Area
+      doc.setFillColor(226, 226, 235);
+      doc.rect(0, 0, 210, headerH, 'F');
+
+      // Left Side: White Area with Geometry
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, splitXBottom, headerH, 'F');
+      doc.triangle(splitXBottom, 0, splitXTop, 0, splitXBottom, headerH, 'F');
+      
+      // Bottom Brand Bar
+      doc.setFillColor(142, 87, 163); // Brand Purple
       doc.rect(0, 43, 210, 2, 'F');
+
+      // Info Box (Left Side Integrated)
+      doc.setFillColor(15, 23, 42); // Obsidian Brand Color
+      doc.roundedRect(12, 9, 58, 26, 4, 4, 'F');
       
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("GRUPO MORE", 15, 22);
-      
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text("Un regalo auténtico · Personalizar es identidad", 15, 28);
-      
-      doc.setFillColor(255, 255, 255, 0.08);
-      doc.roundedRect(145, 10, 55, 25, 4, 4, 'F');
-      doc.setTextColor(200, 200, 200);
+      doc.setTextColor(180, 180, 190);
       doc.setFontSize(7);
-      doc.text("COTIZACIÓN COMERCIAL", 150, 16);
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text("COTIZACIÓN", 18, 16);
+      
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text(getOrderSequenceLabel(orderId), 150, 23);
+      doc.setFont("helvetica", "bold");
+      doc.text(getOrderSequenceLabel(orderId), 18, 23);
+      
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
+      doc.setFontSize(8);
+      doc.text("COTIZACIÓN COMERCIAL", 18, 30);
+
+      // --- LOGO LOADING (Required for Brand) ---
+      const loadLogo = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0); resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null);
+          img.src = '/logo.png';
+        });
+      };
+      const logoBase64 = await loadLogo();
+
+      // Branding Text & Logo (Right Side Balanced)
+      doc.setTextColor(142, 87, 163); // Brand Purple
       doc.setFontSize(7);
-      doc.text("VÁLIDO POR 10 DÍAS", 150, 30);
+      doc.setFont("helvetica", "italic");
+      doc.text("Papeleria creativa, detalles y personalización", 195, 8, { align: 'right' } as any);
+
+      if (logoBase64) {
+        // Optimized Scale (Taller & Bolder as per final proposal)
+        doc.addImage(logoBase64, 'PNG', 145, 10, 55, 33);
+      }
+
+
+
+
 
       let y = 55;
+
       doc.setFillColor(240, 240, 240);
       doc.rect(10, y, 190, 8, 'F');
       doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
@@ -773,7 +1103,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const downloadOrderPdf = async (orderId: string) => {
+  const downloadOrderPdf = async (orderId: string, options: { returnUrlOnly?: boolean, hideHistory?: boolean } = {}) => {
+    const { returnUrlOnly = false, hideHistory = false } = options;
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
     if (order.recordType === 'cotizacion') return downloadQuotePdf(orderId);
@@ -791,23 +1122,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const qrWAMorePaper = await QRCode.toDataURL('https://wa.me/573045267493', { margin: 1 });
       const qrWAMoreDesign = await QRCode.toDataURL('https://wa.me/573183806342', { margin: 1 });
 
-      // Load Logo
-      const loadLogo = (): Promise<string | null> => {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx?.drawImage(img, 0, 0);
-            resolve(canvas.toDataURL('image/png'));
-          };
-          img.onerror = () => resolve(null);
-          img.src = '/logo.png';
-        });
-      };
-      const logoBase64 = await loadLogo();
+
 
       const COLORS = {
         DEEP_BG: [15, 23, 42], // Slate 900
@@ -821,95 +1136,123 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         WHITE: [255, 255, 255]
       };
 
-      // --- PAGE BACKGROUND (Premium Feel) ---
-      doc.setFillColor(248, 250, 252);
-      doc.rect(0, 0, 210, 297, 'F');
+      // --- HEADER: ABSOLUTE REPLICATION (Identical Layout) ---
+      const headerH = 45;
+      const splitXTop = 90;
+      const splitXBottom = 68;
 
-      // --- HEADER: DARK BRANDED ---
-      doc.setFillColor(COLORS.DEEP_BG[0], COLORS.DEEP_BG[1], COLORS.DEEP_BG[2]);
-      doc.rect(0, 0, 210, 45, 'F');
-      doc.setFillColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+      // Right Side: Lavender/Gray Background
+      doc.setFillColor(226, 226, 235);
+      doc.rect(0, 0, 210, headerH, 'F');
+
+      // Left Side: White Area with Geometry
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, splitXBottom, headerH, 'F');
+      doc.triangle(splitXBottom, 0, splitXTop, 0, splitXBottom, headerH, 'F');
+      
+      // Bottom Brand Bar
+      doc.setFillColor(142, 87, 163); // Brand Purple
       doc.rect(0, 43, 210, 2, 'F');
 
-      // Watermark for Demo Orders
-      if (order.is_demo) {
-        doc.setFontSize(60);
-        doc.setTextColor(200, 200, 200, 0.2); // Light gray with opacity
-        doc.saveGraphicsState();
-        doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
-        doc.text("COTIZACIÓN / PRUEBA", 105, 150, { align: 'center', angle: 45 } as any);
-        doc.restoreGraphicsState();
-      }
-
-      // Logo & Brand
-      if (logoBase64) {
-        doc.addImage(logoBase64, 'PNG', 15, 8, 25, 25);
-      }
+      // Info Box (Left Side Integrated)
+      doc.setFillColor(15, 23, 42); // Obsidian Brand Color
+      doc.roundedRect(12, 9, 58, 26, 4, 4, 'F');
       
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("GRUPO MORE", 45, 22);
-      
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("Un regalo auténtico · Personalizar es identidad", 45, 28);
-
-      // Order Info Box
-      doc.setFillColor(255, 255, 255, 0.08);
-      doc.roundedRect(145, 10, 55, 25, 4, 4, 'F');
-      doc.setTextColor(200, 200, 200);
+      doc.setTextColor(180, 180, 190);
       doc.setFontSize(7);
-      doc.text("ORDEN DE SERVICIO", 150, 16);
-      doc.setTextColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
+      doc.text("SERVICIO", 18, 16);
+      
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text(getOrderSequenceLabel(orderId), 150, 23);
+      doc.setFont("helvetica", "bold");
+      doc.text(getOrderSequenceLabel(orderId), 18, 23);
+      
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
       doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.text(order.status.replace('_', ' ').toUpperCase(), 150, 30);
+      doc.text(cleanPdfText(order.status.replace('_', ' ')).toUpperCase(), 18, 30);
+
+      // --- WATERMARK (Test Only) ---
+      if (order.isTest) {
+        doc.setTextColor(245, 158, 11);
+        doc.setFontSize(40);
+        doc.setFont("helvetica", "bold");
+        doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
+        doc.text("DOCUMENTO DE PRUEBA", 105, 150, { align: 'center', angle: 45 } as any);
+        doc.setGState(new (doc as any).GState({ opacity: 1 }));
+      }
+
+      // --- LOGO LOADING (Required for Brand) ---
+      const loadLogo = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0); resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null);
+          img.src = '/logo.png';
+        });
+      };
+      const logoBase64 = await loadLogo();
+
+      // Branding Text & Logo (Right Side Balanced)
+      doc.setTextColor(142, 87, 163); // Brand Purple
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.text("Papeleria creativa, detalles y personalización", 195, 8, { align: 'right' } as any);
+
+      if (logoBase64) {
+        // Optimized Scale (Taller & Bolder as per final proposal)
+        doc.addImage(logoBase64, 'PNG', 145, 10, 55, 33);
+      }
+
+
+
+
+
 
       // --- CLIENT & RESPONSIBLE SECTION ---
       let y = 60;
       doc.setFillColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.roundedRect(10, y - 5, 115, 40, 5, 5, 'F');
+      doc.roundedRect(15, y - 5, 110, 40, 5, 5, 'F');
       
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("INFORMACIÓN DEL CLIENTE", 15, y);
+      doc.text("INFORMACIÓN DEL CLIENTE", 20, y);
 
       y += 10;
       doc.setFontSize(10);
       doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
       doc.setFont("helvetica", "bold");
-      doc.text(order.customerName.toUpperCase(), 15, y);
+      doc.text(cleanPdfText(order.customerName).toUpperCase(), 20, y);
       
       y += 6;
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-      doc.text(`Contacto: ${order.customerPhone}`, 15, y);
+      doc.text(`Contacto: ${order.customerPhone}`, 20, y);
       
       y += 6;
       doc.setFont("helvetica", "bold");
       doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
-      doc.text("OPERADOR:", 15, y);
+      doc.text("OPERADOR:", 20, y);
       doc.setFont("helvetica", "normal");
-      doc.text(order.responsible.toUpperCase(), 38, y);
+      doc.text(cleanPdfText(order.responsible).toUpperCase(), 43, y);
 
       y += 6;
       doc.setFont("helvetica", "bold");
-      doc.text("ENTREGA:", 15, y);
+      doc.text("ENTREGA:", 20, y);
       doc.setTextColor(COLORS.AMBER[0], COLORS.AMBER[1], COLORS.AMBER[2]);
-      doc.text(format(new Date(order.deliveryDate), "dd 'de' MMMM, HH:mm", { locale: es }), 38, y);
+      doc.text(format(new Date(order.deliveryDate), "dd 'de' MMMM, HH:mm", { locale: es }), 43, y);
 
       // --- QR CODE SECTION (High Priority) ---
-      const qrX = 135;
+      const qrX = 140;
       const qrY = 55;
       doc.setFillColor(COLORS.WHITE[0], COLORS.WHITE[1], COLORS.WHITE[2]);
-      doc.roundedRect(qrX - 5, qrY - 5, 70, 40, 5, 5, 'F');
+      doc.roundedRect(qrX - 5, qrY - 5, 60, 40, 5, 5, 'F');
       doc.addImage(qrDataUrl, 'PNG', qrX, qrY, 25, 25);
       
       doc.setFontSize(7);
@@ -920,9 +1263,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setFontSize(6);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-      const qrExplanation = "Escanee este código para verificar el estado de su orden en tiempo real y acceder a la trazabilidad oficial 24/7 de Grupo More.";
-      const splitQrText = doc.splitTextToSize(qrExplanation, 34); 
-      doc.text(splitQrText, qrX + 28, qrY + 8);
+      doc.text("Escanee para verificar trazabilidad.", qrX + 28, qrY + 8);
 
       // --- SERVICES ---
       y = 105;
@@ -937,8 +1278,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
-      const servicesText = order.services.join(" + ");
-      const splitServices = doc.splitTextToSize(servicesText, 175);
+      const servicesText = cleanPdfText(order.services.join(" + "));
+      const splitServices = doc.splitTextToSize(servicesText, 180);
       doc.text(splitServices, 15, y);
       y += (splitServices.length * 4) + 6;
 
@@ -1011,7 +1352,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pdf.setFontSize(6);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(COLORS.SLATE_500[0], COLORS.SLATE_500[1], COLORS.SLATE_500[2]);
-        pdf.text("GRUPO MORE · UN REGALO AUTÉNTICO · PERSONALIZAR ES IDENTIDAD", 15, 295.5);
+        pdf.text("MORE PAPER & DESIGN · EST. 2024 · PERSONALIZAR ES IDENTIDAD", 15, 295.5);
         
         // Page Numbering - Guaranteed Right Corner with no overlap
         pdf.text(`Página ${pageNum}`, 200, 295.5, { align: 'right' } as any);
@@ -1026,42 +1367,44 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       // --- AUDIT TRAIL (HISTORY) ---
-      y += 38;
-      if (y > 220) { y = addNewPage(doc); }
-      
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
-      doc.text("TRAZABILIDAD Y REGISTROS OFICIALES", 15, y);
-      doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.3);
-      doc.line(15, y + 2, 195, y + 2);
-      
-      y += 10;
-      const history = order.history.slice().reverse();
-      history.forEach((log, index) => {
-        const descText = `${log.description} (por ${log.userName})`;
-        const splitDesc = doc.splitTextToSize(descText, 165);
-        const rowHeight = Math.max(8, (splitDesc.length * 4) + 4);
-
-        if (y + rowHeight > 250) { y = addNewPage(doc); } 
+      if (!hideHistory) {
+        y += 38;
+        if (y > 220) { y = addNewPage(doc); }
         
-        if (index % 2 === 0) {
-          doc.setFillColor(240, 240, 250);
-          doc.rect(10, y - 4, 190, rowHeight, 'F');
-        }
-        
-        doc.setFontSize(7);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
-        const dateStr = format(new Date(log.timestamp), "dd/MM HH:mm", { locale: es });
-        doc.text(dateStr, 15, y + 1);
+        doc.setTextColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2]);
+        doc.text("TRAZABILIDAD Y REGISTROS OFICIALES", 15, y);
+        doc.setDrawColor(COLORS.PURPLE[0], COLORS.PURPLE[1], COLORS.PURPLE[2], 0.3);
+        doc.line(15, y + 2, 195, y + 2);
         
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
-        doc.text(splitDesc, 35, y + 1);
-        
-        y += rowHeight;
-      });
+        y += 10;
+        const history = order.history.slice().reverse();
+        history.forEach((log, index) => {
+          const descText = cleanPdfText(`${log.description} (por ${log.userName})`);
+          const splitDesc = doc.splitTextToSize(descText, 150);
+          const rowHeight = Math.max(8, (splitDesc.length * 4) + 4);
+  
+          if (y + rowHeight > 250) { y = addNewPage(doc); } 
+          
+          if (index % 2 === 0) {
+            doc.setFillColor(242, 242, 248);
+            doc.rect(15, y - 4, 180, rowHeight, 'F');
+          }
+          
+          doc.setFontSize(7);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(COLORS.SLATE_900[0], COLORS.SLATE_900[1], COLORS.SLATE_900[2]);
+          const dateStr = format(new Date(log.timestamp), "dd/MM HH:mm", { locale: es });
+          doc.text(dateStr, 20, y + 1);
+          
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(COLORS.SLATE_700[0], COLORS.SLATE_700[1], COLORS.SLATE_700[2]);
+          doc.text(splitDesc, 40, y + 1);
+          
+          y += rowHeight;
+        });
+      }
 
       // --- ATTACHED IMAGES (4 COLUMNS) ---
       if (order.photos && order.photos.length > 0) {
@@ -1078,7 +1421,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         y += 8;
         const colCount = 4;
         const spacing = 4;
-        const colWidth = (190 - (spacing * (colCount - 1))) / colCount;
+        const colWidth = (180 - (spacing * (colCount - 1))) / colCount;
         const imgHeight = colWidth;
 
         let rowOnPage = 0;
@@ -1095,7 +1438,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
 
           try {
-            doc.addImage(order.photos[i], 'JPEG', 10 + (colIdx * (colWidth + spacing)), currentY, colWidth, imgHeight);
+            doc.addImage(order.photos[i], 'JPEG', 15 + (colIdx * (colWidth + spacing)), currentY, colWidth, imgHeight, undefined, 'MEDIUM');
           } catch (err) {
             console.error("Error adding image to PDF:", err);
           }
@@ -1106,6 +1449,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       renderFooter(doc, doc.internal.pages.length - 1);
 
 
+      if (returnUrlOnly) {
+         const pdfBlob = doc.output('blob');
+         const fileName = `OS_${orderId.slice(-6)}_${Date.now()}.pdf`;
+         const filePath = `managed_pdfs/${orderId}/${fileName}`;
+         const publicUrl = await uploadFile('order-pdfs', filePath, pdfBlob);
+         return publicUrl;
+      }
+
       doc.save(`OS_${orderId.slice(-6)}_${order.customerName.replace(/ /g, '_')}.pdf`);
       triggerHaptic('success');
     } catch (err) {
@@ -1114,24 +1465,29 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const generateAndUploadPdf = async (orderId: string): Promise<string | void> => {
+     return await downloadOrderPdf(orderId, { returnUrlOnly: true, hideHistory: true });
+  };
+
   return (
     <OrderContext.Provider value={{ 
-      orders,
+      orders: allOrders,
       archivedOrders,
       serviceTypes,
       teamMembers,
       loading,
       getOrderSequenceLabel,
+      getQuoteSequenceLabel,
       createOrder,
       updateOrder,
       registerDeposit,
       reactivateOrder,
-      promoteDemoOrder,
       deleteOrderMaster,
       downloadOrderPdf,
       convertQuoteToOrder,
       extendQuote,
       archiveExpiredQuote,
+      promoteDemoOrder,
     }}>
       {children}
     </OrderContext.Provider>

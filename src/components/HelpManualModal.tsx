@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { 
   X, 
   Rocket, 
@@ -19,7 +20,10 @@ import {
   ExternalLink,
   Gem,
   Award,
-  FileText
+  FileText,
+  Send,
+  Bot,
+  RefreshCw
 } from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
 import { useAuth } from '../context/AuthContext';
@@ -31,12 +35,58 @@ interface HelpManualModalProps {
 
 export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'inicio' | 'agenda' | 'ordenes' | 'inventario' | 'inteligencia' | 'seguridad' | 'admin'>('inicio');
+  const [activeTab, setActiveTab] = useState<'inicio' | 'agenda' | 'ordenes' | 'inventario' | 'inteligencia' | 'seguridad' | 'admin' | 'ia'>('inicio');
   const [search, setSearch] = useState('');
+  
+  // Chat IA State
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', text: string }[]>([
+    { role: 'assistant', text: '¡Hola! Soy el asistente inteligente de Grupo More. ¿En qué puedo ayudarte hoy?' }
+  ]);
+  const [userInput, setUserInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
 
   const handleTabChange = (tab: any) => {
     triggerHaptic('light');
     setActiveTab(tab);
+  };
+
+  const handleSendMessage = async () => {
+    if (!userInput.trim()) return;
+    triggerHaptic('medium');
+    const userMsg = userInput.trim();
+    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setUserInput('');
+    setIsTyping(true);
+
+    try {
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase.functions.invoke('ai-helper', {
+          body: { 
+            prompt: userMsg,
+            history: chatMessages.slice(-6) // Enviar últimos 3 intercambios para contexto ligero
+          }
+        });
+
+        if (error) throw error;
+        
+        setChatMessages(prev => [...prev, { role: 'assistant', text: data?.text || 'No pude obtener una respuesta.' }]);
+      } else {
+        // Fallback para desarrollo sin Supabase
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { role: 'assistant', text: "Modo Local: El asistente requiere conexión a Supabase y la Edge Function 'ai-helper' activa." }]);
+          setIsTyping(false);
+        }, 1000);
+      }
+    } catch (err: any) {
+      console.error('Error IA:', err);
+      setChatMessages(prev => [...prev, { 
+        role: 'assistant', 
+        text: '⚠️ No pude conectarme con mi centro de inteligencia. Verifica que la función ai-helper esté desplegada y configurada correctamente.' 
+      }]);
+    } finally {
+      setIsTyping(false);
+      triggerHaptic('light');
+    }
   };
 
   const isElevated = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
@@ -49,6 +99,7 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
     { id: 'inteligencia', label: 'Inteligencia Cloud', icon: TrendingUp, hidden: !isElevated },
     { id: 'seguridad', label: 'Seguridad Bio', icon: Smartphone },
     { id: 'admin', label: 'Administración', icon: Crown, hidden: !user?.isMaster },
+    { id: 'ia', label: 'Asistencia IA', icon: Zap },
   ];
 
   const filteredTabs = useMemo(() => {
@@ -148,7 +199,7 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
                       Bienvenido al <br /><span className="text-purple-500">Universo More</span>
                     </h1>
                     <p className="text-lg md:text-xl text-slate-400 leading-relaxed font-semibold italic opacity-80">
-                      "Personalizar es identidad". Esta suite progresiva ha sido diseñada para administrar las operaciones internas de Grupo More con una arquitectura de élite al 1000%.
+                      "Personalizar es identidad". Esta suite progresiva ha sido diseñada para administrar las operaciones internas de More Paper & Design con una arquitectura de élite al 1000%.
                     </p>
                   </div>
 
@@ -233,7 +284,7 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
                   <div className="space-y-4">
                      <h2 className="text-[0.6rem] font-black text-amber-500 uppercase tracking-[0.4em]">Módulo #02</h2>
                      <h1 className="text-4xl font-black text-white tracking-tight uppercase leading-none">Órdenes & Finance</h1>
-                     <p className="text-slate-400 text-lg font-medium">El motor operativo de Grupo More. Gestión financiera y operativa de pedidos.</p>
+                     <p className="text-slate-400 text-lg font-medium">El motor operativo de More Paper & Design. Gestión financiera y operativa de pedidos.</p>
                   </div>
 
                   <div className="space-y-4">
@@ -409,7 +460,7 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
                   <div className="space-y-4">
                      <h2 className="text-[0.6rem] font-black text-purple-500 uppercase tracking-[0.4em]">Módulo #06</h2>
                      <h1 className="text-4xl font-black text-white tracking-tight uppercase leading-none">Administración Maestra</h1>
-                     <p className="text-slate-400 text-lg font-medium">Centro de control para la jerarquía suprema de Grupo More.</p>
+                     <p className="text-slate-400 text-lg font-medium">Centro de control para la jerarquía suprema de More Paper & Design.</p>
                   </div>
 
                   <div className="grid gap-4">
@@ -428,6 +479,61 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
                          </div>
                       </div>
                     ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'ia' && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="h-full flex flex-col pt-4 md:pt-0">
+                  <div className="space-y-4 mb-8">
+                     <h2 className="text-[0.6rem] font-black text-amber-500 uppercase tracking-[0.4em]">Módulo IA</h2>
+                     <h1 className="text-4xl font-black text-white tracking-tight uppercase leading-none">Asistencia Inteligente</h1>
+                     <p className="text-slate-400 text-lg font-medium">Resuelve tus dudas sobre la plataforma de manera inmediata.</p>
+                  </div>
+
+                  <div className="flex-1 min-h-0 flex flex-col bg-black/20 rounded-[40px] border border-white/5 overflow-hidden">
+                    {/* Chat Area */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                      {chatMessages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] p-4 rounded-3xl text-sm font-medium leading-relaxed ${
+                            msg.role === 'user' 
+                              ? 'bg-purple-600 text-white rounded-tr-none' 
+                              : 'bg-white/10 text-slate-200 rounded-tl-none border border-white/5'
+                          }`}>
+                            {msg.role === 'assistant' && <Bot size={14} className="mb-2 text-purple-400" />}
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))}
+                      {isTyping && (
+                        <div className="flex justify-start">
+                          <div className="bg-white/10 text-slate-400 p-4 rounded-3xl rounded-tl-none border border-white/5 flex items-center gap-2">
+                             <RefreshCw size={14} className="animate-spin" />
+                             <span className="text-[0.6rem] font-black uppercase tracking-widest">Escribiendo...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Input Area */}
+                    <div className="p-6 bg-white/[0.02] border-t border-white/5 flex gap-3">
+                      <input 
+                        type="text" 
+                        value={userInput}
+                        onChange={e => setUserInput(e.target.value)}
+                        onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+                        placeholder="Pregunta algo sobre la aplicación..."
+                        className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all font-medium"
+                      />
+                      <button 
+                        onClick={handleSendMessage}
+                        disabled={!userInput.trim() || isTyping}
+                        className="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center hover:bg-purple-500 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <Send size={24} />
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}

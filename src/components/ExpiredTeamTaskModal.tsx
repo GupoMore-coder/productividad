@@ -10,12 +10,12 @@ interface ExpiredTeamTaskModalProps {
   isOpen: boolean;
   task: Task | null;
   onClose: () => void;
-  onSubmit: (taskId: string, reason: string, decision: 'reprogramar' | 'terminar', newDate?: string) => void;
+  onSubmit: (taskId: string, reason: string, decision: 'reprogramar' | 'terminar' | 'completar', newDate?: string) => void;
 }
 
 export default function ExpiredTeamTaskModal({ isOpen, task, onClose, onSubmit }: ExpiredTeamTaskModalProps) {
   const [reason, setReason] = useState('');
-  const [decision, setDecision] = useState<'reprogramar' | 'terminar' | null>(null);
+  const [decision, setDecision] = useState<'reprogramar' | 'terminar' | 'completar' | null>(null);
   const [newDate, setNewDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
@@ -35,8 +35,8 @@ export default function ExpiredTeamTaskModal({ isOpen, task, onClose, onSubmit }
     onClose();
   };
 
-  const handleDecision = (d: 'reprogramar' | 'terminar') => {
-    triggerHaptic('light');
+  const handleDecision = (d: 'reprogramar' | 'terminar' | 'completar') => {
+    triggerHaptic(d === 'terminar' ? 'error' : 'light');
     setDecision(d);
   };
 
@@ -101,41 +101,58 @@ export default function ExpiredTeamTaskModal({ isOpen, task, onClose, onSubmit }
                     placeholder="Ej. El cliente aplazó la reunión, falta de insumos..." 
                     required 
                     rows={3}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all resize-none placeholder:text-slate-700 font-medium"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all resize-none placeholder:text-slate-700 font-medium disabled:opacity-30"
+                    disabled={decision === 'completar'}
                   />
+                  {decision === 'completar' && (
+                    <p className="text-[0.6rem] text-emerald-500 font-bold px-2">✨ No requiere justificación para esta opción.</p>
+                  )}
                 </div>
 
                 {/* Decision Buttons */}
                 <div className="space-y-3">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-400 font-black ml-1">
-                    Acción Correctiva
+                    Acción Correctiva <span className="text-[0.5rem] opacity-50 block mt-1">(Selecciona una respuesta para continuar)</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button 
                       type="button" 
                       onClick={() => handleDecision('reprogramar')}
                       className={`
-                        flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all active:scale-95
+                        flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95
                         ${decision === 'reprogramar' 
                           ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' 
                           : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/10'}
                       `}
                     >
-                      <Calendar size={20} />
-                      <span className="text-[0.65rem] font-black uppercase tracking-widest">Reprogramar</span>
+                      <Calendar size={18} />
+                      <span className="text-[0.55rem] font-black uppercase tracking-widest text-center">Reprogramar</span>
                     </button>
                     <button 
                       type="button" 
                       onClick={() => handleDecision('terminar')}
                       className={`
-                        flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all active:scale-95
+                        flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95
                         ${decision === 'terminar' 
-                          ? 'bg-red-500/10 border-red-500/50 text-red-400' 
+                          ? 'bg-red-500/10 border-red-500/50 text-red-500' 
                           : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/10'}
                       `}
                     >
-                      <X size={20} />
-                      <span className="text-[0.65rem] font-black uppercase tracking-widest">Cancelar</span>
+                      <X size={18} />
+                      <span className="text-[0.55rem] font-black uppercase tracking-widest text-center">Dar por Terminada</span>
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => handleDecision('completar')}
+                      className={`
+                        flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all active:scale-95
+                        ${decision === 'completar' 
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' 
+                          : 'bg-white/5 border-white/5 text-slate-500 hover:border-white/10'}
+                      `}
+                    >
+                      <CheckCircle2 size={18} />
+                      <span className="text-[0.55rem] font-black uppercase tracking-widest text-center">Dar por Cumplida</span>
                     </button>
                   </div>
                 </div>
@@ -166,16 +183,18 @@ export default function ExpiredTeamTaskModal({ isOpen, task, onClose, onSubmit }
                 {/* Submit Action */}
                 <button 
                   type="submit" 
-                  disabled={!reason.trim() || !decision}
+                  disabled={decision !== 'completar' && (!reason.trim() || !decision)}
                   className={`
                     w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl
-                    ${(!reason.trim() || !decision)
+                    ${(decision !== 'completar' && (!reason.trim() || !decision))
                       ? 'bg-white/5 border border-white/10 text-slate-600 cursor-not-allowed' 
-                      : 'bg-red-500 text-white hover:brightness-110 shadow-red-500/20'}
+                      : decision === 'completar' 
+                        ? 'bg-emerald-500 text-slate-950 hover:brightness-110 shadow-emerald-500/20'
+                        : 'bg-red-500 text-white hover:brightness-110 shadow-red-500/20'}
                   `}
                 >
                   <CheckCircle2 size={16} />
-                  Registrar Incumplimiento
+                  {decision === 'completar' ? 'Completar Tarea' : 'Registrar Incumplimiento'}
                 </button>
               </form>
             </div>

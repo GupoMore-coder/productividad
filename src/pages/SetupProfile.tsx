@@ -3,7 +3,18 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Camera, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  Camera, 
+  ShieldCheck, 
+  AlertCircle, 
+  Loader2,
+  User,
+  Mail,
+  Phone,
+  Cake,
+  Heart
+} from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
 import { optimizeImage } from '../utils/imageOptimizer';
 
@@ -144,7 +155,7 @@ export default function SetupProfile() {
             </div>
             <label className="absolute -bottom-2 -right-2 p-2 bg-[#d4bc8f] text-slate-900 rounded-xl shadow-xl cursor-pointer hover:scale-110 active:scale-95 transition-all border-4 border-[#1a1622]">
               <Camera size={16} />
-              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+              <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" title="Subir Avatar" placeholder="Subir Avatar" />
             </label>
           </div>
 
@@ -169,72 +180,96 @@ export default function SetupProfile() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Cédula (Obligatorio)</label>
-              <input 
-                type="text" 
-                value={cedula}
-                onChange={e => setCedula(e.target.value)}
-                placeholder="N° Documento"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
-                required 
-              />
+              <div className="relative">
+                <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="text" 
+                  value={cedula}
+                  onChange={e => setCedula(e.target.value)}
+                  placeholder="N° Documento"
+                  title="Número de Cédula"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
+                  required 
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nombre Completo</label>
-              <input 
-                type="text" 
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="Ej. Nayelis Puerta"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
-                required 
-              />
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="text" 
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="Ej. Nayelis Puerta"
+                  title="Nombre Completo"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#d4bc8f]/20 focus:border-[#d4bc8f]/50 transition-all placeholder:text-slate-700"
+                  required 
+                />
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Celular Principal</label>
-              <input 
-                type="tel" 
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="Principal (Oblig)"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
-                required 
-              />
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="tel" 
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="Principal (Oblig)"
+                  title="Celular Principal"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
+                  required 
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1 opacity-50">Celular Secundario</label>
-              <input 
-                type="tel" 
-                value={secondaryPhone}
-                onChange={e => setSecondaryPhone(e.target.value)}
-                placeholder="Alternativo (Opc)"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
-              />
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700/50" size={16} />
+                <input 
+                  type="tel" 
+                  value={secondaryPhone}
+                  onChange={e => setSecondaryPhone(e.target.value)}
+                  placeholder="Alternativo (Opc)"
+                  title="Celular Secundario"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white"
+                />
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Correo Principal</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
-                required 
-              />
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  title="Correo Principal"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white border-l-4 border-l-[#d4bc8f]/40"
+                  required 
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1 opacity-50">Correo Secundario</label>
-              <input 
-                type="email" 
-                value={secondaryEmail}
-                onChange={e => setSecondaryEmail(e.target.value)}
-                placeholder="Opcional"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white"
-              />
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700/50" size={16} />
+                <input 
+                  type="email" 
+                  value={secondaryEmail}
+                  onChange={e => setSecondaryEmail(e.target.value)}
+                  placeholder="Opcional"
+                  title="Correo Secundario"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white"
+                />
+              </div>
             </div>
           </div>
 
@@ -248,42 +283,54 @@ export default function SetupProfile() {
             
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Nombre del contacto</label>
-              <input 
-                type="text" 
-                value={emergencyName}
-                onChange={e => setEmergencyName(e.target.value)}
-                placeholder="Persona de confianza"
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
-              />
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="text" 
+                  value={emergencyName}
+                  onChange={e => setEmergencyName(e.target.value)}
+                  placeholder="Persona de confianza"
+                  title="Nombre del Contacto de Emergencia"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Parentesco</label>
-                <select 
-                  value={emergencyRelationship}
-                  onChange={e => setEmergencyRelationship(e.target.value)}
-                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white appearance-none focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="Madre">Madre</option>
-                  <option value="Padre">Padre</option>
-                  <option value="Hijo/a">Hijo/a</option>
-                  <option value="Hermano/a">Hermano/a</option>
-                  <option value="Esposo/a">Esposo/a</option>
-                  <option value="Amigo/a">Amigo/a</option>
-                  <option value="Otro">Otro</option>
-                </select>
+                <div className="relative">
+                  <Heart className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                  <select 
+                    value={emergencyRelationship}
+                    onChange={e => setEmergencyRelationship(e.target.value)}
+                    title="Parentesco de Emergencia"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white appearance-none focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="Madre">Madre</option>
+                    <option value="Padre">Padre</option>
+                    <option value="Hijo/a">Hijo/a</option>
+                    <option value="Hermano/a">Hermano/a</option>
+                    <option value="Esposo/a">Esposo/a</option>
+                    <option value="Amigo/a">Amigo/a</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Celular de Emergencia</label>
-                <input 
-                  type="tel" 
-                  value={emergencyPhone}
-                  onChange={e => setEmergencyPhone(e.target.value)}
-                  placeholder="3xx xxxxxxx"
-                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                />
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                  <input 
+                    type="tel" 
+                    value={emergencyPhone}
+                    onChange={e => setEmergencyPhone(e.target.value)}
+                    placeholder="3xx xxxxxxx"
+                    title="Teléfono de Emergencia"
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -291,17 +338,29 @@ export default function SetupProfile() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-[0.6rem] uppercase tracking-widest text-slate-500 font-black ml-1">Fecha Nacimiento</label>
-              <input 
-                type="date" 
-                value={birthDate}
-                onChange={e => setBirthDate(e.target.value)}
-                className="w-full bg-black/30 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white color-scheme-dark"
-                required 
-              />
+              <div className="relative">
+                <Cake className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-700" size={16} />
+                <input 
+                  type="date" 
+                  value={birthDate}
+                  onChange={e => setBirthDate(e.target.value)}
+                  title="Fecha de Nacimiento"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-12 pr-5 py-3.5 text-sm text-white color-scheme-dark"
+                  required 
+                />
+              </div>
             </div>
             <div className="flex flex-col justify-end">
                <p className="text-[0.55rem] text-slate-600 italic px-2 mb-1">
                  * El correo principal es el que usaste para registrarte inicialmente.
+               </p>
+            </div>
+          </div>
+          
+          <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="space-y-1.5 flex flex-col items-center justify-center bg-white/5 p-4 rounded-2xl border border-white/5 border-dashed">
+               <p className="text-[0.55rem] text-slate-500 italic px-2 text-center uppercase tracking-widest font-black">
+                 Sincronización Total con el Master
                </p>
             </div>
           </div>

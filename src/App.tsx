@@ -39,8 +39,12 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NetworkStatus from './components/NetworkStatus';
 import RealtimeNotificationListener from './components/RealtimeNotificationListener';
 import UnifiedAlarmModal from './components/UnifiedAlarmModal';
+import PermissionBanner from './components/PermissionBanner';
 import { useSyncManager } from './hooks/useSyncManager';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import { triggerHaptic } from '@/utils/haptics';
+import { WhatsAppProvider } from './context/WhatsAppContext';
+import { WhatsAppEditorModal } from './components/WhatsAppEditorModal';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -151,6 +155,7 @@ function NotificationBootstrap() {
 function AppRoutes() {
   const { user } = useAuth();
   const { isSyncing, pendingCount } = useSyncManager();
+  usePushNotifications();
 
   // v12: Vanguard Orientation & Layout Resilience (Zero Lag)
   useEffect(() => {
@@ -182,16 +187,24 @@ function AppRoutes() {
   return (
     <Router>
       <NotificationBootstrap />
+      <PermissionBanner />
       <NetworkStatus />
       
       {/* v11: Vanguard Sync Progress Indicator */}
       {pendingCount > 0 && (
-        <div className="fixed top-20 right-4 z-[99] flex items-center gap-3 px-4 py-2 rounded-2xl bg-purple-500/10 border border-purple-500/20 backdrop-blur-xl shadow-2xl animate-in slide-in-from-right duration-500">
+        <button 
+          onClick={() => {
+            triggerHaptic('medium');
+            // Re-trigger global refocus to prompt sync manager
+            window.dispatchEvent(new FocusEvent('focus'));
+          }}
+          className="fixed top-20 right-4 z-[99] flex items-center gap-3 px-4 py-2 rounded-2xl bg-purple-500/10 border border-purple-500/20 backdrop-blur-xl shadow-2xl animate-in slide-in-from-right duration-500 active:scale-95"
+        >
            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-purple-500 animate-pulse' : 'bg-slate-500'} shadow-[0_0_10px_rgba(168,85,247,0.5)]`} />
            <span className="text-[0.65rem] font-black text-purple-400 uppercase tracking-widest">
               {isSyncing ? 'Sincronizando' : 'Pendiente de Red'} ({pendingCount})
            </span>
-        </div>
+        </button>
       )}
 
       <GlobalNotificationManager />
@@ -234,7 +247,10 @@ export default function App() {
                 <OrderProvider>
                   <TaskProvider>
                     <PresenceProvider>
-                      <AppRoutes />
+                      <WhatsAppProvider>
+                        <AppRoutes />
+                        <WhatsAppEditorModal />
+                      </WhatsAppProvider>
                     </PresenceProvider>
                   </TaskProvider>
                 </OrderProvider>

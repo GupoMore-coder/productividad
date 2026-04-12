@@ -115,26 +115,34 @@ async function checkAndFireAlarms(): Promise<void> {
     const db = await openAlarmDB();
     const alarms = await getAllAlarms(db);
     const now = Date.now();
+    const dueAlarms = alarms.filter((a: any) => !a.fired && a.fireAt <= now);
 
-    for (const alarm of alarms) {
-      if (alarm.fired || alarm.fireAt > now) continue;
+    if (dueAlarms.length > 0) {
+      const clients = await (self as any).clients.matchAll();
 
-      const emoji =
-        alarm.priority === 'alta' ? '🔴' :
-        alarm.priority === 'media' ? '🟡' : '🟢';
+      for (const alarm of dueAlarms) {
+        // Respect mute if stored in the alarm data or fetched
+        const isMuted = !!alarm.isMuted;
+        
+        await (self as any).registration.showNotification(alarm.taskTitle, {
+          body: alarm.body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          vibrate: isMuted ? [] : [100, 50, 100],
+          data: { taskId: alarm.taskId },
+          silent: isMuted,
+          requireInteraction: true,
+          tag: alarm.id
+        });
 
-      await self.registration.showNotification(`${emoji} ${alarm.taskTitle}`, {
-        body: alarm.body,
-        icon: '/pwa-192x192.png',
-        badge: '/pwa-192x192.png',
-        tag: alarm.id,
-        requireInteraction: true,
-        vibrate: [200, 100, 200],
-        silent: false,
-        data: { url: '/', taskId: alarm.taskId },
-      } as NotificationOptions);
-
-      await markFiredInDB(db, alarm);
+        // Mark as fired in the DB
+        await markFiredInDB(db, alarm);
+      }
+      
+      // Notify clients to refresh UI
+      clients.forEach((client: any) => {
+        client.postMessage({ type: 'ALARMS_UPDATED' });
+      });
     }
   } catch (err) {
     console.error('[SW] checkAndFireAlarms error:', err);
@@ -169,4 +177,40 @@ self.addEventListener('notificationclick', (event) => {
         if (self.clients.openWindow) return self.clients.openWindow(url);
       })
   );
+});
+
+// ── Generic Push API Listener ────────────────────────────────
+// Handles incoming push messages even when the app is closed.
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const isMuted = !!data.silent || !!data.isMuted;
+
+    const options = {
+      body: data.body || 'Nuevo aviso de Antigravity',
+      icon: '/pwa-192x192.png',
+      badge: '/pwa-192x192.png',
+      vibrate: isMuted ? [] : [100, 50, 100],
+      silent: isMuted,
+      data: { url: data.url || '/' },
+      actions: isMuted ? [] : [
+        { action: 'open', title: 'Ver ahora' }
+      ]
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Productividad Grupo More', options)
+    );
+  } catch (err) {
+    console.error('[SW] Push error:', err);
+    // Fallback if not JSON
+    event.waitUntil(
+      self.registration.showNotification('Antigravity', {
+        body: event.data.text(),
+        icon: '/pwa-192x192.png'
+      })
+    );
+  }
 });

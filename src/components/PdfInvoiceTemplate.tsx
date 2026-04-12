@@ -26,6 +26,38 @@ export const PdfInvoiceTemplate = forwardRef<HTMLDivElement, PdfInvoiceTemplateP
         zIndex: -9999,
       }}
     >
+      {/* Watermark for Test Documents */}
+      {order.isTest && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          zIndex: 0,
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            color: 'rgba(245, 158, 11, 0.08)',
+            fontSize: '8rem',
+            fontWeight: 900,
+            transform: 'rotate(-45deg)',
+            whiteSpace: 'nowrap',
+            textTransform: 'uppercase',
+            letterSpacing: '0.2em',
+            border: '20px solid rgba(245, 158, 11, 0.08)',
+            padding: '40px',
+            borderRadius: '40px'
+          }}>
+            DOCUMENTO DE PRUEBA
+          </div>
+        </div>
+      )}
+
       {/* Decorative Gradient Header */}
       <div style={{
         height: '10px',
@@ -46,7 +78,7 @@ export const PdfInvoiceTemplate = forwardRef<HTMLDivElement, PdfInvoiceTemplateP
               border: '1px solid rgba(255,255,255,0.1)'
             }}>M</div>
             <div>
-              <h1 style={{ margin: 0, color: '#fff', fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>Grupo More</h1>
+              <h1 style={{ margin: 0, color: '#fff', fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>More Paper & Design</h1>
               <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '1rem', fontWeight: 500, letterSpacing: '0.1em' }}>PRECISIÓN · CALIDAD · IDENTIDAD</p>
             </div>
           </div>
@@ -156,7 +188,7 @@ export const PdfInvoiceTemplate = forwardRef<HTMLDivElement, PdfInvoiceTemplateP
              <div style={{ width: '200px', height: '1px', background: 'rgba(255,255,255,0.1)', marginTop: '40px' }} />
           </div>
           <p style={{ margin: 0, color: '#475569', fontSize: '0.7rem', fontWeight: 500 }}>
-            Este documento es un comprobante de servicio generado por la plataforma <strong style={{ color: '#64748b' }}>Grupo More Cloud</strong>. 
+            Este documento es un comprobante de servicio generado por la plataforma <strong style={{ color: '#64748b' }}>More Paper & Design Cloud</strong>. 
             Válido como soporte de entrega y recepción técnica.
           </p>
         </div>

@@ -4,6 +4,11 @@ import { useAuth } from './AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { SyncService } from '@/services/SyncService';
+import { 
+  scheduleTaskNotifications, 
+  cancelTaskNotifications 
+} from '@/services/NotificationsService';
+import { addDays, addWeeks, addMonths, addYears, parseISO, format as formatDate, isBefore } from 'date-fns';
 
 export interface Task {
   id: string;
@@ -23,6 +28,14 @@ export interface Task {
   isGroupTask?: boolean;
   imageUrl?: string;
   isOfflinePending?: boolean; // New flag for UI indicator
+  is_muted?: boolean;
+  muted_alarms?: number[];
+  isBirthday?: boolean;
+  type?: 'task' | 'reminder';
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
+  originalTaskId?: string; // To link recurring instances
 }
 
 interface TaskContextType {
@@ -30,6 +43,7 @@ interface TaskContextType {
   addTask: (task: Partial<Task>) => Promise<Task>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
+  extendTaskSeries: (task: Task) => Promise<void>;
   loading: boolean;
   hasMore: boolean;
   loadMore: () => Promise<void>;
@@ -114,8 +128,56 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(t);
   }, [user?.id]);
 
-  // Merge server and offline data
-  const tasks = [...offlineTasks, ...serverTasks];
+  // 3. Fetch Profiles for Birthdays
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      if (!isSupabaseConfigured) {
+        return JSON.parse(localStorage.getItem('mock_users_db') || '[]');
+      }
+      const { data, error } = await supabase.from('profiles').select('id, full_name, username, birth_date, role, avatar');
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Calculate Virtual Birthday Tasks
+  const birthdayTasks = React.useMemo(() => {
+    if (!user || allProfiles.length === 0) return [];
+    
+    const virtuals: Task[] = [];
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
+
+    allProfiles.forEach((p: any) => {
+      if (p.id === user.id || !p.birth_date) return;
+      
+      const bday = new Date(p.birth_date);
+      // Generate for current and next year to ensure visibility in future calendar views
+      [currentYear, nextYear].forEach(year => {
+        const dateStr = `${year}-${String(bday.getUTCMonth() + 1).padStart(2, '0')}-${String(bday.getUTCDate()).padStart(2, '0')}`;
+        virtuals.push({
+          id: `bday-${p.id}-${year}`,
+          title: `🎂 Cumpleaños de ${p.full_name || p.username}`,
+          date: dateStr,
+          time: '08:00',
+          priority: 'alta',
+          completed: false,
+          status: 'accepted',
+          isBirthday: true,
+          userId: p.id,
+          description: `¡Hoy es el cumpleaños de ${p.full_name || p.username}! No olvides felicitarle. ✨`
+        });
+      });
+    });
+    return virtuals;
+  }, [allProfiles, user]);
+
+  // Merge server, offline and virtual data with Memoization for stability (Google level)
+  const tasks = React.useMemo(() => {
+    return [...offlineTasks, ...serverTasks, ...birthdayTasks];
+  }, [offlineTasks, serverTasks, birthdayTasks]);
 
   // Real-time Sync
   useEffect(() => {
@@ -133,28 +195,50 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 3. Mutations
   const addTaskMutation = useOfflineMutation(
     async (taskData: Partial<Task>) => {
-      const newTask = transformToDb(taskData, user?.id);
       if (isSupabaseConfigured) {
+        const newTask = transformToDb(taskData, user?.id);
         const { data, error } = await supabase.from('tasks').insert(newTask).select().single();
         if (error) throw error;
-        return transformFromDb(data, user?.id);
+        const mainTask = transformFromDb(data, user?.id);
+
+        // Handle Recurrence Generation (If Reminder)
+        if (mainTask.type === 'reminder' && mainTask.recurrence && mainTask.recurrence !== 'none') {
+          const instances = generateRecurrenceInstances(mainTask);
+          if (instances.length > 0) {
+            const dbInstances = instances.map(inst => transformToDb(inst, user?.id));
+            await supabase.from('tasks').insert(dbInstances);
+          }
+        }
+
+        return mainTask;
       }
-      // MODO LOCAL: persiste en localStorage
+      
+      // MODO LOCAL
       const localTask: Task = {
-        ...newTask,
+        ...transformToDb(taskData, user?.id),
         id: `local_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        userId: newTask.user_id,
-        isShared: newTask.is_shared,
-        createdBy: newTask.created_by,
-        failureReason: newTask.failure_reason,
-        imageUrl: newTask.image_url,
-        isGroupTask: false,
+        userId: user?.id,
+        isShared: taskData.isShared,
+        createdBy: user?.id,
         completed: false,
-      } as Task;
+      } as any;
+      
+      const instances = localTask.type === 'reminder' ? generateRecurrenceInstances(localTask) : [];
+      const allToSave = [localTask, ...instances.map(inst => ({
+        ...inst,
+        id: `local_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        userId: user?.id,
+        completed: false
+      }))];
+
       const storageKey = `mock_tasks_${user?.id}`;
-      const existingRaw = localStorage.getItem(storageKey);
-      const existing: Task[] = existingRaw ? JSON.parse(existingRaw) : [];
-      localStorage.setItem(storageKey, JSON.stringify([localTask, ...existing]));
+      const existing: any[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      localStorage.setItem(storageKey, JSON.stringify([...allToSave, ...existing]));
+      
+      for (const t of allToSave) {
+        await scheduleTaskNotifications(t as Task);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       return localTask;
     },
@@ -179,25 +263,114 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     is_shared: taskData.isShared || false,
     image_url: taskData.imageUrl || null,
     description: taskData.description || null,
-    failure_reason: taskData.failureReason || null
+    failure_reason: taskData.failureReason || null,
+    is_muted: taskData.is_muted || false,
+    muted_alarms: taskData.muted_alarms || [],
+    type: taskData.type || 'task',
+    recurrence: taskData.recurrence || 'none',
+    recurrence_interval: taskData.recurrenceInterval || 1,
+    original_task_id: taskData.originalTaskId || null,
+    recurrence_end_date: taskData.recurrenceEndDate || null
   });
 
-  const transformFromDb = (data: any, uid?: string) => ({
+  const generateRecurrenceInstances = (baseTask: Task): Partial<Task>[] => {
+    const instances: Partial<Task>[] = [];
+    if (!baseTask.recurrence || baseTask.recurrence === 'none') return [];
+    
+    let current = parseISO(baseTask.date);
+    const interval = baseTask.recurrenceInterval || 1;
+    const originalId = baseTask.id;
+    
+    let limit: Date;
+    switch(baseTask.recurrence) {
+      case 'daily': limit = addDays(current, 30); break;
+      case 'weekly': limit = addMonths(current, 6); break; // 6 months for weekly
+      case 'monthly': limit = addMonths(current, 12); break; // 12 months for monthly
+      case 'yearly': limit = addYears(current, 2); break; // 2 years for yearly
+      default: return [];
+    }
+
+    while (true) {
+      let next: Date;
+      switch(baseTask.recurrence) {
+        case 'daily': next = addDays(current, interval); break;
+        case 'weekly': next = addWeeks(current, interval); break;
+        case 'monthly': next = addMonths(current, interval); break;
+        case 'yearly': next = addYears(current, interval); break;
+        default: return instances;
+      }
+      
+      if (next > limit) break;
+      current = next;
+
+      instances.push({
+        ...baseTask,
+        id: undefined,
+        date: formatDate(current, 'yyyy-MM-dd'),
+        originalTaskId: originalId,
+        recurrence: 'none' // Prevent nested recursion
+      });
+    }
+    return instances;
+  };
+
+  const extendTaskSeries = async (task: Task) => {
+    if (!task.recurrence || task.recurrence === 'none') return;
+    triggerHaptic('medium');
+    
+    // Find already existing instances to find the true "last" date
+    // For simplicity, we celebrate from the selected task's date
+    const instances = generateRecurrenceInstances(task);
+    if (instances.length > 0) {
+      if (isSupabaseConfigured) {
+        const dbInstances = instances.map(inst => transformToDb(inst, user?.id));
+        await supabase.from('tasks').insert(dbInstances);
+      } else {
+        const storageKey = `mock_tasks_${user?.id}`;
+        const existing: any[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        const allToSave = instances.map(inst => ({
+          ...transformToDb(inst, user?.id),
+          id: `local_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+          userId: user?.id,
+          completed: false
+        }));
+        localStorage.setItem(storageKey, JSON.stringify([...allToSave, ...existing]));
+        for (const t of allToSave) {
+          await scheduleTaskNotifications(t as any);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
+  };
+
+  const transformFromDb = (data: any, uid?: string): Task => ({
     ...data,
     userId: data.user_id,
     isShared: data.is_shared,
     createdBy: data.created_by,
     failureReason: data.failure_reason,
     imageUrl: data.image_url,
-    isGroupTask: data.user_id !== uid
+    recurrenceInterval: data.recurrence_interval,
+    originalTaskId: data.original_task_id,
+    recurrenceEndDate: data.recurrence_end_date,
+    isGroupTask: data.user_id !== uid,
+    muted_alarms: data.muted_alarms || []
   });
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Task> }) => {
       const dbUpdates: any = { ...updates };
+      if (updates.id) delete dbUpdates.id;
       if (updates.userId) dbUpdates.user_id = updates.userId;
       if (updates.isShared) dbUpdates.is_shared = updates.isShared;
       if (updates.createdBy) dbUpdates.created_by = updates.createdBy;
+      if (updates.muted_alarms) dbUpdates.muted_alarms = updates.muted_alarms;
+      if (updates.group_ids) dbUpdates.group_ids = updates.group_ids;
+      if (updates.type) dbUpdates.type = updates.type;
+      if (updates.recurrence) dbUpdates.recurrence = updates.recurrence;
+      if (updates.recurrenceInterval) dbUpdates.recurrence_interval = updates.recurrenceInterval;
+      if (updates.originalTaskId) dbUpdates.original_task_id = updates.originalTaskId;
+      if (updates.recurrenceEndDate) dbUpdates.recurrence_end_date = updates.recurrenceEndDate;
 
       if (isSupabaseConfigured) {
         const { data, error } = await supabase.from('tasks').update(dbUpdates).eq('id', id).select().single();
@@ -206,7 +379,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { id, ...updates };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    onSuccess: (data, variables) => {
+      // Re-schedule alarms with new data (is_muted, etc)
+      if (data) {
+        scheduleTaskNotifications(transformFromDb(data, user?.id));
+      }
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
   });
 
   const deleteTaskMutation = useMutation({
@@ -215,6 +394,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { error } = await supabase.from('tasks').delete().eq('id', id);
         if (error) throw error;
       }
+      // Cancel local alarms
+      await cancelTaskNotifications(id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
   });
@@ -225,7 +406,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <TaskContext.Provider value={{ 
-      tasks, addTask, updateTask, deleteTask, loading, 
+      tasks, addTask, updateTask, deleteTask, extendTaskSeries, loading, 
       hasMore: false, loadMore: async () => {}, 
       refreshTasks: async () => { queryClient.invalidateQueries({ queryKey: ['tasks'] }) } 
     }}>

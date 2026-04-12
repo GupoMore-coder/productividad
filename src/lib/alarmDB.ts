@@ -11,6 +11,7 @@ export interface Alarm {
   fireAt: number;       // epoch ms — when to fire this notification
   body: string;         // notification body text
   fired: boolean;
+  isMuted?: boolean;
 }
 
 const DB_NAME = 'familia-agenda-db';

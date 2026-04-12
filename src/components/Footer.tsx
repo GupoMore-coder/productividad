@@ -23,13 +23,13 @@ export default function Footer() {
             <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-xl shadow-white/5 overflow-hidden">
                 <img 
                   src="/logo.png" 
-                  alt="Grupo More Logo" 
+                  alt="More Paper & Design Logo" 
                   className="w-full h-full object-contain p-2"
                 />
             </div>
             <div>
-              <h4 className="text-lg font-black text-white tracking-tight uppercase">Grupo More</h4>
-              <p className="text-[0.6rem] text-[#d4bc8f] font-black tracking-[0.2em] uppercase">Personalizar es identidad</p>
+              <h4 className="text-lg font-black text-white tracking-tight uppercase">More</h4>
+              <p className="text-[0.6rem] text-[#d4bc8f] font-black tracking-[0.2em] uppercase">Paper & Design · EST. 2024</p>
             </div>
           </motion.div>
           <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
@@ -102,7 +102,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6">
         <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">
           <Copyright size={12} />
-          {currentYear} Grupo More | Barranquilla, Colombia.
+          {currentYear} More Paper & Design | Barranquilla, Colombia.
         </div>
         <div className="text-[0.65rem] text-slate-600 font-medium">
           Matrícula: 899.897 | NIT: 72345510-8

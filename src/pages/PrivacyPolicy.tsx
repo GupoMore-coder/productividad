@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
             </div>
             <div className="space-y-4 relative">
               <h3 className="text-[0.65rem] font-black uppercase tracking-[0.3em] text-purple-500">Responsable del Tratamiento</h3>
-              <p className="text-2xl font-black text-white tracking-tight">More Paper 2024 / Grupo More</p>
+              <p className="text-2xl font-black text-white tracking-tight">More Paper 2024 / More Paper & Design</p>
               <div className="space-y-2">
                 <p className="text-sm text-slate-400 flex items-center gap-2">
                   <Info size={14} className="text-slate-600" />
@@ -92,7 +92,7 @@ export default function PrivacyPolicy() {
                 Objetivo de la Política
               </h2>
               <p className="text-slate-400 leading-relaxed">
-                La presente Política de Tratamiento de Información de **More Paper 2024 / Grupo More**, tiene por objeto dar cumplimiento a lo previsto en la Ley 1581 de 2012 y el Decreto 1377 de 2013, regulando los procedimientos de recolección, almacenamiento y tratamiento de los datos personales que se capten a través de nuestra plataforma.
+                La presente Política de Tratamiento de Información de **More Paper 2024 / More Paper & Design**, tiene por objeto dar cumplimiento a lo previsto en la Ley 1581 de 2012 y el Decreto 1377 de 2013, regulando los procedimientos de recolección, almacenamiento y tratamiento de los datos personales que se capten a través de nuestra plataforma.
               </p>
             </article>
 

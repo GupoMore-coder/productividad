@@ -108,16 +108,21 @@ export default function Login() {
           <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/5 overflow-hidden shadow-2xl shadow-amber-500/10">
              <img 
                src="/logo.png" 
-               alt="Logo Grupo More" 
+               alt="Logo More Paper & Design" 
                className="w-full h-full object-contain p-2"
              />
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight mb-2">
             Acceso al Sistema
           </h1>
-          <p className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-[0.3em]">
-            <span className="text-[#d4bc8f]">Regalos auténticos</span> / Grupo More
-          </p>
+          <div className="flex flex-col items-center gap-1.5 mt-1">
+            <span className="text-[0.65rem] text-[#d4bc8f] font-black uppercase tracking-[0.3em]">
+              Regalos auténticos
+            </span>
+            <span className="text-[0.55rem] text-slate-500 font-black uppercase tracking-[0.2em]">
+              More Paper & Design EST. 2024
+            </span>
+          </div>
         </div>
 
         {showWelcome && (
@@ -131,7 +136,7 @@ export default function Login() {
               <CheckCircle2 size={24} />
             </div>
             <p className="text-[0.7rem] font-black text-slate-200 leading-relaxed uppercase tracking-[0.15em]">
-              Bienvenid@ al <span className="text-[#d4bc8f]">Grupo More</span>. 💎<br/>
+              Bienvenid@ al <span className="text-[#d4bc8f]">More Paper & Design</span>. 💎<br/>
               Ya puedes <span className="text-white">completar tu formulario</span> de registro.
             </p>
           </motion.div>

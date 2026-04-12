@@ -113,7 +113,7 @@ export default function Register() {
           </div>
           
           <h1 className="text-2xl font-black text-white tracking-tight mb-2">Crear Cuenta</h1>
-          <p className="text-sm text-slate-400">Únete al equipo de <span className="text-[#d4bc8f] font-bold">Grupo More</span></p>
+          <p className="text-sm text-slate-400">Únete al equipo de <span className="text-[#d4bc8f] font-bold">More Paper & Design</span></p>
         </div>
 
         {error && (

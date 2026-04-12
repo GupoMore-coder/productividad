@@ -7,13 +7,13 @@
 @tailwind utilities;
 
 :root {
-  /* Colors - Grupo More */
-  --bg-color: #1a1622;
-  --bg-color-secondary: #251f30;
+  /* Colors - More Paper & Design */
+  --bg-color: #0f0a15;
+  --bg-color-secondary: #1a1622;
   --text-primary: #f8f6fc;
   --text-secondary: #a39bb3;
   --accent-color: #d4bc8f;
-  --accent-glow: rgba(212, 188, 143, 0.4);
+  --accent-glow: rgba(212, 188, 143, 0.3);
   --danger-color: #e57373;
   --success-color: #81c784;
   --warning-color: #ffd54f;

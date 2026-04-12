@@ -15,6 +15,7 @@ import {
   cleanFiredAlarms,
 } from '../lib/alarmDB';
 import type { Task } from '../components/TaskCard';
+import type { MissingItem } from '../context/InventoryContext';
 import { triggerHaptic } from '../utils/haptics';
 
 // ── Config ───────────────────────────────────────────────────
@@ -66,12 +67,20 @@ export async function scheduleTaskNotifications(task: Task): Promise<void> {
   await deleteAlarmsByTaskId(task.id);
 
   const taskDateTime = new Date(`${task.date}T${task.time}:00`).getTime();
-  const offsets = OFFSETS_BY_PRIORITY[task.priority];
+  
+  // v2.2: Specific offsets for Reminders (24h, 12h, 2h)
+  const isReminder = task.type === 'reminder';
+  const offsets = isReminder ? [24, 12, 2] : OFFSETS_BY_PRIORITY[task.priority];
+  
   const now = Date.now();
 
   for (const hours of offsets) {
     const fireAt = taskDateTime - hours * 3_600_000;
     if (fireAt <= now) continue; // Skip past reminders
+
+    // Check if THIS specific offset is muted, or the whole task is muted
+    const isSpecificMuted = (task.muted_alarms || []).includes(offsets.indexOf(hours));
+    const isMuted = task.is_muted || isSpecificMuted;
 
     await saveAlarm({
       id: `${task.id}-${hours}h`,
@@ -81,6 +90,7 @@ export async function scheduleTaskNotifications(task: Task): Promise<void> {
       fireAt,
       body: `⏰ Faltan ${formatOffset(hours)} para: "${task.title}"`,
       fired: false,
+      isMuted,
     });
   }
 }
@@ -90,6 +100,55 @@ export async function cancelTaskNotifications(taskId: string): Promise<void> {
   await deleteAlarmsByTaskId(taskId);
 }
 
+/**
+ * Schedules mandatory birthday notifications for all users.
+ * - Day before at 08:00
+ * - Birthday day at 08:00
+ */
+export async function scheduleBirthdayNotifications(profiles: any[], currentUserId?: string) {
+  if (!hasNotificationPermission()) return;
+
+  const now = Date.now();
+
+  for (const p of profiles) {
+    if (p.id === currentUserId || !p.birth_date) continue;
+
+    const bday = new Date(p.birth_date);
+    const currentYear = new Date().getFullYear();
+    
+    // Check current year and next year to ensure there's always a future alarm
+    const yearsToCheck = [currentYear, currentYear + 1];
+
+    for (const year of yearsToCheck) {
+      // Create date objects in local time
+      const bdayThisYear = new Date(year, bday.getUTCMonth(), bday.getUTCDate(), 8, 0, 0);
+      const dayBefore = new Date(year, bday.getUTCMonth(), bday.getUTCDate() - 1, 8, 0, 0);
+
+      const milestones = [
+        { date: dayBefore, label: 'Mañana es el cumpleaños de' },
+        { date: bdayThisYear, label: '¡Hoy es el cumpleaños de!' }
+      ];
+
+      for (const m of milestones) {
+        const fireAt = m.date.getTime();
+        if (fireAt <= now) continue;
+
+        const alarmId = `bday_${p.id}_${year}_${m.date.getDate()}`;
+        
+        await saveAlarm({
+          id: alarmId,
+          taskId: `bday_${p.id}`,
+          taskTitle: `🎂 ${p.full_name || p.username}`,
+          priority: 'alta', // Ensures critical alert sound
+          fireAt,
+          body: `${m.label} ${p.full_name || p.username}. ¡No olvides felicitarle! ✨`,
+          fired: false,
+        });
+      }
+    }
+  }
+}
+
 // ── Alarm Checker (runs in main thread) ──────────────────────
 
 // ── Critical Alerts (Audio / Visual / Haptic) ───────────────
@@ -97,39 +156,50 @@ export async function cancelTaskNotifications(taskId: string): Promise<void> {
 /**
  * High-intensity alert for critical events (Master Admin alerts)
  */
-export async function triggerCriticalAlert(title: string, body: string) {
-  // 1. Haptic (Vibration)
-  triggerHaptic('critical');
-
-  // 2. Audio (requires user interaction first to play)
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.4);
-    
-    // Low tone follow-up
-    const secondaryOsc = audioContext.createOscillator();
-    secondaryOsc.connect(gainNode);
-    secondaryOsc.frequency.setValueAtTime(440, audioContext.currentTime + 0.2); // A4
-    secondaryOsc.start(audioContext.currentTime + 0.2);
-    secondaryOsc.stop(audioContext.currentTime + 0.6);
-
-  } catch (e) {
-    console.warn('[Notifications] Audio alert failed (likely blocked by browser):', e);
+export async function triggerCriticalAlert(title: string, body: string, isMuted = false) {
+  // 1. Haptic (Vibration) - ONLY if not muted
+  if (!isMuted) {
+    triggerHaptic('critical');
   }
 
-  // 3. Visual (System Notification)
+  // 2. Audio (requires user interaction first to play) - ONLY if not muted
+  if (!isMuted) {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // If blocked, we can't reliably play here, but UnifiedAlarmModal handles resume on click
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.4);
+      
+      const secondaryOsc = audioCtx.createOscillator();
+      secondaryOsc.connect(gainNode);
+      secondaryOsc.frequency.setValueAtTime(440, audioCtx.currentTime + 0.2); 
+      secondaryOsc.start(audioCtx.currentTime + 0.2);
+      secondaryOsc.stop(audioCtx.currentTime + 0.6);
+
+    } catch (e) {
+      console.warn('[Notifications] Audio alert failed:', e);
+    }
+  }
+
+  // 3. Visual (System Notification) - Always fires
+  // NOTE: Per user request, system push notifications are NOT silenced by the app's "Mute" toggle.
+  // This allows system defaults/user OS settings to prevail.
   if (hasNotificationPermission()) {
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       const reg = await navigator.serviceWorker.ready;
@@ -141,7 +211,7 @@ export async function triggerCriticalAlert(title: string, body: string) {
         requireInteraction: true,
       } as NotificationOptions);
     } else {
-      new Notification(title, { body, requireInteraction: true });
+      new Notification(title, { body, requireInteraction: true } as any);
     }
   }
 }
@@ -164,10 +234,13 @@ export async function checkAndFireDueAlarms(): Promise<void> {
       alarm.priority === 'media' ? '🟡' : '🟢';
 
     try {
+      // Use local isMuted flag from the alarm (Auditoría: Eliminada N+1 query a Supabase)
+      const isMuted = !!alarm.isMuted;
+
       if (alarm.priority === 'alta' || alarm.priority === 'media') {
-        await triggerCriticalAlert(`${emoji} ${alarm.taskTitle}`, alarm.body);
+        await triggerCriticalAlert(`${emoji} ${alarm.taskTitle}`, alarm.body, isMuted);
         window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
-          detail: { id: alarm.id, type: 'critical', title: `${emoji} ${alarm.taskTitle}`, body: alarm.body }
+          detail: { id: alarm.id, type: 'critical', title: `${emoji} ${alarm.taskTitle}`, body: alarm.body, isMuted }
         }));
       } else {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -179,6 +252,7 @@ export async function checkAndFireDueAlarms(): Promise<void> {
             tag: alarm.id,
             requireInteraction: true,
             data: { taskId: alarm.taskId },
+            vibrate: [100, 50, 100]
           } as NotificationOptions);
         } else {
           new Notification(`${emoji} ${alarm.taskTitle}`, {
@@ -186,7 +260,7 @@ export async function checkAndFireDueAlarms(): Promise<void> {
             icon: '/pwa-192x192.png',
             tag: alarm.id,
             requireInteraction: true,
-          });
+          } as any);
         }
         
         window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
@@ -194,7 +268,8 @@ export async function checkAndFireDueAlarms(): Promise<void> {
             id: alarm.id, 
             type: alarm.taskId.startsWith('order') ? 'order' : 'task', 
             title: `${emoji} ${alarm.taskTitle}`, 
-            body: alarm.body 
+            body: alarm.body,
+            isMuted
           }
         }));
       }
@@ -227,7 +302,7 @@ export function initAlarmChecker(): () => void {
   checkAndFireDueAlarms();
 
   if (_alarmCheckInterval) clearInterval(_alarmCheckInterval);
-  _alarmCheckInterval = setInterval(checkAndFireDueAlarms, 90_000); // 90 s
+  _alarmCheckInterval = setInterval(checkAndFireDueAlarms, 30_000); // 30 s (High Precision)
 
   return () => {
     if (_alarmCheckInterval) {
@@ -317,3 +392,48 @@ export async function cancelOrderNotifications(orderId: string) {
     console.error('Failed to cancel order notifications', err);
   }
 }
+
+// ── Inventory Reminders ──────────────────────────────────────
+
+/**
+ * Checks for missing items that need reminder today based on priority.
+ * Baja: Mon (1)
+ * Media: Mon (1), Thu (4)
+ * Alta: Mon (1), Wed (3), Fri (5), Sun (0)
+ */
+export async function checkInventoryReminders(items: MissingItem[], userRole: string) {
+  if (Notification.permission !== 'granted') return;
+  
+  // Restricted roles
+  const authorized = ['Administrador maestro', 'Director General (CEO)', 'Gestor Administrativo'];
+  if (!authorized.includes(userRole)) return;
+
+  const now = new Date();
+  const day = now.getDay(); // 0(Sun) - 6(Sat)
+  
+  const activeItems = items.filter(i => i.lifecycle_status === 'approved');
+  if (activeItems.length === 0) return;
+
+  const needsReminder = activeItems.filter(item => {
+    if (item.priority === 'baja') return day === 1;
+    if (item.priority === 'media') return day === 1 || day === 4;
+    if (item.priority === 'alta') return [1, 3, 5, 0].includes(day);
+    return false;
+  });
+
+  if (needsReminder.length > 0) {
+    const title = `📦 Recordatorio de Faltantes (${needsReminder.length})`;
+    const body = needsReminder.slice(0, 3).map(i => `• ${i.product_name}`).join('\n') + (needsReminder.length > 3 ? `\n... y ${needsReminder.length - 3} más` : '');
+    
+    await triggerCriticalAlert(title, body);
+  }
+}
+
+/**
+ * Notifies Supervisor of a new consultant request
+ */
+export async function notifySupervisorOfNewRequest(itemName: string) {
+  if (Notification.permission !== 'granted') return;
+  await triggerCriticalAlert('🚨 Nueva Solicitud de Faltante', `Consultora ha solicitado: "${itemName}". Requiere aprobación.`);
+}
+

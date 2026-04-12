@@ -13,6 +13,8 @@ interface OrderFiltersProps {
   setFilter: (val: 'activas' | 'inactivas') => void;
   activeCount: number;
   inactiveCount: number;
+  docType: 'todas' | 'ordenes' | 'cotizaciones';
+  setDocType: (val: 'todas' | 'ordenes' | 'cotizaciones') => void;
 }
 
 export function OrderFilters({
@@ -26,6 +28,8 @@ export function OrderFilters({
   setFilter,
   activeCount,
   inactiveCount,
+  docType,
+  setDocType,
 }: OrderFiltersProps) {
   const [showDates, setShowDates] = React.useState(false);
 
@@ -117,6 +121,23 @@ export function OrderFilters({
           className="absolute inset-y-1.5 left-1.5 w-[calc(50%-6px)] bg-purple-400 rounded-xl"
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         />
+      </div>
+
+      {/* Document Type Filter */}
+      <div className="flex gap-2">
+        {(['todas', 'ordenes', 'cotizaciones'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setDocType(t)}
+            className={`flex-1 py-2 rounded-xl text-[0.6rem] font-black uppercase tracking-widest border transition-all ${
+              docType === t 
+                ? 'bg-white/10 border-white/20 text-white shadow-lg' 
+                : 'bg-transparent border-white/5 text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            {t === 'todas' ? 'Todos' : t === 'ordenes' ? 'Órdenes' : 'Cotizaciones'}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Task } from '../context/TaskContext';
 
 interface HistoryViewProps {
@@ -8,8 +10,8 @@ interface HistoryViewProps {
 
 export default function HistoryView({ tasks, onClose, onGoToDate }: HistoryViewProps) {
   const historyTasks = tasks
-    .filter(t => t.completed || t.status === 'cancelled_with_reason' || t.status === 'declined' || new Date(t.date) < new Date())
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .filter(t => t.completed || t.status === 'cancelled_with_reason' || t.status === 'declined' || parseISO(t.date) < new Date())
+    .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
 
   // Group by date
   const grouped = historyTasks.reduce((acc: any, task) => {
@@ -17,6 +19,16 @@ export default function HistoryView({ tasks, onClose, onGoToDate }: HistoryViewP
     acc[task.date].push(task);
     return acc;
   }, {});
+
+  const formatHeaderDate = (dateStr: string) => {
+    try {
+      // Split to avoid UTC shift
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return format(new Date(y, m-1, d), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
+    } catch (e) {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="glass-panel" style={{ position: 'fixed', inset: '20px', zIndex: 1000, padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 0 50px rgba(0,0,0,0.5)' }}>
@@ -46,9 +58,10 @@ export default function HistoryView({ tasks, onClose, onGoToDate }: HistoryViewP
                 marginBottom: '12px',
                 borderLeft: '4px solid var(--accent-color)',
                 fontSize: '0.9rem',
-                fontWeight: '600'
+                fontWeight: '600',
+                textTransform: 'capitalize'
               }}>
-                {new Date(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {formatHeaderDate(date)}
               </div>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

@@ -10,24 +10,39 @@ export interface UnifiedAlarmPayload {
   title: string;
   body: string;
   navigateUrl?: string;
+  isMuted?: boolean;
 }
 
 export default function UnifiedAlarmModal() {
   const [queue, setQueue] = useState<UnifiedAlarmPayload[]>([]);
   const navigate = useNavigate();
 
-  const playAlarmSound = () => {
+  // Shared AudioContext to handle browser restrictions better
+  const [audioCtx] = useState(() => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      return new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch {
+      return null;
+    }
+  });
+
+  const playAlarmSound = () => {
+    if (!audioCtx) return;
+    
+    try {
+      // If context was suspended (browser policy), try to resume
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
       const osc = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
       osc.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       
-      // Clean frequency beep
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
       gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
       
@@ -35,18 +50,19 @@ export default function UnifiedAlarmModal() {
       osc.stop(audioCtx.currentTime + 0.3);
       
       setTimeout(() => {
+        if (audioCtx.state === 'closed') return;
         const osc2 = audioCtx.createOscillator();
         const gain2 = audioCtx.createGain();
         osc2.connect(gain2);
         gain2.connect(audioCtx.destination);
-        osc2.frequency.setValueAtTime(1046.50, audioCtx.currentTime); // C6
+        osc2.frequency.setValueAtTime(1046.50, audioCtx.currentTime); 
         gain2.gain.setValueAtTime(0.1, audioCtx.currentTime);
         gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
         osc2.start();
         osc2.stop(audioCtx.currentTime + 0.3);
       }, 150);
     } catch (err) {
-      console.warn("[UnifiedAlarm] AudioContext prevented by browser:", err);
+      console.warn("[UnifiedAlarm] Audio failed:", err);
     }
   };
 
@@ -54,19 +70,34 @@ export default function UnifiedAlarmModal() {
     const handleAlarm = (e: any) => {
       const payload = e.detail as UnifiedAlarmPayload;
       
-      // Prevent duplicates in queue
       setQueue((prev) => {
         if (prev.some(p => p.id === payload.id)) return prev;
         return [...prev, payload];
       });
       
-      triggerHaptic('critical');
-      playAlarmSound();
+      // ONLY vibrate and play sound if NOT muted
+      if (!payload.isMuted) {
+        triggerHaptic('critical');
+        playAlarmSound();
+      }
+    };
+
+    // Global listener to unlock audio context on first user click
+    const unlockAudio = () => {
+      if (audioCtx?.state === 'suspended') {
+        audioCtx.resume();
+      }
+      window.removeEventListener('click', unlockAudio);
     };
 
     window.addEventListener('app:show-unified-alarm', handleAlarm);
-    return () => window.removeEventListener('app:show-unified-alarm', handleAlarm);
-  }, []);
+    window.addEventListener('click', unlockAudio);
+
+    return () => {
+      window.removeEventListener('app:show-unified-alarm', handleAlarm);
+      window.removeEventListener('click', unlockAudio);
+    };
+  }, [audioCtx]);
 
   const dismissCurrent = () => {
     triggerHaptic('light');

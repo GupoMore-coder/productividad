@@ -6,12 +6,21 @@ export interface Group {
   id: string;
   name: string;
   creatorId: string;
+  creator_details?: {
+    full_name: string;
+    avatar?: string;
+  };
 }
 
 export interface GroupMembership {
   groupId: string;
   userId: string;
   status: 'pending' | 'invited' | 'approved';
+  user_details?: {
+    full_name: string;
+    avatar?: string;
+    role?: string;
+  };
 }
 
 interface GroupContextType {
@@ -50,11 +59,32 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const loadGroups = async () => {
       setLoading(true);
-      const { data: gData } = await supabase.from('groups').select('*');
-      const { data: mData } = await supabase.from('group_memberships').select('*');
+      const { data: gData } = await supabase.from('groups').select('*, profiles!creator_id(full_name, avatar)');
+      const { data: mData } = await supabase.from('group_memberships').select('*, profiles!user_id(full_name, avatar, role)');
       
-      if (gData) setGroups(gData.map(g => ({ id: g.id, name: g.name, creatorId: g.creator_id })));
-      if (mData) setMemberships(mData.map(m => ({ groupId: m.group_id, userId: m.user_id, status: m.status })));
+      if (gData) {
+        setGroups(gData.map(g => ({ 
+          id: g.id, 
+          name: g.name, 
+          creatorId: g.creator_id,
+          creator_details: g.profiles ? {
+            full_name: g.profiles.full_name,
+            avatar: g.profiles.avatar
+          } : undefined
+        })));
+      }
+      if (mData) {
+        setMemberships(mData.map(m => ({ 
+          groupId: m.group_id, 
+          userId: m.user_id, 
+          status: m.status,
+          user_details: m.profiles ? {
+            full_name: m.profiles.full_name,
+            avatar: m.profiles.avatar,
+            role: m.profiles.role
+          } : undefined
+        })));
+      }
       setLoading(false);
     };
 
@@ -91,8 +121,25 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (mErr) throw mErr;
 
         // Sincronización proactiva inmediata
-        setGroups(prev => [...prev, { id: gId, name, creatorId: uId }]);
-        setMemberships(prev => [...prev, { groupId: gId, userId: uId, status: 'approved' as const }]);
+        setGroups(prev => [...prev, { 
+          id: gId, 
+          name, 
+          creatorId: uId,
+          creator_details: user ? {
+            full_name: user.full_name || user.username,
+            avatar: user.avatar
+          } : undefined
+        }]);
+        setMemberships(prev => [...prev, { 
+          groupId: gId, 
+          userId: uId, 
+          status: 'approved' as const,
+          user_details: user ? {
+            full_name: user.full_name || user.username,
+            avatar: user.avatar,
+            role: user.role
+          } : undefined
+        }]);
       } catch (err: any) {
         console.error('Error al crear grupo:', err);
         alert(`FALLO AL CREAR GRUPO: ${err.message || 'Error de permisos RLS o conexión de red'}`);
@@ -125,7 +172,17 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const rejectJoin = async (groupId: string, userId: string) => {
     if (isSupabaseConfigured) {
-      await supabase.from('group_memberships').delete().match({ group_id: groupId, user_id: userId });
+      try {
+        // Optimistic update
+        setMemberships(prev => prev.filter(m => !(m.groupId === groupId && m.userId === userId)));
+        
+        const { error } = await supabase.from('group_memberships').delete().match({ group_id: groupId, user_id: userId });
+        if (error) throw error;
+      } catch (err: any) {
+        console.error('Error rejecting/canceling membership:', err);
+        // Rollback if needed (though realtime sync would typically fix this)
+        alert(`No se pudo completar la acción: ${err.message}`);
+      }
     } else {
       setMemberships(prev => prev.filter(m => !(m.groupId === groupId && m.userId === userId)));
     }
@@ -149,12 +206,14 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isSupabaseConfigured) {
       try {
-        // 1. Delete associated tasks first (Cascade-like)
-        const { error: tErr } = await supabase
-          .from('tasks')
-          .delete()
-          .contains('group_ids', [groupId]);
-        if (tErr) console.warn('Warning: Could not delete tasks for group:', tErr);
+        // 1. Convert shared tasks to private for the leader (remove group reference)
+        const { data: grpTasks } = await supabase.from('tasks').select('id, group_ids').contains('group_ids', [groupId]);
+        if (grpTasks && grpTasks.length > 0) {
+          for (const t of grpTasks) {
+            const updatedIds = (t.group_ids || []).filter((id: string) => id !== groupId);
+            await supabase.from('tasks').update({ group_ids: updatedIds }).eq('id', t.id);
+          }
+        }
 
         // 2. Delete memberships
         const { error: mErr } = await supabase.from('group_memberships').delete().eq('group_id', groupId);
@@ -171,6 +230,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         alert(`Error al eliminar grupo: ${err.message}`);
       }
     } else {
+
       setGroups(prev => prev.filter(g => g.id !== groupId));
       setMemberships(prev => prev.filter(m => m.groupId !== groupId));
     }
@@ -181,25 +241,101 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
 
-    const isAdmin = user.isSuperAdmin || group.creatorId === user.id;
+    const isAdmin = user.isMaster || user.isSuperAdmin || group.creatorId === user.id;
     if (!isAdmin) {
       alert("Solo el creador o el administrador maestro pueden expulsar usuarios.");
       return;
     }
 
-    await rejectJoin(groupId, targetUserId);
+    if (isSupabaseConfigured) {
+      try {
+        // Optimistic update
+        setMemberships(prev => prev.filter(m => !(m.groupId === groupId && m.userId === targetUserId)));
+
+        // Log the expulsion for notification purposes before deleting (non-blocking)
+        supabase.from('audit_logs').insert({
+          action: 'user_expelled',
+          details: { group_id: groupId, user_id: targetUserId },
+          created_by: user.id
+        }).then(({ error }) => { if (error) console.warn('Audit log skip:', error.message); });
+
+        // notify via a dedicated table if available (realtime fallback)
+        supabase.from('realtime_notifications').insert({
+          user_id: targetUserId,
+          title: 'Aviso de Grupo',
+          message: `Recientemente dejaste de pertenecer al grupo "${group.name}" ponte en contacto con el administrador o el lider del grupo`,
+          type: 'group_expulsion'
+        }).then(({ error }) => { if (error) console.warn('Notification skip:', error.message); });
+
+
+        const { error } = await supabase.from('group_memberships').delete().match({ group_id: groupId, user_id: targetUserId });
+        if (error) throw error;
+      } catch (err: any) {
+        console.error('Error removing user:', err);
+        alert(`Error al expulsar usuario: ${err.message}`);
+      }
+    } else {
+      setMemberships(prev => prev.filter(m => !(m.groupId === groupId && m.userId === targetUserId)));
+    }
   };
 
   const inviteUser = async (groupId: string, userEmail: string) => {
-    // In real Supabase, we would need to map email to user_id first.
-    // For now, let's assume user_id is the same as email if Supabase isn't here,
-    // but in real mode, the user must already exist in 'profiles'.
     let targetId = userEmail;
     if (isSupabaseConfigured) {
-      const { data } = await supabase.from('profiles').select('id').eq('email', userEmail).single();
-      if (!data) throw new Error('Usuario no encontrado');
-      targetId = data.id;
-      await supabase.from('group_memberships').insert({ group_id: groupId, user_id: targetId, status: 'invited' });
+      try {
+        const { data: profile } = await supabase.from('profiles').select('id, full_name, avatar, role').eq('email', userEmail).single();
+        if (!profile) throw new Error('Usuario no encontrado');
+        targetId = profile.id;
+        
+        // 1. Check if already a member or invited
+        const alreadyMember = memberships.find(m => m.groupId === groupId && m.userId === targetId);
+        if (alreadyMember) {
+          triggerHaptic('warning');
+          alert(`El usuario "${profile.full_name}" ya es miembro o tiene una invitación pendiente.`);
+          return;
+        }
+
+        // 2. Optimistic update
+        const newInvitation: GroupMembership = {
+          groupId,
+          userId: targetId,
+          status: 'invited',
+          user_details: {
+            full_name: profile.full_name,
+            avatar: profile.avatar,
+            role: profile.role
+          }
+        };
+        setMemberships(prev => [...prev, newInvitation]);
+
+        // 3. Insert in DB
+        const { error } = await supabase.from('group_memberships').insert({ group_id: groupId, user_id: targetId, status: 'invited' });
+        
+        if (error) {
+          if (error.code === '23505') { // Duplicate key
+             alert(`Este usuario ya tiene una invitación registrada en la base de datos.`);
+             return;
+          }
+          throw error;
+        }
+      } catch (err: any) {
+        console.error('Error inviting user:', err);
+        alert(`Error al invitar: ${err.message}`);
+        // Refresh to sync state on error
+        const { data: mData } = await supabase.from('group_memberships').select('*, profiles!user_id(full_name, avatar, role)');
+        if (mData) {
+          setMemberships(mData.map(m => ({ 
+            groupId: m.group_id, 
+            userId: m.user_id, 
+            status: m.status,
+            user_details: m.profiles ? {
+              full_name: m.profiles.full_name,
+              avatar: m.profiles.avatar,
+              role: m.profiles.role
+            } : undefined
+          })));
+        }
+      }
     } else {
       setMemberships(prev => [...prev, { groupId, userId: targetId, status: 'invited' }]);
     }
@@ -222,7 +358,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         full_name: u.full_name || u.username
       }));
     }
-    const { data, error } = await supabase.from('profiles').select('id, email, full_name').order('full_name');
+    const { data, error } = await supabase.from('profiles').select('id, email, full_name, avatar').order('full_name');
     if (error) throw error;
     return data || [];
   };

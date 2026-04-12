@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +15,6 @@ import {
   BarChart2, 
   Activity,
   ShieldCheck,
-  LayoutDashboard,
   Timer,
   CheckCircle2,
   Star,
@@ -23,11 +23,21 @@ import {
   Trophy,
   CalendarDays,
   ChevronRight,
-  Users
+  Users,
+  Target,
+  Rocket,
+  ShieldAlert,
+  Info,
+  Layers,
+  Zap,
+  Heart,
+  FileText
 } from 'lucide-react';
 import UserOrdersModal from '../components/UserOrdersModal';
 import { Skeleton, StatsSkeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
+import { format, subDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { generateExecutiveReport } from '../services/ExecutiveReportService';
 
 
 // ── Custom SVG Bar Component ──────────────────────────────────────
@@ -61,6 +71,7 @@ const BarChart = ({ data, color }: { data: { label: string, value: number }[], c
 
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { orders, loading: ordersLoading } = useOrders();
   usePageTitle('Panel de Control');
   const { tasks, loading: tasksLoading } = useTasks();
@@ -68,11 +79,17 @@ export default function Dashboard() {
   const health = useHealthMonitor();
   
   const [activeTab, setActiveTab] = useState<'financial' | 'productivity'>('productivity');
-  const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'global'>('global');
+  const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'range' | 'global'>('global');
+  const [rangeStart, setRangeStart] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [rangeEnd, setRangeEnd] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  
   const [selectedDetailUser, setSelectedDetailUser] = useState<{ id: string, username: string } | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  
   const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [isCalculating, setIsCalculating] = useState(false);
   const [showUserFilter, setShowUserFilter] = useState(false);
 
   useEffect(() => {
@@ -116,19 +133,31 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  useEffect(() => {
+    setIsCalculating(true);
+    const t = setTimeout(() => setIsCalculating(false), 600);
+    return () => clearTimeout(t);
+  }, [timeFilter, selectedUserIds]);
+
   const stats = useMemo(() => {
-    const now = new Date();
     const filterByTime = (itemDate: string) => {
       if (timeFilter === 'global') return true;
+      const d = new Date(itemDate);
+      if (timeFilter === 'range') {
+        return isWithinInterval(d, { 
+          start: new Date(rangeStart), 
+          end: new Date(rangeEnd) 
+        });
+      }
       const days = timeFilter === '7d' ? 7 : 30;
-      const limit = new Date(now.getTime() - (days * 24 * 60 * 60 * 1000));
-      return new Date(itemDate) >= limit;
+      const limit = subDays(new Date(), days);
+      return d >= limit;
     };
 
     const excludedUsers = ['miguel', 'flor', 'fernando', 'admin'];
     const financialOrders = orders.filter(o => {
       const isExcluded = excludedUsers.some(ex => (o.responsible || '').toLowerCase().includes(ex));
-      return !isExcluded && filterByTime(o.createdAt);
+      return !isExcluded && o.recordType !== 'cotizacion' && filterByTime(o.createdAt);
     });
 
     const totalSales = financialOrders.reduce((acc, o) => acc + (o.totalCost || 0), 0);
@@ -146,20 +175,28 @@ export default function Dashboard() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
 
+    // ANALISIS DE COTIZACIONES (Global - Sin filtro de tiempo por solicitud)
+    const allQuotes = orders.filter(o => o.recordType === 'cotizacion');
+    const quotesTotal = allQuotes.length;
+    const quotesCancelled = allQuotes.filter(o => o.status === 'cancelada').length;
+    const quotesConverted = orders.filter(o => 
+      o.recordType === 'orden' && 
+      o.history.some(h => h.description.includes('Cotización CONVERTIDA'))
+    ).length;
+    const quotesConversionRate = quotesTotal > 0 ? (quotesConverted / quotesTotal) * 100 : 0;
+    const quotesCancelledRate = quotesTotal > 0 ? (quotesCancelled / quotesTotal) * 100 : 0;
+
     const targetIds = user?.isSuperAdmin ? selectedUserIds : [user?.id];
     
     const filteredTasks = tasks.filter(t => {
        const isUserMatch = targetIds.includes(t.userId || '');
-       return isUserMatch && filterByTime(t.date);
+       const isTask = !t.type || t.type === 'task';
+       return isUserMatch && isTask && filterByTime(t.date);
     });
 
     const filteredOrders = orders.filter(o => {
-       const resp = (o.responsible || '').toLowerCase();
-       const matchedUser = allUsers.find(u => 
-          targetIds.includes(u.id) && 
-          (u.username?.toLowerCase() === resp || u.full_name?.toLowerCase() === resp)
-       );
-       return !!matchedUser && filterByTime(o.createdAt);
+       const isUserMatch = targetIds.includes(o.createdBy || '');
+       return isUserMatch && filterByTime(o.createdAt);
     });
 
     const tasksTotal = filteredTasks.length;
@@ -174,7 +211,9 @@ export default function Dashboard() {
 
     const respMap: Record<string, { total: number, completed: number, collection: number, sales: number }> = {};
     filteredOrders.forEach(o => {
-      const name = o.responsible || 'Sistema';
+      const creator = allUsers.find(u => u.id === o.createdBy);
+      const name = creator?.full_name || creator?.username || 'Sistema';
+      
       if (!respMap[name]) respMap[name] = { total: 0, completed: 0, collection: 0, sales: 0 };
       respMap[name].total++;
       respMap[name].sales += o.totalCost;
@@ -234,9 +273,49 @@ export default function Dashboard() {
       productivityRanking, tasksTotal, tasksCompleted, tasksCancelled, tasksEfficiency,
       ordersTotal, ordersCompleted, ordersEfficiency,
       totalCount: orders.length || 1,
-      avgSLA, loyaltyRatio, weeklyForecast
+      avgSLA, loyaltyRatio, weeklyForecast,
+      quotesTotal, quotesCancelled, quotesConverted, quotesConversionRate, quotesCancelledRate
     };
-  }, [orders, tasks, selectedUserIds, user, allUsers, timeFilter]);
+  }, [orders, tasks, selectedUserIds, user, allUsers, timeFilter, rangeStart, rangeEnd]);
+
+  const handleGenerateReport = async () => {
+    triggerHaptic('medium');
+    try {
+      const execStats = {
+        period: timeFilter === 'global' ? 'Histórico Global' : timeFilter === '7d' ? 'Últimos 7 Días' : 'Últimos 30 Días',
+        generatedBy: user?.full_name || user?.username || 'Administrador',
+        financial: {
+          totalSales: stats.totalSales,
+          totalCollected: stats.totalCollected,
+          totalPending: stats.totalPending,
+          weeklyForecast: stats.weeklyForecast,
+          quotesConversionRate: stats.quotesConversionRate
+        },
+        productivity: {
+          tasksEfficiency: stats.tasksEfficiency,
+          ordersEfficiency: stats.ordersEfficiency,
+          avgSLA: stats.avgSLA,
+          loyaltyRatio: stats.loyaltyRatio,
+          ranking: stats.productivityRanking.map(p => ({
+            label: p.label,
+            score: p.score,
+            efficiency: p.efficiency,
+            sales: p.sales
+          }))
+        },
+        administrative: {
+          userCount: allUsers.length,
+          onlineUsers: health.isOnline ? allUsers.length : 1, // Mock or real online count
+          systemHealth: health.status as any
+        }
+      };
+      await generateExecutiveReport(execStats as any);
+      handleAction('success');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      triggerHaptic('error');
+    }
+  };
 
   const toggleUser = (id: string) => {
     triggerHaptic('light');
@@ -376,32 +455,45 @@ export default function Dashboard() {
           </button>
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-amber-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <LayoutDashboard className="text-slate-900" size={32} />
+              <ShieldCheck className="text-slate-900" size={32} />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase">Inteligencia Cloud</h1>
+              <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase">Executive Insight</h1>
               <p className="text-[0.65rem] text-slate-500 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5 opacity-60">
-                <ShieldCheck size={14} className="text-purple-500" /> Grupo More · {activeTab === 'financial' ? 'Finanzas' : 'Productividad'}
+                <ShieldCheck size={14} className="text-purple-500" /> More Paper & Design · Inteligencia Gerencial
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5 backdrop-blur-xl">
-           <button 
-             onClick={() => { triggerHaptic('light'); setActiveTab('productivity'); }}
-             className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'productivity' ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-white'}`}
-           >
-             Productividad
-           </button>
-           {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant) && (
-             <button 
-               onClick={() => { triggerHaptic('light'); setActiveTab('financial'); }}
-               className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'financial' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-white'}`}
-             >
-               Finanzas
-             </button>
+        <div className="flex flex-wrap items-center gap-3">
+           {(user?.isMaster || user?.role === 'Director General (CEO)') && (
+               <>
+                 <button 
+                   onClick={handleGenerateReport}
+                   className="px-5 py-2.5 rounded-2xl bg-gradient-to-tr from-purple-600 to-amber-500 text-slate-950 text-[0.6rem] font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-purple-500/20 transition-all active:scale-95 flex items-center gap-2"
+                 >
+                   <FileText size={14} /> Generar Informe
+                 </button>
+               </>
+
            )}
+           <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5 backdrop-blur-xl">
+              <button 
+                onClick={() => { triggerHaptic('light'); setActiveTab('productivity'); }}
+                className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'productivity' ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-white'}`}
+              >
+                Productividad
+              </button>
+              {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant) && (
+                <button 
+                  onClick={() => { triggerHaptic('light'); setActiveTab('financial'); }}
+                  className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'financial' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-white'}`}
+                >
+                  Finanzas
+                </button>
+              )}
+           </div>
         </div>
       </header>
 
@@ -420,12 +512,63 @@ export default function Dashboard() {
           <CalendarDays size={12} /> 30 Días
         </button>
         <button 
+           onClick={() => { triggerHaptic('light'); setTimeFilter('range'); }}
+           className={`px-4 py-2 rounded-xl text-[0.6rem] font-black uppercase tracking-tighter transition-all flex items-center gap-2 ${timeFilter === 'range' ? 'bg-purple-600 text-white border border-white/10 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <Filter size={12} /> Rango Personalizado
+        </button>
+        <button 
            onClick={() => { triggerHaptic('light'); setTimeFilter('global'); }}
            className={`px-4 py-2 rounded-xl text-[0.6rem] font-black uppercase tracking-tighter transition-all ${timeFilter === 'global' ? 'bg-slate-800 text-white border border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
         >
           Global
         </button>
       </div>
+
+      <AnimatePresence>
+        {timeFilter === 'range' && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mb-8 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] lg:flex lg:items-center gap-4 bg-white/5 p-6 rounded-[32px] border border-white/10"
+          >
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest block mb-2 px-1">Fecha Inicial</label>
+              <input 
+                type="date" 
+                value={rangeStart} 
+                onChange={e => setRangeStart(e.target.value)}
+                title="Fecha Inicial"
+                placeholder="AAAA-MM-DD"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              />
+            </div>
+            <div className="w-10 h-10 flex items-center justify-center text-slate-500 mt-6 hidden sm:flex">
+              <ChevronRight />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest block mb-2 px-1">Fecha Final</label>
+              <input 
+                type="date" 
+                value={rangeEnd} 
+                onChange={e => setRangeEnd(e.target.value)}
+                title="Fecha Final"
+                placeholder="AAAA-MM-DD"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              />
+            </div>
+            <div className="w-full sm:w-auto mt-auto">
+               <button 
+                 onClick={() => triggerHaptic('medium')}
+                 className="w-full px-8 py-3.5 bg-purple-500 text-slate-950 font-black text-[0.65rem] uppercase tracking-widest rounded-2xl shadow-xl shadow-purple-500/20 hover:scale-105 transition-all active:scale-95"
+               >
+                 Actualizar Reporte
+               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {activeTab === 'productivity' ? (
@@ -446,7 +589,7 @@ export default function Dashboard() {
                 </div>
 
                 {showUserFilter && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 animate-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 animate-in slide-in-from-top-2 duration-300">
                     {allUsers.map(u => (
                       <button 
                         key={u.id}
@@ -464,30 +607,57 @@ export default function Dashboard() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-               <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group">
+               <motion.button 
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { triggerHaptic('light'); setSelectedMetric('eficacia_agenda'); }}
+                 className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group text-left"
+               >
                   <div className="absolute -right-4 -top-4 text-purple-500/5 group-hover:scale-110 transition-transform"><CheckCircle2 size={100} /></div>
-                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block">Eficacia Agenda</span>
+                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block flex items-center gap-2">
+                    Eficacia Agenda <Info size={10} className="text-purple-500 opacity-40" />
+                  </span>
                   <div className="text-4xl font-black text-white tabular-nums mb-1">{stats.tasksEfficiency.toFixed(1)}%</div>
                   <div className="text-[0.6rem] font-bold text-slate-600 uppercase italic">Basado en {stats.tasksTotal} tareas</div>
-               </div>
+               </motion.button>
 
-               <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group">
+               <motion.button 
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { triggerHaptic('light'); setSelectedMetric('cierre_ordenes'); }}
+                 className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group text-left"
+               >
                   <div className="absolute -right-4 -top-4 text-emerald-500/5 group-hover:scale-110 transition-transform"><Timer size={100} /></div>
-                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block">Cierre de Órdenes</span>
+                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block flex items-center gap-2">
+                    Cierre de Órdenes <Info size={10} className="text-emerald-500 opacity-40" />
+                  </span>
                   <div className="text-4xl font-black text-white tabular-nums mb-1">{stats.ordersEfficiency.toFixed(1)}%</div>
                   <div className="text-[0.6rem] font-bold text-slate-600 uppercase italic">{stats.ordersCompleted} finalizadas de {stats.ordersTotal}</div>
-               </div>
+               </motion.button>
 
-               <div className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group">
+               <motion.button 
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { triggerHaptic('light'); setSelectedMetric('fuerza_operativa'); }}
+                 className="bg-white/[0.02] border border-white/5 rounded-[32px] p-6 relative overflow-hidden group text-left"
+               >
                   <div className="absolute -right-4 -top-4 text-amber-500/5 group-hover:scale-110 transition-transform"><Star size={100} /></div>
-                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block">Fuerza Operativa</span>
-                  <div className="text-4xl font-black text-white tabular-nums mb-1">{((stats.tasksCompleted + stats.ordersCompleted) / 2 || 0).toFixed(0)}</div>
-                  <div className="text-[0.6rem] font-bold text-slate-600 uppercase italic">Índice de impacto semanal</div>
-               </div>
+                  <span className="text-[0.55rem] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 block flex items-center gap-2">
+                    Fuerza Operativa <Info size={10} className="text-amber-500 opacity-40" />
+                  </span>
+                  <div className="text-4xl font-black text-white tabular-nums mb-1">{((stats.tasksCompleted + stats.ordersCompleted) || 0).toFixed(0)}</div>
+                  <div className="text-[0.6rem] font-bold text-slate-600 uppercase italic">Índice total de impacto</div>
+               </motion.button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               <div className="bg-white/[0.02] border border-white/5 rounded-[40px] p-8 flex flex-col items-center text-center">
+               <motion.button 
+                 whileHover={{ scale: 1.01 }}
+                 whileTap={{ scale: 0.99 }}
+                 onClick={() => { triggerHaptic('light'); setSelectedMetric('distribucion_agenda'); }}
+                 className="bg-white/[0.02] border border-white/5 rounded-[40px] p-8 flex flex-col items-center text-center group relative overflow-hidden"
+               >
+                  <div className="absolute top-4 right-6 text-slate-700 opacity-20 group-hover:text-purple-500 transition-colors"><Info size={16} /></div>
                   <h4 className="text-[0.65rem] font-black text-white uppercase tracking-widest mb-6 border-b border-purple-500/20 pb-2">Distribución Grupal de Agenda</h4>
                   <div className="grid grid-cols-2 gap-8 w-full">
                     <div className="space-y-1">
@@ -502,18 +672,24 @@ export default function Dashboard() {
                   <div className="w-full h-1 bg-white/5 rounded-full mt-8 overflow-hidden">
                     <motion.div initial={{ width: 0 }} animate={{ width: `${stats.tasksEfficiency}%` }} className="h-full bg-purple-500 shadow-lg shadow-purple-500/40" />
                   </div>
-               </div>
+               </motion.button>
 
-               <div className="bg-white/[0.02] border border-white/5 rounded-[40px] p-8">
+               <motion.button 
+                 whileHover={{ scale: 1.01 }}
+                 whileTap={{ scale: 0.99 }}
+                 onClick={() => { triggerHaptic('light'); setSelectedMetric('rendimiento_operativo'); }}
+                 className="bg-white/[0.02] border border-white/5 rounded-[40px] p-8 text-left group relative overflow-hidden"
+               >
+                  <div className="absolute top-4 right-6 text-slate-700 opacity-20 group-hover:text-emerald-500 transition-colors"><Info size={16} /></div>
                   <h4 className="text-[0.65rem] font-black text-white uppercase tracking-widest mb-6 border-b border-emerald-500/20 pb-2 text-center">Rendimiento Operativo</h4>
                   <div className="space-y-4">
                      <div>
                         <div className="flex justify-between text-[0.6rem] font-black text-slate-500 mb-1">
-                           <span>EFICIENCIA ÚLTIMO MES</span>
-                           <span className="text-emerald-400">{(stats.ordersEfficiency * 0.9).toFixed(1)}%</span>
+                           <span>EFICIENCIA ÚLTIMO MES (REAL)</span>
+                           <span className="text-emerald-400">{(stats.ordersEfficiency).toFixed(1)}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                           <motion.div initial={{ width: 0 }} animate={{ width: `${stats.ordersEfficiency * 0.9}%` }} className="h-full bg-emerald-500" />
+                           <motion.div initial={{ width: 0 }} animate={{ width: `${stats.ordersEfficiency}%` }} className="h-full bg-emerald-500" />
                         </div>
                      </div>
                      <div>
@@ -526,64 +702,117 @@ export default function Dashboard() {
                         </div>
                      </div>
                   </div>
-               </div>
+               </motion.button>
             </div>
 
-            {/* Centro de Inteligencia Predictiva (Fase 15) */}
+            {/* v4.0: Módulo de Cotizaciones & Inteligencia Predictiva */}
             {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor) && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-blue-600/10 to-transparent border border-blue-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
-                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                         <Timer size={20} />
-                      </div>
-                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">SLA (Eficiencia)</h4>
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-2xl font-black text-white tabular-nums">{stats.avgSLA.toFixed(1)}h</span>
-                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Tiempo Medio de Entrega</span>
-                   </div>
-                   <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500" 
-                        style={{ width: `${Math.min(100, (24 / (stats.avgSLA || 1)) * 100)}%` }} 
-                      />
-                   </div>
-                </motion.div>
+              <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                 <motion.button 
+                   whileHover={{ y: -5 }}
+                   onClick={() => { triggerHaptic('light'); setSelectedMetric('cumplimiento_cotizaciones'); }}
+                   className="bg-gradient-to-br from-amber-600/10 to-transparent border border-amber-500/20 rounded-[32px] p-8 backdrop-blur-xl group text-left relative overflow-hidden"
+                 >
+                    <div className="absolute -right-4 -top-4 text-amber-500/5 group-hover:scale-110 transition-transform"><Layers size={140} /></div>
+                    <div className="flex items-center gap-3 mb-6">
+                       <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 group-hover:bg-amber-500 group-hover:text-white transition-all">
+                          <Layers size={24} />
+                       </div>
+                       <div>
+                         <h4 className="text-[0.7rem] font-black text-white uppercase tracking-widest leading-none">Cumplimiento Cotizaciones</h4>
+                         <p className="text-[0.6rem] text-slate-500 font-bold uppercase mt-1">Análisis Global de Conversión</p>
+                       </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 relative z-10">
+                       <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+                          <span className="text-[0.55rem] font-black text-slate-500 block uppercase mb-1">Total Generadas</span>
+                          <span className="text-2xl font-black text-white tabular-nums">{stats.quotesTotal}</span>
+                       </div>
+                       <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+                          <span className="text-[0.55rem] font-black text-emerald-500 block uppercase mb-1">Convertidas (OS)</span>
+                          <span className="text-2xl font-black text-emerald-400 tabular-nums">{stats.quotesConverted}</span>
+                       </div>
+                    </div>
 
-                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-emerald-600/10 to-transparent border border-emerald-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
-                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                         <Users size={20} />
-                      </div>
-                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">Lealtad (Retención)</h4>
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-2xl font-black text-white tabular-nums">{stats.loyaltyRatio.toFixed(0)}%</span>
-                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Clientes Recurrentes</span>
-                   </div>
-                   <div className="mt-4 h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500" style={{ width: `${stats.loyaltyRatio}%` }} />
-                   </div>
-                </motion.div>
+                    <div className="mt-6 flex flex-col gap-2">
+                       <div className="flex justify-between items-end">
+                          <span className="text-[0.6rem] font-black text-slate-400 uppercase tracking-tighter italic">Ratio de Éxito de Venta</span>
+                          <span className="text-lg font-black text-amber-500 tabular-nums">{stats.quotesConversionRate.toFixed(1)}%</span>
+                       </div>
+                       <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div initial={{ width: 0 }} animate={{ width: `${stats.quotesConversionRate}%` }} className="h-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                       </div>
+                    </div>
+                 </motion.button>
 
-                <motion.div whileHover={{ y: -5 }} className="bg-gradient-to-br from-purple-600/10 to-transparent border border-purple-500/20 rounded-[32px] p-6 backdrop-blur-xl group">
-                   <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all">
-                         <TrendingUp size={20} />
-                      </div>
-                      <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">Forecast (7 Días)</h4>
-                   </div>
-                   <div className="flex flex-col">
-                      <span className="text-2xl font-black text-white tabular-nums">${stats.weeklyForecast.toLocaleString()}</span>
-                      <span className="text-[0.55rem] text-slate-500 font-bold uppercase mt-1">Ventas Estimadas</span>
-                   </div>
-                   <div className="mt-4 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                      <span className="text-[0.5rem] font-black text-purple-500 uppercase tracking-tighter">Proyección Analítica</span>
-                   </div>
-                </motion.div>
+                 <div className="grid grid-cols-1 gap-6">
+                    <motion.button 
+                      whileHover={{ x: 5 }}
+                      onClick={() => { triggerHaptic('light'); setSelectedMetric('sla_eficiencia'); }}
+                      className="bg-white/[0.03] border border-white/5 rounded-[32px] p-6 flex items-center justify-between group"
+                    >
+                       <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                             <Zap size={22} />
+                          </div>
+                          <div className="text-left">
+                             <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">SLA de Entrega</h4>
+                             <span className="text-2xl font-black text-white tabular-nums">{stats.avgSLA.toFixed(1)}h</span>
+                          </div>
+                       </div>
+                       <ChevronRight size={20} className="text-slate-700 group-hover:text-blue-400 transition-colors" />
+                    </motion.button>
+
+                    <motion.button 
+                      whileHover={{ x: 5 }}
+                      onClick={() => { triggerHaptic('light'); setSelectedMetric('lealtad_retencion'); }}
+                      className="bg-white/[0.03] border border-white/5 rounded-[32px] p-6 flex items-center justify-between group"
+                    >
+                       <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                             <Heart size={22} />
+                          </div>
+                          <div className="text-left">
+                             <h4 className="text-[0.65rem] font-black text-slate-400 uppercase tracking-widest">Lealtad Clientes</h4>
+                             <span className="text-2xl font-black text-white tabular-nums">{stats.loyaltyRatio.toFixed(0)}%</span>
+                          </div>
+                       </div>
+                       <ChevronRight size={20} className="text-slate-700 group-hover:text-emerald-400 transition-colors" />
+                    </motion.button>
+                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <motion.button 
+                  whileHover={{ y: -5 }} 
+                  onClick={() => { triggerHaptic('light'); setSelectedMetric('forecast_7d'); }}
+                  className="bg-gradient-to-br from-purple-600/10 to-transparent border border-purple-500/20 rounded-[32px] p-6 backdrop-blur-xl group md:col-span-3 text-left relative overflow-hidden"
+                >
+                   <div className="absolute right-10 top-1/2 -translate-y-1/2 text-purple-500/5 group-hover:scale-125 transition-transform"><TrendingUp size={120} /></div>
+                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+                      <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-all">
+                            <Rocket size={24} />
+                         </div>
+                         <div>
+                            <h4 className="text-[0.7rem] font-black text-slate-400 uppercase tracking-[0.3em] leading-none mb-1">Impacto Predictivo (Forecast)</h4>
+                            <p className="text-[0.6rem] text-purple-500/60 font-black uppercase tracking-widest italic">Proyección Analítica Próximos 7 Días</p>
+                         </div>
+                      </div>
+                      <div className="flex flex-col sm:items-end">
+                         <span className="text-4xl font-black text-white tabular-nums tracking-tighter">${stats.weeklyForecast.toLocaleString()}</span>
+                         <span className="text-[0.65rem] text-slate-500 font-bold uppercase mt-1">Potencial de Venta Semanal</span>
+                      </div>
+                   </div>
+                   <div className="mt-6 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                      <span className="text-[0.5rem] font-black text-purple-500 uppercase tracking-[0.2em]">Cálculo basado en tendencia histórica del periodo seleccionado</span>
+                   </div>
+                </motion.button>
+              </div>
+              </>
             )}
 
             <section className="bg-white/[0.02] border border-white/5 p-8 rounded-[40px] shadow-lg">
@@ -718,7 +947,7 @@ export default function Dashboard() {
 
       <footer className="mt-16 text-center text-slate-600 space-y-2">
         <Activity className="mx-auto opacity-20" size={24} />
-        <p className="text-[0.6rem] font-black uppercase tracking-[0.2em]">SISTEMA ANALÍTICO GRUPO MORE · CLOUD LOGIC v2.0</p>
+        <p className="text-[0.6rem] font-black uppercase tracking-[0.2em]">SISTEMA ANALÍTICO More Paper & Design · CLOUD LOGIC v2.0</p>
       </footer>
 
       <UserOrdersModal 
@@ -731,6 +960,155 @@ export default function Dashboard() {
           return resp === target || (o.createdBy || '').toLowerCase() === target;
         })}
       />
+
+      <MetricDetailModal
+        metric={selectedMetric}
+        onClose={() => setSelectedMetric(null)}
+      />
+    </div>
+  );
+}
+
+// ── Metric Detail Modal (Analytic Drill-down) ───────────────────────
+function MetricDetailModal({ metric, onClose }: { metric: string | null, onClose: () => void }) {
+  if (!metric) return null;
+
+  const metricInfo: Record<string, { title: string, icon: any, color: string, tech: string, strategy: string, formula: string }> = {
+    eficacia_agenda: {
+      title: 'Eficacia de Agenda',
+      icon: <CheckCircle2 size={24} />,
+      color: 'text-purple-400',
+      tech: 'Calculado como el ratio porcentual entre tareas marcadas como completadas y el total de tareas asignadas para el periodo seleccionado.',
+      strategy: 'Mide la capacidad de cumplimiento del equipo en su planificación diaria. Una eficacia baja indica cuellos de botella en la gestión del tiempo.',
+      formula: '(Tareas Completadas / Tareas Totales) * 100'
+    },
+    cierre_ordenes: {
+      title: 'Cierre de Órdenes',
+      icon: <Timer size={24} />,
+      color: 'text-emerald-400',
+      tech: 'Ratio entre órdenes en estado "Completada" vs órdenes que no están en estados activos (Recibida/Proceso). Excluye órdenes en cola.',
+      strategy: 'Indica la velocidad de conversión de trabajo en curso a producto finalizado. Vital para medir la liquidez operativa del taller.',
+      formula: '(OS Completadas / (OS Totales - OS Activas)) * 100'
+    },
+    fuerza_operativa: {
+      title: 'Fuerza Operativa',
+      icon: <Star size={24} />,
+      color: 'text-amber-400',
+      tech: 'Índice absoluto que suma el volumen total de tareas finalizadas y órdenes de servicio despachadas en el periodo.',
+      strategy: 'Representa el "músculo" real de la empresa. Cuanto más alto es este valor, mayor es la carga de trabajo que el sistema está procesando con éxito.',
+      formula: 'Tareas Completadas + OS Completadas'
+    },
+    rendimiento_operativo: {
+      title: 'Rendimiento Operativo Real',
+      icon: <Zap size={24} />,
+      color: 'text-blue-400',
+      tech: 'Métrica comparativa que analiza la eficiencia de cierre de órdenes vs el cumplimiento de tiempos de la agenda.',
+      strategy: 'Permite al CEO visualizar si la rapidez en cerrar pedidos está alineada con la disciplina académica de la agenda interna.',
+      formula: 'Análisis Multivariante (Sin márgenes de error artificiales)'
+    },
+    cumplimiento_cotizaciones: {
+      title: 'Cumplimiento de Cotizaciones',
+      icon: <Layers size={24} />,
+      color: 'text-amber-500',
+      tech: 'Análisis global (sin filtro de tiempo) de la conversión de documentos proforma a órdenes de servicio reales.',
+      strategy: 'KPI crítico del área comercial. Permite identificar si el precio o la oferta comercial está alineada con la expectativa del cliente.',
+      formula: '(OS Originadas en Cotiz / Total Cotizaciones) * 100'
+    },
+    sla_eficiencia: {
+      title: 'SLA (Service Level Agreement)',
+      icon: <ShieldAlert size={24} />,
+      color: 'text-blue-500',
+      tech: 'Tiempo medio transcurrido entre la creación de la orden y su fecha de finalización real en el sistema.',
+      strategy: 'Garantiza la promesa de valor al cliente. Tiempos superiores a 72h requieren intervención en la cadena de suministros.',
+      formula: 'Σ(Fecha_Final - Fecha_Inicio) / Total OS Completadas'
+    },
+    lealtad_retencion: {
+      title: 'Lealtad y Retención',
+      icon: <ChevronRight size={24} />,
+      color: 'text-emerald-500',
+      tech: 'Porcentaje de clientes únicos que han realizado más de una orden de servicio en el periodo histórico analizado.',
+      strategy: 'Cuesta 5 veces más conseguir un cliente nuevo que retener a uno actual. Un ratio alto indica excelencia en el servicio post-venta.',
+      formula: '(Clientes Recurrentes / Clientes Únicos) * 100'
+    },
+    forecast_7d: {
+      title: 'Pronóstico Analítico (Forecast)',
+      icon: <Rocket size={24} />,
+      color: 'text-purple-500',
+      tech: 'Algoritmo predictivo basado en la media diaria de ventas del periodo actual, proyectado a una semana de 7 días.',
+      strategy: 'Permite al CEO anticipar flujos de caja y tomar decisiones de inversión o ahorro preventivo.',
+      formula: '(Ventas Periodo / Días Periodo) * 7'
+    }
+  };
+
+  const info = metricInfo[metric] || metricInfo['eficacia_agenda'];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        onClick={onClose}
+        className="absolute inset-0 bg-[#0f0a15]/95 backdrop-blur-md" 
+      />
+      
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-[#1a1622] w-full max-w-lg border border-white/10 rounded-[40px] overflow-hidden shadow-2xl relative z-10"
+      >
+        <div className="p-8 space-y-8">
+           <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                 <div className={`w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center ${info.color}`}>
+                   {info.icon}
+                 </div>
+                 <div>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tight leading-none">{info.title}</h2>
+                    <p className="text-[0.6rem] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Análisis de Profundidad CEO</p>
+                 </div>
+              </div>
+              <button 
+                onClick={onClose}
+                className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+           </div>
+
+           <div className="space-y-6">
+              <div className="space-y-3">
+                 <h4 className="flex items-center gap-2 text-[0.65rem] font-black text-white uppercase tracking-widest">
+                   <Target size={14} className="text-purple-500" /> Enfoque Estratégico
+                 </h4>
+                 <p className="text-sm text-slate-400 leading-relaxed font-medium">
+                   {info.strategy}
+                 </p>
+              </div>
+
+              <div className="space-y-3 bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+                 <h4 className="flex items-center gap-2 text-[0.65rem] font-black text-slate-500 uppercase tracking-widest">
+                   <ShieldAlert size={14} className="text-blue-500" /> Detalle Técnico y Algoritmo
+                 </h4>
+                 <p className="text-xs text-slate-500 leading-relaxed font-bold italic">
+                   {info.tech}
+                 </p>
+                 <div className="mt-4 pt-4 border-t border-white/5">
+                   <span className="text-[0.55rem] font-black text-slate-600 uppercase block mb-1">Fórmula Aplicada</span>
+                   <code className="text-[0.65rem] text-purple-400 font-black bg-purple-500/5 px-3 py-1 rounded-lg">
+                     {info.formula}
+                   </code>
+                 </div>
+              </div>
+           </div>
+
+           <button 
+             onClick={onClose}
+             className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-black text-[0.65rem] uppercase tracking-widest rounded-2xl transition-all border border-white/5"
+           >
+             Entendido, Continuar Monitoreo
+           </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

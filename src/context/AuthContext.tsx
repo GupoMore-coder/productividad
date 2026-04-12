@@ -25,6 +25,8 @@ interface AuthUser {
   emergency_name?: string;
   emergency_relationship?: string;
   emergency_phone?: string;
+  secondary_phone?: string;
+  secondary_email?: string;
 }
 
 interface AuthContextType {
@@ -49,6 +51,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Failsafe: Si después de 5 segundos no ha cargado, forzamos el fin del loader
+    const failsafeTimer = setTimeout(() => {
+      setLoading(currentLoading => {
+        if (currentLoading) {
+          console.warn('⚠️ [Auth] Failsafe activado: La sincronización inicial tardó demasiado. Forzando carga...');
+          return false;
+        }
+        return currentLoading;
+      });
+    }, 5000);
+
     const fetchProfileAndSetUser = async (authUser: any) => {
       if (!authUser) {
         setUser(null);
@@ -89,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isColaborador,
           isSuperAdmin: isSuper,
           sandboxExpiry: profile?.sandbox_expiry,
-          needsSetup: profile?.needs_setup ?? true,
+          needsSetup: isMaster ? false : (profile?.needs_setup ?? true),
           username: profile?.username || authUser.user_metadata?.username || 'usuario'
         });
       } catch (err) {
@@ -100,44 +113,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
+    const initializeAuth = async () => {
+      if (!isSupabaseConfigured) {
+        setLoading(false);
+        return;
+      }
 
-    const savedBypass = localStorage.getItem('antigravity_master_bypass');
-    if (savedBypass) {
-      const parsed = JSON.parse(savedBypass);
-      fetchProfileAndSetUser(parsed);
-    } else {
-      supabase.auth.getSession().then(({ data: { session } }: any) => {
-        if (session?.user) {
-          fetchProfileAndSetUser(session.user);
-        } else {
-          setLoading(false);
+      // 1. Try to restore Master Bypass first (Highest Priority)
+      const savedBypass = localStorage.getItem('antigravity_master_bypass');
+      if (savedBypass) {
+        try {
+          const parsed = JSON.parse(savedBypass);
+          await fetchProfileAndSetUser(parsed);
+          return;
+        } catch (e) {
+          console.error('Error restoring bypass:', e);
+          localStorage.removeItem('antigravity_master_bypass');
         }
-      });
-    }
+      }
 
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      fetchProfileAndSetUser(session?.user ?? null);
+      // 2. Try to get session from Supabase
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await fetchProfileAndSetUser(session.user);
+        } else {
+          // If no session but not a bypass user, we might be truly logged out
+          // but we wait for onAuthStateChange just in case it fires late
+          setTimeout(() => setLoading(false), 1500);
+        }
+      } catch (err) {
+        console.error('Error getting session:', err);
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        fetchProfileAndSetUser(session?.user ?? null);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setLoading(false);
+      }
     });
 
     return () => {
+      clearTimeout(failsafeTimer);
       authSub.unsubscribe();
     };
   }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
     const isFernando = email.trim().toLowerCase() === 'fernando830609@gmail.com';
-    const isMasterPass = pass === 'admin' || pass === 'Jota72345510*';
+    const isBypassPass = pass === 'admin';
 
-    if (isFernando && isMasterPass) {
+    if (isFernando && isBypassPass) {
       let profile = null;
       if (isSupabaseConfigured) {
         const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
         profile = result.data;
-        if (profile && profile.bypass_allowed === false && pass !== 'Jota72345510*') {
+        if (profile && profile.bypass_allowed === false) {
           throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
         }
       }
@@ -195,14 +232,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithUsername = async (username: string, pass: string) => {
     const lowerUser = username.toLowerCase();
     const isFernando = lowerUser === 'fernando';
-    const isMasterPass = pass === 'admin' || pass === 'Jota72345510*';
+    const isBypassPass = pass === 'admin';
 
-    if (isFernando && isMasterPass) {
+    if (isFernando && isBypassPass) {
       let profile = null;
       if (isSupabaseConfigured) {
         const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
         profile = result.data;
-        if (profile && profile.bypass_allowed === false && pass !== 'Jota72345510*') {
+        if (profile && profile.bypass_allowed === false) {
           throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
         }
       }

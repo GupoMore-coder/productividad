@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
-import { formatDistanceToNow, format, parseISO } from 'date-fns';
+import { formatDistanceToNow, format, parseISO, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ImageZoomModal from './ImageZoomModal';
 import { usePresence } from '../context/PresenceContext';
+import { useWhatsApp } from '../context/WhatsAppContext';
+import { useAuth } from '../context/AuthContext';
 
 interface AppUser {
   id: string;
@@ -43,7 +45,10 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
-  const { onlineUsers } = usePresence();
+  const { onlineUsers, presenceState } = usePresence();
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const { openWhatsApp } = useWhatsApp();
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     async function loadUsers() {
@@ -107,9 +112,9 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                </div>
-               <div>
+                <div>
                   <h2 className="text-xl font-black text-white uppercase tracking-tight">Directorio de Personal</h2>
-                  <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Grupo More · Conectividad Asistida</p>
+                  <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">More Paper & Design · EST. 2024</p>
                </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl text-slate-500 transition-colors">
@@ -146,108 +151,132 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                 {filteredUsers.map(u => {
                   const isBday = isBirthdayToday(u.birth_date);
                   const isOnline = onlineUsers.includes(u.id);
-
                   return (
                     <motion.div 
                       key={u.id} 
-                      whileHover={{ y: -4 }}
-                      className={`relative overflow-hidden p-6 gap-6 rounded-[32px] border transition-all duration-500 group flex flex-col justify-between ${
-                        isBday ? 'bg-amber-500/10 border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.05)]' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10 shadow-xl shadow-black/20'
+                      whileHover={{ y: -2 }}
+                      className={`relative overflow-hidden p-4 rounded-[28px] border transition-all duration-300 group flex flex-col gap-3 ${
+                        isBday ? 'bg-amber-500/5 border-amber-500/20' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10'
                       }`}
                     >
-                      <div className="flex items-center gap-5">
+                      {/* Top Row: Avatar + Name/Role + Actions */}
+                      <div className="flex items-start gap-4">
                         <div 
                           onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
-                          className={`relative w-16 h-16 rounded-[22px] overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-xl shadow-2xl transition-transform duration-500 group-hover:scale-110 ${
-                            isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border border-white/10'
+                          className={`relative w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-lg transition-transform duration-300 group-hover:scale-105 ${
+                            isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/10' : 'bg-slate-800 text-slate-400 border border-white/5'
                           } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer' : 'cursor-default'}`}
                         >
-                          {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-100 object-cover" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
-                          {isBday && (
-                            <div className="absolute -top-1 -right-1 text-base filter drop-shadow-[0_0_4px_gold] animate-bounce">🎂</div>
-                          )}
+                          {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
                           {isOnline ? (
-                            <div 
-                              className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] shadow-[0_0_8px_#10b981] bg-emerald-500 text-emerald-500 animate-pulse"
-                              title="En línea" 
-                            />
+                            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] ${presenceState[u.id]?.[0]?.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'}`} />
                           ) : (
-                            <div 
-                              className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-[#1a1622] bg-slate-600"
-                              title={u.last_seen ? `Visto ${formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}` : 'Desconectado'} 
-                            />
+                            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] bg-slate-600" />
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <span className={`text-[0.6rem] font-black uppercase tracking-[0.2em] mb-1 block transition-colors ${isBday ? 'text-amber-500' : 'text-blue-400 group-hover:text-blue-300'}`}>
-                            {u.role || 'Colaborador'}
-                          </span>
-                          <h3 className="text-base font-black text-white leading-tight uppercase truncate">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={`text-[0.55rem] font-black uppercase tracking-widest ${isBday ? 'text-amber-500' : 'text-blue-400'}`}>
+                              {u.role || 'Colaborador'}
+                            </span>
+                            <span className="text-[0.55rem] font-bold text-slate-600 uppercase">ID: {u.cedula || '—'}</span>
+                          </div>
+                          <h3 className="text-sm font-black text-white leading-tight uppercase truncate group-hover:text-blue-200 transition-colors">
                             {u.full_name || u.username}
                           </h3>
-                          <div className="flex justify-between items-center mt-1">
-                             <p className="text-[0.65rem] font-bold text-slate-500 uppercase">ID: <span className="text-slate-400">{u.cedula || '—'}</span></p>
-                             {!isOnline && u.last_seen && (
-                                <p className="text-[0.55rem] font-bold text-slate-500/80 uppercase truncate max-w-[80px]">Visto {formatDistanceToNow(new Date(u.last_seen), { locale: es })}</p>
-                             )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {isOnline ? (
+                              <span className="text-[0.5rem] font-black text-emerald-500 uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                                {presenceState[u.id]?.[0]?.status === 'paused' ? 'EN PAUSA' : 'ACTIVO'}
+                              </span>
+                            ) : (
+                              u.last_seen && <span className="text-[0.5rem] font-bold text-slate-500 uppercase tracking-tighter">Visto {formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}</span>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="h-px bg-white/5 w-full my-1" />
-
-                      {/* Info & Quick Actions */}
-                      <div className="flex items-center justify-between gap-4 mt-2">
-                        <div className="flex flex-col gap-1 min-w-0">
-                           <div className="flex items-center gap-2 text-[0.7rem] font-bold text-slate-400 truncate group-hover:text-white transition-colors">
-                              <span className="opacity-40">✉️</span> {u.email}
-                           </div>
-                           {u.birth_date && (
-                             <div className="flex items-center gap-2 text-[0.7rem] font-black text-amber-500/80 uppercase tracking-tighter">
-                                <span className={isBday ? 'animate-pulse' : ''}>🎁</span> {format(parseISO(u.birth_date), 'dd MMMM', { locale: es }).toUpperCase()}
-                             </div>
-                           )}
-                        </div>
-
-                        {/* Adaptive Quick Actions */}
-                        <div className="flex items-center gap-2">
-                           {u.phone && (
-                             <>
-                               <a 
-                                 href={`tel:${u.phone}`}
-                                 className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-blue-600 hover:text-white hover:border-blue-500/30 transition-all shadow-lg active:scale-95"
-                                 aria-label="Llamar"
-                               >
-                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          {u.phone && (
+                            <div className="flex gap-1">
+                               <a href={`tel:${u.phone}`} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-md active:scale-90">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                </a>
-                               <a 
-                                 href={`https://wa.me/${u.phone.replace(/[^0-9]/g, '')}`}
-                                 target="_blank"
-                                 rel="noopener noreferrer"
-                                 className="w-10 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400 hover:bg-emerald-600 hover:text-white hover:border-emerald-500/30 transition-all shadow-lg active:scale-95"
-                                 aria-label="WhatsApp"
+                               <button
+                                 onClick={() => {
+                                   const name = u.full_name || u.username;
+                                   const message = `Hola *${name}*, te contacto desde el aplicativo *Antigravity* ✨.\n\nSoy *${currentUser?.full_name || currentUser?.username}*, ¿puedes ayudarme con lo siguiente?`;
+                                   openWhatsApp(u.phone!, message);
+                                 }}
+                                 className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-90"
                                >
-                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-14 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
-                               </a>
-                             </>
-                           )}
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-14 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
+                               </button>
+                            </div>
+                          )}
+                          {isBday && <div className="text-right text-xs animate-bounce">🎂</div>}
                         </div>
                       </div>
 
-                      {/* Emergency Contact Display (v4) */}
-                      {u.emergency_name && (
-                        <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex flex-col gap-1.5 transition-all group-hover:bg-amber-500/10">
-                           <div className="flex items-center gap-2 text-[0.55rem] font-black text-amber-500 uppercase tracking-widest opacity-80">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                              Contacto de Emergencia
-                           </div>
-                           <div className="flex justify-between items-center text-[0.65rem] text-slate-400 font-bold uppercase tracking-tighter">
-                              <span className="truncate">{String(u.emergency_name)} ({String(u.emergency_relationship)})</span>
-                              <a href={`tel:${u.emergency_phone}`} className="text-amber-500 hover:text-amber-400 font-black">{String(u.emergency_phone)}</a>
-                           </div>
+                      {/* Divider */}
+                      <div className="h-px bg-white/5 w-full" />
+
+                      {/* Contact Info Row */}
+                      <div className="flex items-center justify-between text-[0.6rem] font-medium text-slate-500 px-1">
+                        <div className="truncate flex items-center gap-1.5 max-w-[60%]">
+                           <span className="opacity-50">✉️</span> {u.email}
                         </div>
-                      )}
+                        {u.birth_date && (
+                          <div className={`flex items-center gap-1.5 ${isBday ? 'text-amber-500 font-black' : 'text-slate-500 font-bold'}`}>
+                             <span>🎁</span> {format(parseISO(u.birth_date), 'dd MMM', { locale: es }).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Emergency Contact Section */}
+                      <div className="mt-1">
+                        <button 
+                          onClick={() => setExpandedUser(expandedUser === u.id ? null : u.id)}
+                          className={`w-full flex items-center justify-between text-[0.55rem] font-black uppercase tracking-widest transition-colors py-2 px-3 rounded-xl border ${expandedUser === u.id || u.emergency_name ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-white/5 border-transparent text-slate-500 hover:text-slate-400'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            Emergencia
+                          </div>
+                          <span className="transition-transform transform duration-300" style={{ transform: expandedUser === u.id ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedUser === u.id && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-2 p-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex flex-col gap-1.5">
+                                {u.emergency_name ? (
+                                  <>
+                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
+                                       <span className="truncate">Contacto: <span className="text-white">{String(u.emergency_name)}</span></span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
+                                       <span>Parentesco: <span className="text-slate-300">{String(u.emergency_relationship || 'N/A')}</span></span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
+                                       <span>Teléfono: <a href={`tel:${u.emergency_phone}`} className="text-amber-500 hover:text-amber-400 font-black">{String(u.emergency_phone || 'N/A')}</a></span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="py-2 text-center">
+                                    <p className="text-[0.55rem] font-bold text-slate-600 uppercase italic">Sin datos registrados</p>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </motion.div>
                   );
                 })}

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 export function usePageTitle(title: string) {
   useEffect(() => {
     const prevTitle = document.title;
-    document.title = `${title} | Grupo More`;
+    document.title = `${title} | More Paper & Design`;
     
     return () => {
       document.title = prevTitle;
