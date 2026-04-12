@@ -1,11 +1,9 @@
 import React, { useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../../context/AuthContext';
 import { 
-  Phone, 
-  Clock, 
   FileText, 
   Edit3, 
   ChevronDown, 
@@ -23,7 +21,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Search,
   ZoomIn
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -97,7 +94,7 @@ export const OrderCard = memo(function OrderCard({
   };
 
   const deliveryDate = new Date(order.deliveryDate);
-  const timeRemaining = formatDistanceToNow(deliveryDate, { addSuffix: true, locale: es });
+  // unused timeRemaining removed
 
   const handleObsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,14 +113,8 @@ export const OrderCard = memo(function OrderCard({
     }
   };
 
-  const isWithinLastYear = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    return date > oneYearAgo;
-  };
 
-  const showPhotos = isWithinLastYear(order.createdAt);
+  // unused showPhotos removed
 
   return (
     <motion.div 
@@ -289,7 +280,7 @@ export const OrderCard = memo(function OrderCard({
           {photos.map((p, i) => (
             <div 
               key={i} 
-              onClick={(e) => setActiveImgIndex(i)}
+              onClick={() => setActiveImgIndex(i)}
               className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden ring-2 transition-all cursor-pointer shadow-lg active:scale-95 ${activeImgIndex === i ? 'ring-purple-500 scale-105' : 'ring-white/10 hover:ring-white/30'}`}
             >
               <img 
@@ -527,7 +518,7 @@ export const OrderCard = memo(function OrderCard({
                     const svgData = new XMLSerializer().serializeToString(svg);
                     const canvas = document.createElement("canvas");
                     const svgSize = svg.getBoundingClientRect();
-                    canvas.width = svgSize.width * 4; // Higher resolution
+                    canvas.width = svgSize.width * 4;
                     canvas.height = svgSize.height * 4;
                     const ctx = canvas.getContext("2d");
                     const img = new Image();

@@ -7,8 +7,6 @@ import {
   ClipboardList, 
   CheckCircle2, 
   Tag,
-  ChevronLeft,
-  ChevronRight,
   Maximize2,
   Trash2,
   CalendarDays,

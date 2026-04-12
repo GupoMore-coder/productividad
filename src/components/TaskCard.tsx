@@ -1,5 +1,6 @@
 import { useState, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Task } from '../context/TaskContext';
 import { 
   Calendar as CalendarIcon, 
   Bell, 
@@ -17,29 +18,6 @@ import CalendarExportMenu from './CalendarExportMenu';
 import { triggerHaptic } from '../utils/haptics';
 import { subHours, format } from 'date-fns';
 
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  time: string;
-  date: string; // ISO date yyyy-MM-dd
-  priority: 'alta' | 'media' | 'baja';
-  completed?: boolean;
-  isShared?: boolean;
-  groupId?: string;
-  userId?: string;
-  createdBy?: string;
-  status?: 'pending_acceptance' | 'accepted' | 'completed' | 'expired' | 'cancelled_with_reason' | 'declined';
-  failureReason?: string;
-  imageUrl?: string;
-  isOfflinePending?: boolean;
-  is_muted?: boolean;
-  muted_alarms?: number[];
-  isBirthday?: boolean;
-  type?: 'task' | 'reminder';
-  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  recurrenceInterval?: number;
-}
 
 interface TaskCardProps {
   task: Task;

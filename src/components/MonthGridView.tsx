@@ -1,32 +1,20 @@
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, ClipboardList, CheckCircle2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
+import { ClipboardList, CheckCircle2 } from 'lucide-react';
 import { triggerHaptic } from '../utils/haptics';
 
 interface MonthGridViewProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
   activities: { date: string; type: 'task' | 'order' | 'birthday' }[];
-  onClose?: () => void;
 }
 
-export default function MonthGridView({ selectedDate, onSelectDate, activities, onClose }: MonthGridViewProps) {
+export default function MonthGridView({ selectedDate, onSelectDate, activities }: MonthGridViewProps) {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(monthStart);
   const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
   const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
-  const handlePrevMonth = () => {
-    triggerHaptic('light');
-    onSelectDate(subMonths(selectedDate, 1));
-  };
-
-  const handleNextMonth = () => {
-    triggerHaptic('light');
-    onSelectDate(addMonths(selectedDate, 1));
-  };
 
   return (
     <div className="p-4 bg-slate-900/60 rounded-[32px] border border-white/10 backdrop-blur-3xl animate-in zoom-in-95 duration-300">

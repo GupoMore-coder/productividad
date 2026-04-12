@@ -25,7 +25,7 @@ export const OrderSchema = z.object({
   depositAmount: z.number().min(0),
   paymentStatus: z.enum(['pendiente', 'abono', 'pagado']),
   photos: z.array(z.string()),
-  isTest: z.boolean().default(false),
+  isTest: z.boolean(),
 });
 
 export const TaskSchema = z.object({
@@ -34,8 +34,8 @@ export const TaskSchema = z.object({
   date: z.string().min(1, 'La fecha es obligatoria'),
   time: z.string().min(1, 'La hora es obligatoria'),
   priority: z.enum(['alta', 'media', 'baja']),
-  type: z.enum(['task', 'reminder']).default('task'),
-  recurrence: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']).default('none'),
+  type: z.enum(['task', 'reminder']),
+  recurrence: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   recurrenceInterval: z.number().optional(),
   group_ids: z.array(z.string()),
   isShared: z.boolean(),

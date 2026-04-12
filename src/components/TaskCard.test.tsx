@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import TaskCard, { Task } from '@/components/TaskCard';
+import TaskCard from '@/components/TaskCard';
+import type { Task } from '@/context/TaskContext';
 import { format, subHours } from 'date-fns';
 
 // Mock of haptics and child components
@@ -64,7 +65,6 @@ describe('TaskCard Component', () => {
     fireEvent.click(screen.getByText(/alertas/i));
     
     // click first alarm bell
-    const bells = screen.getAllByRole('button').filter(b => b.querySelector('svg'));
     // The popover buttons have Bell/BellOff icons.
     // Let's find by role and then check if it's the right one or use title if I added it.
     // Since I didn't add titles to individual bells, I'll rely on the fact they are in the grid.

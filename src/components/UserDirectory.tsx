@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
-import { formatDistanceToNow, format, parseISO, addMonths, subMonths } from 'date-fns';
+import { formatDistanceToNow, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ImageZoomModal from './ImageZoomModal';
 import { usePresence } from '../context/PresenceContext';
@@ -284,7 +284,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
             )
           )}
         </div>
-        {zoomedImg && <ImageZoomModal src={zoomedImg} onClose={() => setZoomedImg(null)} />}
+        {zoomedImg && <ImageZoomModal photos={[zoomedImg]} initialIndex={0} onClose={() => setZoomedImg(null)} />}
       </motion.div>
     </div>
   );

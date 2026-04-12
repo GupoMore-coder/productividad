@@ -8,7 +8,8 @@ import {
   scheduleTaskNotifications, 
   cancelTaskNotifications 
 } from '@/services/NotificationsService';
-import { addDays, addWeeks, addMonths, addYears, parseISO, format as formatDate, isBefore } from 'date-fns';
+import { addDays, addWeeks, addMonths, addYears, parseISO, format as formatDate } from 'date-fns';
+import { triggerHaptic } from '@/utils/haptics';
 
 export interface Task {
   id: string;
@@ -379,7 +380,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { id, ...updates };
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       // Re-schedule alarms with new data (is_muted, etc)
       if (data) {
         scheduleTaskNotifications(transformFromDb(data, user?.id));

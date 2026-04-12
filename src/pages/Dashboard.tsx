@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,9 +20,6 @@ import {
   Search,
   Filter,
   Trophy,
-  CalendarDays,
-  ChevronRight,
-  Users,
   Target,
   Rocket,
   ShieldAlert,
@@ -31,7 +27,9 @@ import {
   Layers,
   Zap,
   Heart,
-  FileText
+  FileText,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 import UserOrdersModal from '../components/UserOrdersModal';
 import { Skeleton, StatsSkeleton } from '../components/ui/Skeleton';
@@ -71,12 +69,16 @@ const BarChart = ({ data, color }: { data: { label: string, value: number }[], c
 
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const { orders, loading: ordersLoading } = useOrders();
   usePageTitle('Panel de Control');
   const { tasks, loading: tasksLoading } = useTasks();
   const { user, extendSandbox, deleteUserSandbox } = useAuth();
   const health = useHealthMonitor();
+  
+  const handleAction = (type: 'success' | 'error') => {
+    triggerHaptic(type);
+    console.log(`Action handled: ${type}`);
+  };
   
   const [activeTab, setActiveTab] = useState<'financial' | 'productivity'>('productivity');
   const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'range' | 'global'>('global');
@@ -89,7 +91,6 @@ export default function Dashboard() {
   const [expiringUsers, setExpiringUsers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [isCalculating, setIsCalculating] = useState(false);
   const [showUserFilter, setShowUserFilter] = useState(false);
 
   useEffect(() => {
@@ -134,9 +135,7 @@ export default function Dashboard() {
   }, [user]);
 
   useEffect(() => {
-    setIsCalculating(true);
-    const t = setTimeout(() => setIsCalculating(false), 600);
-    return () => clearTimeout(t);
+    // Analytics feedback or other effects
   }, [timeFilter, selectedUserIds]);
 
   const stats = useMemo(() => {
@@ -320,7 +319,7 @@ export default function Dashboard() {
   const toggleUser = (id: string) => {
     triggerHaptic('light');
     setSelectedUserIds(prev => 
-      prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((uid: string) => uid !== id) : [...prev, id]
     );
   };
 

@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { triggerCriticalAlert } from '../services/NotificationsService';
-import { triggerHaptic } from '../utils/haptics';
 
 /**
  * Headless component that listens for global alerts in Supabase (Real-time)

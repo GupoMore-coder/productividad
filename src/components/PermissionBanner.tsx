@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, ShieldAlert, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getNotificationPermissionStatus, 

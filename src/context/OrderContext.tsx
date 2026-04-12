@@ -2,13 +2,26 @@ import { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStorage } from '@/lib/storageService';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, subHours, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { triggerHaptic } from '@/utils/haptics';
 import { derivePaymentStatus, canCompleteOrder, TestUser } from '@/utils/businessRules';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { SyncService } from '@/services/SyncService';
+import { uploadFile } from '@/lib/supabase';
+
+const COLORS = {
+  DEEP_BG: [15, 23, 42], // Slate 900
+  PURPLE: [147, 51, 234], // Purple 600
+  AMBER: [217, 119, 6], // Amber 600
+  EMERALD: [5, 150, 105], // Emerald 600
+  SLATE_900: [15, 23, 42],
+  SLATE_700: [51, 65, 85],
+  SLATE_500: [100, 116, 139],
+  SLATE_50: [248, 250, 252],
+  WHITE: [255, 255, 255]
+};
 
 export interface ServiceOrder {
   id: string;
@@ -41,6 +54,7 @@ export interface ServiceOrder {
   quoteExpiresAt?: string;
   quoteExtendedDays?: number;
   customerEmail?: string;
+  isOfflinePending?: boolean;
 }
 
 export interface OrderHistoryEntry {
@@ -81,7 +95,7 @@ interface OrderContextType {
   deleteOrderMaster: (id: string) => Promise<void>;
   registerDeposit: (id: string, amount: number) => Promise<void>;
   reactivateOrder: (id: string) => Promise<void>;
-  downloadOrderPdf: (orderId: string) => Promise<void>;
+  downloadOrderPdf: (orderId: string, options?: { returnUrlOnly?: boolean, hideHistory?: boolean }) => Promise<string | void>;
   convertQuoteToOrder: (id: string) => Promise<void>;
   extendQuote: (id: string) => Promise<void>;
   archiveExpiredQuote: (id: string) => Promise<void>;
@@ -179,6 +193,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .replace(/\s+/g, ' ')
       .trim();
   };
+
+
 
   // 1. Fetch Orders with React Query
   const { data: orders = [], isLoading: loading } = useQuery({
@@ -424,6 +440,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }, 1500);
 
           // 4. Schedule MILESTONES (24h, 12h, 6h) if it's an Order and NOT test
+          const isQuote = newOrderPayload.recordType === 'cotizacion';
           if (!isQuote && dbOrder.delivery_date && !orderData.isTest) {
             const delivery = parseISO(dbOrder.delivery_date);
             const milestones = [
@@ -931,7 +948,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!order) return;
     try {
       const { default: jsPDF } = await import('jspdf');
-      const QRCode = await import('qrcode');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
       // --- HEADER: ABSOLUTE REPLICATION (Identical Layout) ---

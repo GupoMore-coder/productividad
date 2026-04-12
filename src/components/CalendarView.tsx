@@ -8,11 +8,10 @@ import MonthGridView from './MonthGridView';
 interface CalendarViewProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  activities?: string[]; // Para la vista de tira
-  activityDetails?: { date: string; type: 'task' | 'order' }[]; // Para la vista de mes
+  activityDetails?: { date: string; type: 'task' | 'order' | 'birthday' }[]; // Para la vista de mes
 }
 
-export default function CalendarView({ selectedDate, onSelectDate, activities = [], activityDetails = [] }: CalendarViewProps) {
+export default function CalendarView({ selectedDate, onSelectDate, activityDetails = [] }: CalendarViewProps) {
   const [viewDate, setViewDate] = useState<Date>(selectedDate);
   const [isMonthView, setIsMonthView] = useState(true);
   

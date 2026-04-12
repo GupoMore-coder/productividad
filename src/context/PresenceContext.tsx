@@ -46,11 +46,11 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       setOnlineUsers(onlineIds);
     });
 
-    channel.on('presence', { event: 'join' }, ({ key, currentPresences }) => {
+    channel.on('presence', { event: 'join' }, ({ key }) => {
       setOnlineUsers((prev) => Array.from(new Set([...prev, key])));
     });
 
-    channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+    channel.on('presence', { event: 'leave' }, ({ key }) => {
       setOnlineUsers((prev) => prev.filter((id) => id !== key));
     });
 

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { Plus, Archive, ClipboardList, Users, Check, Search } from 'lucide-react';
+import { Plus, Archive, ClipboardList, Users, Check } from 'lucide-react';
 
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
+import { triggerHaptic } from '@/utils/haptics';
 
 export interface Group {
   id: string;

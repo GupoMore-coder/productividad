@@ -3,7 +3,7 @@
 // No OAuth / API keys required — uses deep-link URLs and .ics.
 // ============================================================
 
-import type { Task } from '../components/TaskCard';
+import type { Task } from '../context/TaskContext';
 
 /** Format a Date to ICS/Google Calendar UTC string: YYYYMMDDTHHMMSSZ */
 function toCalendarDate(d: Date): string {

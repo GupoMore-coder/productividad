@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText, Lock, Unlock, TrendingUp, Calculator, Trash2, Search, ChevronDown } from 'lucide-react';
+import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText, TrendingUp, Calculator, Trash2, Search, ChevronDown } from 'lucide-react';
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -253,7 +253,7 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
         deliveryDate: data.deliveryDate + 'T17:00',
         createdByRole: user?.role || 'Colaborador',
         depositAmount: isQuote ? 0 : data.depositAmount,
-        paymentStatus: calculatedStatus
+        paymentStatus: calculatedStatus as 'pendiente' | 'abono' | 'pagado'
       };
 
       // v3.3: Promise.race for better UX or just await

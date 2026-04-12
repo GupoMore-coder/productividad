@@ -42,7 +42,7 @@ export default function FamilyGroup() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [userDirectory, setUserDirectory] = useState<{ id: string; email: string; full_name: string }[]>([]);
+  const [userDirectory, setUserDirectory] = useState<{ id: string; email: string; full_name: string; avatar?: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

@@ -14,7 +14,7 @@ import {
   markAlarmFired,
   cleanFiredAlarms,
 } from '../lib/alarmDB';
-import type { Task } from '../components/TaskCard';
+import type { Task } from '../context/TaskContext';
 import type { MissingItem } from '../context/InventoryContext';
 import { triggerHaptic } from '../utils/haptics';
 

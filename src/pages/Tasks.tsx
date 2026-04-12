@@ -96,7 +96,7 @@ export default function Tasks() {
   usePageTitle('Mi Agenda');
   const { groups, memberships } = useGroups();
   const { tasks, addTask, updateTask, deleteTask, extendTaskSeries, loading: tasksLoading, hasMore, loadMore } = useTasks();
-  const { orders, updateOrder, loading: ordersLoading, getOrderSequenceLabel, getQuoteSequenceLabel } = useOrders();
+  const { orders, updateOrder, loading: ordersLoading, getOrderSequenceLabel } = useOrders();
   const { isInstallable, installApp } = usePWA();
   const [allUsers, setAllUsers] = useState<any[]>([]);
   
@@ -262,7 +262,6 @@ export default function Tasks() {
     return [...taskDays, ...orderDays];
   }, [tasks, orders]);
 
-  const activityDates = useMemo(() => Array.from(new Set(activityDetails.map(a => a.date))), [activityDetails]);
 
   // Scanner for alerts
   useEffect(() => {
@@ -311,11 +310,6 @@ export default function Tasks() {
     }
   };
 
-  const handleAddTask = async (newTask: Partial<Task>) => {
-    const taskData = await addTask({ ...newTask, createdBy: myUserId });
-    scheduleTaskNotifications(taskData);
-  };
-
   const loading = tasksLoading || ordersLoading;
 
   if (loading) return (
@@ -354,7 +348,7 @@ export default function Tasks() {
           <motion.div 
             whileHover={{ scale: 1.05 }}
             className="group relative w-12 h-12 rounded-xl overflow-hidden border-2 border-purple-500 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-xl cursor-pointer"
-            onClick={() => { if (avatar.length > 10) setZoomedImg(avatar); }}
+            onClick={() => { if (avatar.length > 10) setZoomedGallery({ photos: [avatar], index: 0 }); }}
           >
             {avatar.length > 10 ? <img src={avatar} className="w-full h-full object-cover" alt="avatar" /> : avatar}
             {isSameDay(parseISO(user?.birth_date || ''), new Date()) && (
@@ -461,7 +455,6 @@ export default function Tasks() {
           <CalendarView 
             selectedDate={selectedDate} 
             onSelectDate={setSelectedDate} 
-            activities={activityDates} 
             activityDetails={activityDetails}
           />
         </section>
@@ -513,7 +506,7 @@ export default function Tasks() {
               )}
 
               {/* Service Orders - Highlighted style */}
-              {dailyOrders.filter(o => filter === 'todos' || filter === 'ordenes').map(order => (
+              {dailyOrders.filter(_ => filter === 'todos' || filter === 'ordenes').map(order => (
                 <div 
                   key={order.id} 
                   className="relative group cursor-pointer"

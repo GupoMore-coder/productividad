@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import CalendarView from '@/components/CalendarView';
 import { es } from 'date-fns/locale';
-import { format, addMonths, subMonths } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 
 describe('CalendarView Component', () => {
   const selectedDate = new Date(2026, 3, 10); // April 10, 2026
