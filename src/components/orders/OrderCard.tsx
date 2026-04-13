@@ -30,6 +30,8 @@ import { useWhatsApp } from '../../context/WhatsAppContext';
 import { triggerHaptic } from '../../utils/haptics';
 import { OrderStatusPill } from './OrderStatusPill';
 import { OrderTimeline } from './OrderTimeline';
+import { WhatsAppEditModal } from './WhatsAppEditModal';
+import { WhatsAppChatModal } from './WhatsAppChatModal';
 
 interface OrderCardProps {
   order: ServiceOrder;
@@ -71,6 +73,8 @@ export const OrderCard = memo(function OrderCard({
   const [showAbonoModal, setShowAbonoModal] = useState(false);
   const [abonoValue, setAbonoValue] = useState('');
   const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
 
   const photos = order.photos || [];
   const hasMultiplePhotos = photos.length > 1;
@@ -192,16 +196,11 @@ export const OrderCard = memo(function OrderCard({
             <button
                onClick={(e) => {
                  e.stopPropagation();
-                 const message = WhatsAppService.getDirectLink('', {
-                   customerName: order.customerName,
-                   documentNumber: sequenceLabel || order.id.slice(-6).toUpperCase(),
-                   total: order.totalCost,
-                   type: order.recordType || 'orden',
-                   deliveryDate: format(deliveryDate, 'dd MMM, HH:mm', { locale: es })
-                 }).split('text=')[1];
-                 openWhatsApp(order.customerPhone, decodeURIComponent(message));
+                 triggerHaptic('light');
+                 setShowChatHistory(true);
                }}
-               className="w-10 h-10 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/30 text-emerald-400 flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg"
+               className="w-10 h-10 rounded-xl bg-purple-500/20 hover:bg-purple-500/40 border border-purple-500/30 text-purple-400 flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-lg"
+               title="Ver Historial de Chat"
             >
               <MessageSquare size={18} />
             </button>
@@ -447,17 +446,10 @@ export const OrderCard = memo(function OrderCard({
             <button 
               onClick={() => {
                 triggerHaptic('light');
-                const message = WhatsAppService.getDirectLink('', {
-                  customerName: order.customerName,
-                  documentNumber: sequenceLabel || order.id.slice(-6).toUpperCase(),
-                  total: order.totalCost,
-                  type: order.recordType || 'orden',
-                  deliveryDate: format(deliveryDate, 'dd MMM, HH:mm', { locale: es })
-                }).split('text=')[1];
-                openWhatsApp(order.customerPhone, decodeURIComponent(message));
+                setShowWhatsAppModal(true);
               }}
               className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20 active:scale-95 shadow-lg"
-              title="Notificar por WhatsApp"
+              title="Notificar por WhatsApp API"
             >
               <MessageCircle size={18} />
             </button>
@@ -689,6 +681,23 @@ export const OrderCard = memo(function OrderCard({
             <span className="text-[0.65rem] text-slate-400 font-medium">✨ Creada por {order.createdByRole} • {format(new Date(order.createdAt), 'dd MMM HH:mm', { locale: es })}</span>
          </div>
       </div>
+
+      <WhatsAppEditModal 
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        customerPhone={order.customerPhone}
+        customerName={order.customerName}
+        documentNumber={sequenceLabel || order.id.slice(-6).toUpperCase()}
+        total={order.totalCost}
+        type={order.recordType || 'orden'}
+      />
+
+      <WhatsAppChatModal 
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+        orderId={order.id}
+        customerName={order.customerName}
+      />
     </motion.div>
   );
 });

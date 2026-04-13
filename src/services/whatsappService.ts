@@ -1,4 +1,5 @@
 import { WHATSAPP_CONFIG } from '../config/whatsapp';
+import { supabase } from '../lib/supabase';
 
 export interface WhatsAppMessageData {
   customerName: string;
@@ -10,8 +11,7 @@ export interface WhatsAppMessageData {
 
 export class WhatsAppService {
   /**
-   * Genera un enlace de WhatsApp Directo (wa.me) con un mensaje pre-formateado.
-   * Útil como respaldo mientras se aprueban las plantillas oficiales de Meta.
+   * Genera un enlace de WhatsApp Directo (wa.me) como respaldo.
    */
   static getDirectLink(phone: string, data: WhatsAppMessageData): string {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -23,13 +23,26 @@ export class WhatsAppService {
   }
 
   /**
-   * Envía una notificación oficial utilizando la API de Meta Graph.
-   * Requiere que el número del cliente esté registrado para recibir mensajes de prueba en Meta Developers
-   * o que la App esté en modo Producción.
+   * Envía una notificación oficial utilizando la API de Meta Graph con parámetros dinámicos.
    */
-  static async sendOfficialNotification(phone: string, templateName: string, components: any[]) {
+  static async sendOfficialNotification(
+    phone: string, 
+    templateName: string, 
+    parameters: string[] = [],
+    orderId?: string
+  ) {
     const cleanPhone = phone.replace(/\D/g, '');
     const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}/messages`;
+
+    const components = [
+      {
+        type: 'body',
+        parameters: parameters.map(value => ({
+          type: 'text',
+          text: value
+        }))
+      }
+    ];
 
     const body = {
       messaging_product: 'whatsapp',
@@ -37,9 +50,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: templateName,
-        language: {
-          code: 'es'
-        },
+        language: { code: 'es' },
         components
       }
     };
@@ -56,6 +67,26 @@ export class WhatsAppService {
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message || 'Error al enviar mensaje');
+
+      // Registro automático en el historial de Supabase para visibilidad de chat
+      if (orderId) {
+        try {
+          await supabase.from('whatsapp_messages').insert({
+            order_id: orderId,
+            customer_phone: cleanPhone,
+            message_text: `🔔 Plantilla Envida: ${templateName}\n📄 Params: ${parameters.join(' | ')}`,
+            direction: 'outbound',
+            metadata: { 
+              meta_message_id: result.messages?.[0]?.id,
+              template: templateName,
+              params: parameters
+            }
+          });
+        } catch (dbError) {
+          console.error('Error al guardar en historial WhatsApp:', dbError);
+        }
+      }
+
       return result;
     } catch (error) {
       console.error('WhatsApp API Error:', error);
@@ -64,9 +95,24 @@ export class WhatsAppService {
   }
 
   /**
+   * Envía la notificación de Nueva Orden (Plantilla: nueva_orden_servicio)
+   */
+  static async sendOrderNotification(phone: string, name: string, orderId: string, total: string) {
+    return this.sendOfficialNotification(phone, 'nueva_orden_servicio', [name, orderId, total], orderId);
+  }
+
+  /**
+   * Envía la notificación de Cotización (Plantilla: cotizacion_generada)
+   */
+  static async sendQuoteNotification(phone: string, name: string, quoteId: string, total: string) {
+    return this.sendOfficialNotification(phone, 'cotizacion_generada', [name, quoteId, total], quoteId);
+  }
+
+  /**
    * Envía el mensaje de prueba "hello_world" de Meta.
    */
   static async sendTestMessage(phone: string) {
-    return this.sendOfficialNotification(phone, 'hello_world', []);
+    return this.sendOfficialNotification(phone, 'hello_world');
   }
 }
+
