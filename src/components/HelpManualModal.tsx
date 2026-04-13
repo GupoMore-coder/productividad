@@ -63,11 +63,26 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
         const { data, error } = await supabase.functions.invoke('ai-helper', {
           body: { 
             prompt: userMsg,
-            history: chatMessages.slice(-6) // Enviar últimos 3 intercambios para contexto ligero
+            history: chatMessages.map(m => ({ 
+              role: m.role, 
+              text: m.text.length > 500 ? m.text.substring(0, 500) + '...' : m.text 
+            })).slice(-6) 
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          // Extraer mensaje de error si viene en el cuerpo
+          let errorMessage = 'No pude conectarme con mi centro de inteligencia.';
+          try {
+            const errBody = await error.response.json();
+            if (errBody.error) errorMessage = `⚠️ Error: ${errBody.error}`;
+          } catch (e) {
+            errorMessage = `⚠️ Error: ${error.message || error}`;
+          }
+           setChatMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
+           setIsTyping(false);
+           return;
+        }
         
         setChatMessages(prev => [...prev, { role: 'assistant', text: data?.text || 'No pude obtener una respuesta.' }]);
       } else {
@@ -81,7 +96,7 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
       console.error('Error IA:', err);
       setChatMessages(prev => [...prev, { 
         role: 'assistant', 
-        text: '⚠️ No pude conectarme con mi centro de inteligencia. Verifica que la función ai-helper esté desplegada y configurada correctamente.' 
+        text: `⚠️ Hubo un problema técnico: ${err.message || 'Error de conexión'}. Verifica tu conexión a internet o los secretos de Supabase.` 
       }]);
     } finally {
       setIsTyping(false);

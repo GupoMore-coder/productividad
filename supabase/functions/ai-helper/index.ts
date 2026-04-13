@@ -16,7 +16,11 @@ serve(async (req) => {
     const apiKey = Deno.env.get('GEMINI_API_KEY')
 
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY no está configurada en los secretos de Supabase.')
+      console.error('[AI] GEMINI_API_KEY no encontrada.')
+      return new Response(
+        JSON.stringify({ error: 'Configuración incompleta: GEMINI_API_KEY falta en los secretos de Supabase.' }),
+        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     const systemInstruction = `
@@ -38,14 +42,15 @@ REGLAS CRÍTICAS DE RESPUESTA:
 - Mantén un tono ejecutivo, profesional y apasionado por la eficiencia.
 `;
 
-    // Preparar el cuerpo para Gemini API
+    // v1.5 Flash optimized request
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemInstruction }]
+        },
         contents: [
-          { role: 'user', parts: [{ text: systemInstruction }] },
-          { role: 'model', parts: [{ text: "Entendido. Soy el Asistente Antigravity y solo responderé sobre el funcionamiento del aplicativo. ¿En qué puedo ayudarte hoy?" }] },
           ...(history || []).map((m: any) => ({
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.text }]
@@ -53,13 +58,19 @@ REGLAS CRÍTICAS DE RESPUESTA:
           { role: 'user', parts: [{ text: prompt }] }
         ],
         generationConfig: {
-          temperature: 0.1, // Baja temperatura para mantener consistencia y evitar alucinaciones
+          temperature: 0.2,
           topK: 40,
           topP: 0.95,
           maxOutputTokens: 1024,
         }
       })
     })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('[AI] Error de Gemini API:', errorData)
+      throw new Error(errorData.error?.message || 'Error en el motor de inteligencia.')
+    }
 
     const data = await response.json()
     const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude procesar tu solicitud."
@@ -70,6 +81,7 @@ REGLAS CRÍTICAS DE RESPUESTA:
     })
 
   } catch (error) {
+    console.error('[AI] Error interno:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       status: 400,

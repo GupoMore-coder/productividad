@@ -50,27 +50,27 @@ export default function CalendarView({ selectedDate, onSelectDate, activityDetai
   };
 
   return (
-    <div className="mb-6 animate-fade-in select-none w-full overflow-visible">
+    <div className="mb-6 animate-fade-in select-none w-full overflow-hidden">
       {/* Header with improved navigation controls */}
-      <div className="flex justify-between items-center gap-4 mb-4 px-1">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4 px-1">
+        <div className="flex items-center justify-between w-full sm:w-auto gap-2">
           <button 
             onClick={() => isMonthView ? onSelectDate(subMonths(selectedDate, 1)) : navigateAmount(-7)}
-            className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-all active:scale-90 shadow-lg"
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-all active:scale-90 shadow-lg"
             title={isMonthView ? "Mes Anterior" : "Semana Anterior"}
           >
-            <ChevronLeft size={20} strokeWidth={2.5} />
+            <ChevronLeft size={18} strokeWidth={2.5} />
           </button>
 
-          <div className="relative group">
+          <div className="relative group flex-1 text-center">
             <button 
               onClick={() => (document.getElementById('native-date-picker') as any)?.showPicker?.()}
-              className="flex items-center gap-2 px-3 py-2 rounded-2xl hover:bg-white/5 transition-colors"
+              className="flex items-center justify-center gap-2 px-2 py-1.5 rounded-2xl hover:bg-white/5 transition-colors w-full"
             >
-              <h3 className="text-lg font-black text-white capitalize tracking-tighter group-hover:text-purple-400 transition-colors">
+              <h3 className="text-sm sm:text-lg font-black text-white capitalize tracking-tighter group-hover:text-purple-400 transition-colors whitespace-nowrap">
                 {format(isMonthView ? selectedDate : viewDate, "MMMM yyyy", { locale: es })}
               </h3>
-              <CalendarIcon size={14} className="text-slate-500 group-hover:text-purple-400 transition-colors" />
+              <CalendarIcon size={12} className="text-slate-500 group-hover:text-purple-400 transition-colors shrink-0" />
             </button>
             <input 
               id="native-date-picker"
@@ -83,24 +83,24 @@ export default function CalendarView({ selectedDate, onSelectDate, activityDetai
 
           <button 
             onClick={() => isMonthView ? onSelectDate(addMonths(selectedDate, 1)) : navigateAmount(7)}
-            className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-all active:scale-90 shadow-lg"
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-purple-400 hover:bg-white/10 transition-all active:scale-90 shadow-lg"
             title={isMonthView ? "Siguiente Mes" : "Siguiente Semana"}
           >
-            <ChevronRight size={20} strokeWidth={2.5} />
+            <ChevronRight size={18} strokeWidth={2.5} />
           </button>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button 
             onClick={() => { triggerHaptic('light'); setIsMonthView(!isMonthView); }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl border transition-all active:scale-95 ${isMonthView ? 'bg-purple-500 text-slate-950 border-purple-400 font-black' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-xl border transition-all active:scale-95 ${isMonthView ? 'bg-purple-500 text-slate-950 border-purple-400 font-black' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
           >
-            {isMonthView ? <List size={16} /> : <LayoutGrid size={16} />}
-            <span className="text-xs uppercase tracking-widest">{isMonthView ? 'Tira' : 'Mes'}</span>
+            {isMonthView ? <List size={14} /> : <LayoutGrid size={14} />}
+            <span className="text-[0.65rem] uppercase tracking-widest font-black">{isMonthView ? 'Tira' : 'Grid'}</span>
           </button>
           <button 
             onClick={goToToday}
-            className="flex-1 sm:flex-none px-6 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-300 text-xs font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all active:scale-95"
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-[0.65rem] font-black uppercase tracking-[0.2em] hover:bg-white/10 transition-all active:scale-95"
           >
             Hoy
           </button>

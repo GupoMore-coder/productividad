@@ -33,7 +33,9 @@ export default defineConfig({
 
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
 
+      manifestFilename: 'manifest.json',
       manifest: {
+        id: '/',
         name: 'Antigravity | Grupo More',
         short_name: 'Antigravity',
         description: 'Sistema inteligente de gestión operativa y productividad para equipos de trabajo de Grupo More.',
@@ -48,18 +50,26 @@ export default defineConfig({
             src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
-          },
+            purpose: 'maskable'
+          }
         ],
         screenshots: [
           {
