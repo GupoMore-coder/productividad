@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ServiceOrder } from '../../context/OrderContext';
-import { WhatsAppService } from '../../services/whatsappService';
 import { useWhatsApp } from '../../context/WhatsAppContext';
 import { triggerHaptic } from '../../utils/haptics';
 import { OrderStatusPill } from './OrderStatusPill';
@@ -97,7 +96,7 @@ export const OrderCard = memo(function OrderCard({
     }));
   };
 
-  const deliveryDate = new Date(order.deliveryDate);
+
   // unused timeRemaining removed
 
   const handleObsSubmit = (e: React.FormEvent) => {

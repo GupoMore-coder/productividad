@@ -109,7 +109,7 @@ export const WhatsAppEditModal: React.FC<WhatsAppEditModalProps> = ({
             {/* Fields */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Cliente ({{1}})</label>
+                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Cliente ({"{{1}}"})</label>
                 <div className="relative group">
                   <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 transition-colors group-focus-within:text-purple-400" />
                   <input 
@@ -122,7 +122,7 @@ export const WhatsAppEditModal: React.FC<WhatsAppEditModalProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Documento ({{2}})</label>
+                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Documento ({"{{2}}"})</label>
                 <div className="relative group">
                   <Hash size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 transition-colors group-focus-within:text-purple-400" />
                   <input 
@@ -135,7 +135,7 @@ export const WhatsAppEditModal: React.FC<WhatsAppEditModalProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Total ({{3}})</label>
+                <label className="text-[0.6rem] font-black text-slate-600 uppercase tracking-[0.2em] ml-1">Total ({"{{3}}"})</label>
                 <div className="relative group">
                   <DollarSign size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 transition-colors group-focus-within:text-purple-400" />
                   <input 

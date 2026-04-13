@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, X, User, Clock, CheckCheck, Loader2, ArrowDownCircle } from 'lucide-react';
+import { MessageSquare, X, User, Clock, CheckCheck, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { triggerHaptic } from '../../utils/haptics';
 
@@ -27,7 +27,6 @@ export const WhatsAppChatModal: React.FC<WhatsAppChatModalProps> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Cargar mensajes iniciales
@@ -44,7 +43,6 @@ export const WhatsAppChatModal: React.FC<WhatsAppChatModalProps> = ({
 
       if (error) {
         console.error('Error fetching messages:', error);
-        setError('No se pudo cargar el historial.');
       } else {
         setMessages(data || []);
       }
