@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { 
@@ -31,11 +31,17 @@ import { useAuth } from '../context/AuthContext';
 interface HelpManualModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'inicio' | 'agenda' | 'ordenes' | 'inventario' | 'inteligencia' | 'seguridad' | 'admin' | 'ia';
 }
 
-export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProps) {
+export default function HelpManualModal({ isOpen, onClose, initialTab = 'inicio' }: HelpManualModalProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'inicio' | 'agenda' | 'ordenes' | 'inventario' | 'inteligencia' | 'seguridad' | 'admin' | 'ia'>('inicio');
+  const [activeTab, setActiveTab] = useState<'inicio' | 'agenda' | 'ordenes' | 'inventario' | 'inteligencia' | 'seguridad' | 'admin' | 'ia'>(initialTab);
+
+  // Reset to initialTab when modal opens
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
   const [search, setSearch] = useState('');
   
   // Chat IA State
@@ -60,33 +66,37 @@ export default function HelpManualModal({ isOpen, onClose }: HelpManualModalProp
 
     try {
       if (isSupabaseConfigured) {
-        const { data, error } = await supabase.functions.invoke('ai-helper', {
-          body: { 
+        // Use direct fetch for maximum control over error handling
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const fnResponse = await fetch(`${supabaseUrl}/functions/v1/ai-helper`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+          },
+          body: JSON.stringify({ 
             prompt: userMsg,
             history: chatMessages.map(m => ({ 
               role: m.role, 
               text: m.text.length > 500 ? m.text.substring(0, 500) + '...' : m.text 
             })).slice(-6) 
-          }
+          })
         });
 
-        if (error) {
-          // Extraer mensaje de error si viene en el cuerpo
-          let errorMessage = 'No pude conectarme con mi centro de inteligencia.';
-          try {
-            const errBody = await error.response.json();
-            if (errBody.error) errorMessage = `⚠️ Error: ${errBody.error}`;
-          } catch (e) {
-            errorMessage = `⚠️ Error: ${error.message || error}`;
-          }
-           setChatMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
-           setIsTyping(false);
-           return;
+        const responseData = await fnResponse.json();
+
+        if (!fnResponse.ok || responseData.error) {
+          const errorMessage = responseData.error || `Error del servidor (${fnResponse.status})`;
+          setChatMessages(prev => [...prev, { role: 'assistant', text: `⚠️ ${errorMessage}` }]);
+          setIsTyping(false);
+          return;
         }
         
-        setChatMessages(prev => [...prev, { role: 'assistant', text: data?.text || 'No pude obtener una respuesta.' }]);
+        setChatMessages(prev => [...prev, { role: 'assistant', text: responseData?.text || 'No pude obtener una respuesta.' }]);
       } else {
-        // Fallback para desarrollo sin Supabase
         setTimeout(() => {
           setChatMessages(prev => [...prev, { role: 'assistant', text: "Modo Local: El asistente requiere conexión a Supabase y la Edge Function 'ai-helper' activa." }]);
           setIsTyping(false);

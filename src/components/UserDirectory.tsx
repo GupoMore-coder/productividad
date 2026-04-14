@@ -23,6 +23,8 @@ interface AppUser {
   emergency_name?: string;
   emergency_relationship?: string;
   emergency_phone?: string;
+  secondary_phone?: string;
+  secondary_email?: string;
   last_seen?: string;
 }
 
@@ -36,8 +38,29 @@ const ROLE_HIERARCHY: Record<string, number> = {
   'Colaborador': 7
 };
 
+const ROLE_ABBREVIATIONS: Record<string, string> = {
+  'Administrador maestro': 'Admin. Maestro',
+  'Director General (CEO)': 'CEO',
+  'Gestor Administrativo': 'Gest. Admin.',
+  'Analista Contable': 'An. Contable',
+  'Supervisora Puntos de Venta': 'Admin. Pto Venta',
+  'Consultora de Ventas': 'Consul. Venta',
+  'Colaborador': 'Colaborador'
+};
+
 function getRoleWeight(role?: string) {
   return ROLE_HIERARCHY[role || 'Colaborador'] || 99;
+}
+
+function getAbbreviatedRole(role?: string) {
+  return ROLE_ABBREVIATIONS[role || 'Colaborador'] || role || 'Colaborador';
+}
+
+function getShortName(fullName?: string, username?: string): string {
+  if (!fullName) return username || 'Usuario';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 2) return fullName;
+  return `${parts[0]} ${parts[Math.ceil(parts.length / 2)]}`;
 }
 
 export default function UserDirectory({ onClose }: { onClose: () => void }) {
@@ -46,7 +69,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState('');
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const { onlineUsers, presenceState } = usePresence();
-  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const { openWhatsApp } = useWhatsApp();
   const { user: currentUser } = useAuth();
 
@@ -106,14 +129,14 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-4xl bg-[#1a1622] border border-white/10 rounded-[40px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         
         {/* Modal Header */}
-        <div className="p-8 border-b border-white/5 bg-white/[0.02]">
-          <div className="flex justify-between items-center mb-6">
+        <div className="p-6 sm:p-8 border-b border-white/5 bg-white/[0.02]">
+          <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                </div>
                 <div>
-                  <h2 className="text-xl font-black text-white uppercase tracking-tight">Directorio de Personal</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight">Directorio de Personal</h2>
                   <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">More Paper & Design · EST. 2024</p>
                </div>
             </div>
@@ -129,12 +152,12 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
               placeholder="Buscar personal por nombre, usuario o rol..." 
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium placeholder:text-slate-600"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all font-medium placeholder:text-slate-600"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
                <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
@@ -147,143 +170,208 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                 <p className="text-sm font-bold uppercase tracking-widest">No se encontraron resultados</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {filteredUsers.map(u => {
                   const isBday = isBirthdayToday(u.birth_date);
                   const isOnline = onlineUsers.includes(u.id);
                   return (
-                    <motion.div 
-                      key={u.id} 
-                      whileHover={{ y: -2 }}
-                      className={`relative overflow-hidden p-4 rounded-[28px] border transition-all duration-300 group flex flex-col gap-3 ${
-                        isBday ? 'bg-amber-500/5 border-amber-500/20' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10'
+                    <motion.button
+                      key={u.id}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSelectedUser(u)}
+                      className={`relative overflow-hidden p-3 rounded-2xl border transition-all duration-300 flex flex-col items-center gap-1.5 text-center cursor-pointer ${
+                        isBday ? 'bg-amber-500/5 border-amber-500/20' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.06] hover:border-white/15'
                       }`}
                     >
-                      {/* Top Row: Avatar + Name/Role + Actions */}
-                      <div className="flex items-start gap-4">
-                        <div 
-                          onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
-                          className={`relative w-12 h-12 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-lg transition-transform duration-300 group-hover:scale-105 ${
-                            isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/10' : 'bg-slate-800 text-slate-400 border border-white/5'
-                          } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer' : 'cursor-default'}`}
-                        >
-                          {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
-                          {isOnline ? (
-                            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] ${presenceState[u.id]?.[0]?.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'}`} />
-                          ) : (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] bg-slate-600" />
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className={`text-[0.55rem] font-black uppercase tracking-widest ${isBday ? 'text-amber-500' : 'text-blue-400'}`}>
-                              {u.role || 'Colaborador'}
-                            </span>
-                            <span className="text-[0.55rem] font-bold text-slate-600 uppercase">ID: {u.cedula || '—'}</span>
-                          </div>
-                          <h3 className="text-sm font-black text-white leading-tight uppercase truncate group-hover:text-blue-200 transition-colors">
-                            {u.full_name || u.username}
-                          </h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            {isOnline ? (
-                              <span className="text-[0.5rem] font-black text-emerald-500 uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                {presenceState[u.id]?.[0]?.status === 'paused' ? 'EN PAUSA' : 'ACTIVO'}
-                              </span>
-                            ) : (
-                              u.last_seen && <span className="text-[0.5rem] font-bold text-slate-500 uppercase tracking-tighter">Visto {formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5 flex-shrink-0">
-                          {u.phone && (
-                            <div className="flex gap-1">
-                               <a href={`tel:${u.phone}`} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-md active:scale-90">
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                               </a>
-                               <button
-                                 onClick={() => {
-                                   const name = u.full_name || u.username;
-                                   const message = `Hola *${name}*, te contacto desde el aplicativo *Antigravity* ✨.\n\nSoy *${currentUser?.full_name || currentUser?.username}*, ¿puedes ayudarme con lo siguiente?`;
-                                   openWhatsApp(u.phone!, message);
-                                 }}
-                                 className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-400 hover:bg-emerald-600 hover:text-white transition-all shadow-md active:scale-90"
-                               >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-14 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
-                               </button>
-                            </div>
-                          )}
-                          {isBday && <div className="text-right text-xs animate-bounce">🎂</div>}
-                        </div>
-                      </div>
-
-                      {/* Divider */}
-                      <div className="h-px bg-white/5 w-full" />
-
-                      {/* Contact Info Row */}
-                      <div className="flex items-center justify-between text-[0.6rem] font-medium text-slate-500 px-1">
-                        <div className="truncate flex items-center gap-1.5 max-w-[60%]">
-                           <span className="opacity-50">✉️</span> {u.email}
-                        </div>
-                        {u.birth_date && (
-                          <div className={`flex items-center gap-1.5 ${isBday ? 'text-amber-500 font-black' : 'text-slate-500 font-bold'}`}>
-                             <span>🎁</span> {format(parseISO(u.birth_date), 'dd MMM', { locale: es }).toUpperCase()}
-                          </div>
+                      {/* Avatar */}
+                      <div className={`relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-xl ${
+                        isBday ? 'bg-amber-500 text-slate-900 ring-2 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border border-white/5'
+                      }`}>
+                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" alt="" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                        {isOnline && (
+                          <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] ${presenceState[u.id]?.[0]?.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'}`} />
                         )}
+                        {isBday && <div className="absolute -top-0.5 -right-0.5 text-[10px]">🎂</div>}
                       </div>
 
-                      {/* Emergency Contact Section */}
-                      <div className="mt-1">
-                        <button 
-                          onClick={() => setExpandedUser(expandedUser === u.id ? null : u.id)}
-                          className={`w-full flex items-center justify-between text-[0.55rem] font-black uppercase tracking-widest transition-colors py-2 px-3 rounded-xl border ${expandedUser === u.id || u.emergency_name ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-white/5 border-transparent text-slate-500 hover:text-slate-400'}`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                            Emergencia
-                          </div>
-                          <span className="transition-transform transform duration-300" style={{ transform: expandedUser === u.id ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-                        </button>
+                      {/* ID below avatar */}
+                      <span className="text-[0.5rem] font-bold text-slate-600 uppercase tracking-wider">
+                        {u.cedula ? `ID: ${u.cedula}` : '\u2014'}
+                      </span>
 
-                        <AnimatePresence>
-                          {expandedUser === u.id && (
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="mt-2 p-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex flex-col gap-1.5">
-                                {u.emergency_name ? (
-                                  <>
-                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
-                                       <span className="truncate">Contacto: <span className="text-white">{String(u.emergency_name)}</span></span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
-                                       <span>Parentesco: <span className="text-slate-300">{String(u.emergency_relationship || 'N/A')}</span></span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[0.6rem] text-slate-400 font-bold uppercase tracking-tighter">
-                                       <span>Teléfono: <a href={`tel:${u.emergency_phone}`} className="text-amber-500 hover:text-amber-400 font-black">{String(u.emergency_phone || 'N/A')}</a></span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="py-2 text-center">
-                                    <p className="text-[0.55rem] font-bold text-slate-600 uppercase italic">Sin datos registrados</p>
-                                  </div>
-                                )}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                      {/* Abbreviated Role */}
+                      <span className={`text-[0.5rem] font-black uppercase tracking-widest px-2 py-0.5 rounded-md leading-tight ${
+                        isBday ? 'text-amber-500 bg-amber-500/10' : 'text-blue-400 bg-blue-500/10'
+                      }`}>
+                        {getAbbreviatedRole(u.role)}
+                      </span>
+
+                      {/* Short Name */}
+                      <h3 className="text-[0.7rem] font-bold text-white leading-tight uppercase w-full truncate">
+                        {getShortName(u.full_name, u.username)}
+                      </h3>
+
+                      {/* Status dot */}
+                      <div className="flex items-center gap-1">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                        <span className={`text-[0.45rem] font-bold uppercase tracking-widest ${isOnline ? 'text-emerald-500' : 'text-slate-600'}`}>
+                          {isOnline ? (presenceState[u.id]?.[0]?.status === 'paused' ? 'Pausa' : 'Activo') : 'Offline'}
+                        </span>
                       </div>
-                    </motion.div>
+                    </motion.button>
                   );
                 })}
               </div>
             )
           )}
         </div>
+
+        {/* Detail Modal (Zoom Effect) */}
+        <AnimatePresence>
+          {selectedUser && (() => {
+            const u = selectedUser;
+            const isBday = isBirthdayToday(u.birth_date);
+            const isOnline = onlineUsers.includes(u.id);
+            return (
+              <motion.div
+                key="detail-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl overflow-y-auto"
+                onClick={() => setSelectedUser(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-sm bg-[#1a1622] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl my-auto"
+                >
+                  {/* Header with avatar */}
+                  <div className="relative p-6 pb-4 flex flex-col items-center bg-gradient-to-b from-purple-500/10 to-transparent">
+                    <button onClick={() => setSelectedUser(null)} className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 text-slate-400 hover:text-white transition-colors">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+
+                    <div
+                      onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
+                      className={`w-20 h-20 rounded-3xl overflow-hidden flex items-center justify-center font-black text-3xl mb-3 ${
+                        isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border-2 border-white/10'
+                      } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer' : ''}`}
+                    >
+                      {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" alt="" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                    </div>
+
+                    <span className={`text-[0.55rem] font-black uppercase tracking-widest px-3 py-1 rounded-lg mb-2 ${
+                      isBday ? 'text-amber-500 bg-amber-500/10' : 'text-blue-400 bg-blue-500/10'
+                    }`}>
+                      {getAbbreviatedRole(u.role)}
+                    </span>
+
+                    <h3 className="text-base font-black text-white uppercase tracking-tight text-center">
+                      {u.full_name || u.username}
+                    </h3>
+                    <p className="text-[0.6rem] text-slate-500 font-bold uppercase">@{u.username}</p>
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="px-6 pb-6 space-y-3">
+                    {/* Status */}
+                    <div className="flex items-center justify-center gap-2 py-2">
+                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
+                      <span className={`text-[0.6rem] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        {isOnline ? (presenceState[u.id]?.[0]?.status === 'paused' ? 'En Pausa' : 'Activo') : (
+                          u.last_seen ? `Visto ${formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}` : 'Sin conexión'
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-white/5" />
+
+                    {/* Data rows */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Cédula</span>
+                        <span className="text-xs font-black text-white">{u.cedula || '\u2014'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Correo</span>
+                        <span className="text-[0.6rem] font-medium text-slate-300 truncate max-w-[60%] text-right">{u.email}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Celular</span>
+                        <span className="text-xs font-bold text-white">{u.phone || '\u2014'}</span>
+                      </div>
+                      {u.secondary_phone && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Cel. Sec.</span>
+                          <span className="text-xs font-bold text-slate-300">{u.secondary_phone}</span>
+                        </div>
+                      )}
+                      {u.secondary_email && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Email Sec.</span>
+                          <span className="text-[0.6rem] font-medium text-slate-300 truncate max-w-[55%] text-right">{u.secondary_email}</span>
+                        </div>
+                      )}
+                      {u.birth_date && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">Cumpleaños</span>
+                          <span className={`text-xs font-bold ${isBday ? 'text-amber-500' : 'text-slate-300'}`}>
+                            {isBday ? '🎂 ¡Hoy!' : format(parseISO(u.birth_date), 'dd MMM', { locale: es }).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Emergency Contact */}
+                    <div className="h-px bg-white/5 mt-1" />
+                    <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-2xl space-y-1.5">
+                      <p className="text-[0.55rem] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                        Contacto de Emergencia
+                      </p>
+                      {u.emergency_name ? (
+                        <>
+                          <div className="text-[0.6rem] text-slate-400 font-medium">{u.emergency_name} · <span className="text-slate-500">{u.emergency_relationship || 'N/A'}</span></div>
+                          {u.emergency_phone && (
+                            <a href={`tel:${u.emergency_phone}`} className="text-[0.6rem] font-black text-amber-500 hover:text-amber-400">{u.emergency_phone}</a>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[0.55rem] text-slate-600 italic">Sin datos registrados</p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    {u.phone && (
+                      <div className="flex gap-2 pt-1">
+                        <a href={`tel:${u.phone}`} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[0.6rem] font-black uppercase tracking-widest hover:bg-blue-500/20 transition-all active:scale-95">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          Llamar
+                        </a>
+                        <button
+                          onClick={() => {
+                            const name = u.full_name || u.username;
+                            const message = `Hola *${name}*, te contacto desde el aplicativo *Antigravity* \u2728.\n\nSoy *${currentUser?.full_name || currentUser?.username}*, \u00bfpuedes ayudarme con lo siguiente?`;
+                            openWhatsApp(u.phone!, message);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[0.6rem] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all active:scale-95"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-14 8.38 8.38 0 0 1 3.8.9L21 3z"/></svg>
+                          WhatsApp
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
+
         {zoomedImg && <ImageZoomModal photos={[zoomedImg]} initialIndex={0} onClose={() => setZoomedImg(null)} />}
       </motion.div>
     </div>

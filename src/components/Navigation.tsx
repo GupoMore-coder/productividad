@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import HelpManualModal from './HelpManualModal';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Plus, Calendar, Users, BookOpen, ShieldCheck, Box, FileText, Lightbulb } from 'lucide-react';
+import { LogOut, Plus, Calendar, Users, BookOpen, ShieldCheck, Box, FileText, Lightbulb, BotMessageSquare } from 'lucide-react';
 
 /**
  * v12.3: Elite Navigation Resilience
@@ -138,6 +138,15 @@ export default function Navigation() {
 
         </div>
 
+        {/* ── Fixed: AI Assistant ── */}
+        <button
+          onClick={() => setIsHelpOpen(true)}
+          className="w-11 h-11 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-all active:scale-95 shrink-0 shadow-lg shadow-purple-500/10"
+          title="Asistente IA"
+        >
+          <BotMessageSquare size={18} strokeWidth={2.5} />
+        </button>
+
         {/* ── Fixed: Logout ── */}
         <button
           onClick={handleLogoutClick}
@@ -148,7 +157,7 @@ export default function Navigation() {
         </button>
       </nav>
 
-      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HelpManualModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} initialTab="ia" />
 
       {/* ── Logout confirmation modal ── */}
       {showLogoutConfirm && (

@@ -80,8 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Error fetching profile:', error);
         }
 
-        const role = profile?.role || 'Colaborador';
-        const isMaster = role === 'Administrador maestro';
+        // Detect master admin by multiple signals (bypass flag, email, or DB role)
+        const isBypassUser = authUser.isBypass === true;
+        const isMasterEmail = (authUser.email || profile?.email || '').toLowerCase() === 'fernando830609@gmail.com';
+        
+        const role = profile?.role || authUser.role || (isMasterEmail ? 'Administrador maestro' : 'Colaborador');
+        const isMaster = role === 'Administrador maestro' || isMasterEmail;
         const isAdmin = role === 'Director General (CEO)' || role === 'Gestor Administrativo';
         const isAccountant = role === 'Analista Contable';
         const isSupervisor = role === 'Supervisora Puntos de Venta';
@@ -89,6 +93,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const isColaborador = role === 'Colaborador';
         
         const isSuper = profile?.is_super_admin || isMaster || isAdmin || false;
+
+        // Master admin and bypass users NEVER need setup
+        const forceSkipSetup = isMaster || isBypassUser || isMasterEmail;
 
         setUser({
           ...authUser,
@@ -102,12 +109,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isColaborador,
           isSuperAdmin: isSuper,
           sandboxExpiry: profile?.sandbox_expiry,
-          needsSetup: isMaster ? false : (profile?.needs_setup ?? true),
-          username: profile?.username || authUser.user_metadata?.username || 'usuario'
+          needsSetup: forceSkipSetup ? false : (profile?.needs_setup ?? true),
+          username: profile?.username || authUser.user_metadata?.username || authUser.username || 'usuario'
         });
       } catch (err) {
         console.error('Auth sync error:', err);
-        setUser(authUser);
+        // Even on total failure, preserve bypass user's admin status
+        if (authUser.isBypass || (authUser.email || '').toLowerCase() === 'fernando830609@gmail.com') {
+          setUser({ ...authUser, needsSetup: false, isMaster: true, isSuperAdmin: true });
+        } else {
+          setUser(authUser);
+        }
       } finally {
         setLoading(false);
       }
