@@ -13,7 +13,6 @@ import {
   X, 
   LogOut, 
   Trash2, 
-  Mail, 
   ShieldCheck, 
   ArrowLeft
 } from 'lucide-react';
@@ -254,11 +253,13 @@ export default function FamilyGroup() {
                     
                     <div className="flex items-center gap-5 relative z-10">
                       <div className="relative">
-                         <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 border border-white/10 flex items-center justify-center text-purple-400 text-xl font-black shadow-inner shadow-white/5 group-hover:scale-105 transition-transform overflow-hidden relative">
+                         <div className="w-16 h-16 rounded-2xl border-2 border-purple-500/30 shadow-md shadow-purple-500/10 flex items-center justify-center text-purple-400 text-xl font-black group-hover:scale-105 transition-transform overflow-hidden relative">
                             {g.creator_details?.avatar ? (
                               <img src={g.creator_details.avatar} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              (g.creator_details?.full_name || g.name || 'G').charAt(0).toUpperCase()
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white">
+                                {(g.creator_details?.full_name || g.name || 'G').charAt(0).toUpperCase()}
+                              </div>
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                          </div>
@@ -326,11 +327,13 @@ export default function FamilyGroup() {
             </div>
             
             <header className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 overflow-hidden shrink-0">
+              <div className="w-12 h-12 rounded-2xl border-2 border-amber-500/30 shadow-md shadow-amber-500/10 flex items-center justify-center text-amber-500 overflow-hidden shrink-0">
                 {selectedGroup.creator_details?.avatar ? (
                   <img src={selectedGroup.creator_details.avatar} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  (selectedGroup.creator_details?.full_name || 'L').charAt(0).toUpperCase()
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-amber-700 text-slate-900 font-black">
+                    {(selectedGroup.creator_details?.full_name || 'L').charAt(0).toUpperCase()}
+                  </div>
                 )}
               </div>
               <div>
@@ -425,11 +428,13 @@ export default function FamilyGroup() {
                   <div key={m.userId} className="bg-white/[0.02] border border-white/5 p-5 rounded-[32px] flex items-center gap-5 hover:bg-white/[0.05] hover:border-white/10 transition-all group relative overflow-hidden backdrop-blur-sm">
                     <div className={`absolute left-0 top-0 bottom-0 w-1 ${m.userId === selectedGroup.creatorId ? 'bg-amber-500' : 'bg-purple-500/30'}`} />
                     
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 flex items-center justify-center text-purple-400 text-[0.8rem] font-black group-hover:scale-110 transition-transform shadow-inner shadow-white/5 overflow-hidden">
+                    <div className="w-12 h-12 rounded-2xl border-2 border-purple-500/30 shadow-md shadow-purple-500/10 flex items-center justify-center text-[0.8rem] font-black group-hover:scale-110 transition-transform overflow-hidden">
                       { (m.user_details?.avatar || userDirectory.find(u => u.id === m.userId)?.avatar) ? (
                         <img src={m.user_details?.avatar || userDirectory.find(u => u.id === m.userId)?.avatar} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        (m.user_details?.full_name || userDirectory.find(u => u.id === m.userId)?.full_name || 'U').charAt(0).toUpperCase()
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white">
+                          {(m.user_details?.full_name || userDirectory.find(u => u.id === m.userId)?.full_name || 'U').charAt(0).toUpperCase()}
+                        </div>
                       )}
                     </div>
                     <div className="flex-1">
@@ -472,11 +477,13 @@ export default function FamilyGroup() {
                   {invitedUsers.map(u => (
                     <div key={u.userId} className="flex justify-between items-center px-5 py-3 bg-white/[0.01] border border-dashed border-white/10 rounded-2xl">
                       <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500 overflow-hidden">
+                         <div className="w-8 h-8 rounded-lg border border-purple-500/20 flex items-center justify-center text-slate-500 overflow-hidden">
                            {u.user_details?.avatar ? (
-                             <img src={u.user_details.avatar} alt="" className="w-full h-full object-cover opacity-80" />
+                             <img src={u.user_details.avatar} alt="" className="w-full h-full object-cover" />
                            ) : (
-                             <Mail size={14} />
+                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[10px] font-black">
+                               {(u.user_details?.full_name || 'U').charAt(0).toUpperCase()}
+                             </div>
                            )}
                          </div>
                          <span className="text-xs font-bold text-slate-400">{u.user_details?.full_name || u.userId}</span>

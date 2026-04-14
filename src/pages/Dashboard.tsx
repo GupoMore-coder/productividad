@@ -595,7 +595,7 @@ export default function Dashboard() {
                         onClick={() => toggleUser(u.id)}
                         className={`flex items-center gap-2 p-2 rounded-xl border text-[0.6rem] font-bold transition-all ${selectedUserIds.includes(u.id) ? 'bg-purple-500/20 border-purple-500/40 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
                       >
-                         <div className="w-5 h-5 rounded-md bg-black/20 flex items-center justify-center text-[0.5rem]">{u.avatar?.length === 1 ? u.avatar : '👤'}</div>
+                         <div className="w-5 h-5 rounded-md border border-purple-500/20 flex items-center justify-center text-[0.5rem] overflow-hidden">{u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white font-black">{(u.full_name || u.username || 'U').charAt(0).toUpperCase()}</div>}</div>
                          <span className="truncate">@{u.username}</span>
                       </button>
                     ))}

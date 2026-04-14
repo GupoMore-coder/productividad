@@ -432,13 +432,13 @@ export default function AdminUsers() {
                   <td className="px-2 py-3">
                     <button
                       onClick={() => deletePhoto(u)}
-                      className="w-10 h-10 mx-auto rounded-xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden group-hover:border-purple-500/40 transition-all"
+                      className="w-10 h-10 mx-auto rounded-xl border-2 border-purple-500/30 shadow-md shadow-purple-500/10 flex items-center justify-center overflow-hidden group-hover:border-purple-500/50 transition-all"
                       aria-label="Ver o quitar foto"
                     >
                       {u.avatar && u.avatar.length > 10 ? (
-                        <img src={u.avatar} className="w-full h-full object-cover" />
+                        <img src={u.avatar} className="w-full h-full object-cover" alt="" />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[#d4bc8f] to-[#b39063] flex items-center justify-center text-slate-950 text-xs font-black">
+                        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center text-white text-xs font-black">
                           {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
                         </div>
                       )}

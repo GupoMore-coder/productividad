@@ -187,10 +187,16 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                       }`}
                     >
                       {/* Avatar */}
-                      <div className={`relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-xl ${
-                        isBday ? 'bg-amber-500 text-slate-900 ring-2 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border border-white/5'
+                      <div className={`relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center font-black text-xl border-2 shadow-md transition-all ${
+                        isBday ? 'bg-amber-500 text-slate-900 border-amber-500/40 ring-2 ring-amber-500/20 shadow-amber-500/10' : 'border-purple-500/30 shadow-purple-500/10'
                       }`}>
-                        {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" alt="" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                        {u.avatar && u.avatar.length > 10 ? (
+                          <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center ${isBday ? '' : 'bg-gradient-to-br from-purple-600 to-purple-800 text-white'}`}>
+                            {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         {isOnline && (
                           <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] ${presenceState[u.id]?.[0]?.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'}`} />
                         )}
@@ -260,11 +266,22 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
 
                     <div
                       onClick={() => { if (u.avatar && u.avatar.length > 10) setZoomedImg(u.avatar); }}
-                      className={`w-20 h-20 rounded-3xl overflow-hidden flex items-center justify-center font-black text-3xl mb-3 ${
-                        isBday ? 'bg-amber-500 text-slate-900 ring-4 ring-amber-500/20' : 'bg-slate-800 text-slate-400 border-2 border-white/10'
-                      } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer' : ''}`}
+                      className={`group/avatar relative w-24 h-24 rounded-3xl overflow-hidden flex items-center justify-center font-black text-3xl mb-3 border-2 shadow-lg transition-all ${
+                        isBday ? 'bg-amber-500 text-slate-900 border-amber-500/40 ring-4 ring-amber-500/20 shadow-amber-500/20' : 'border-purple-500/40 shadow-purple-500/20 ring-2 ring-purple-500/10 ring-offset-2 ring-offset-[#1a1622]'
+                      } ${u.avatar && u.avatar.length > 10 ? 'cursor-pointer hover:border-purple-400 hover:shadow-purple-500/40' : ''}`}
                     >
-                      {u.avatar && u.avatar.length > 10 ? <img src={u.avatar} className="w-full h-full object-cover" alt="" /> : (u.avatar || (u.full_name || u.username || 'U').charAt(0).toUpperCase())}
+                      {u.avatar && u.avatar.length > 10 ? (
+                        <>
+                          <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                          <div className="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/30 transition-all duration-300 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                          </div>
+                        </>
+                      ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${isBday ? '' : 'bg-gradient-to-br from-purple-600 to-purple-800 text-white'}`}>
+                          {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
 
                     <span className={`text-[0.55rem] font-black uppercase tracking-widest px-3 py-1 rounded-lg mb-2 ${

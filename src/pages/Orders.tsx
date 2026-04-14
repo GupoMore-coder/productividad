@@ -409,8 +409,8 @@ export default function Orders() {
                              }}
                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[0.6rem] font-bold transition-all ${isSelected ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-lg shadow-purple-500/10' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'}`}
                            >
-                             <div className="w-4 h-4 rounded-md bg-black/20 flex items-center justify-center text-[0.45rem] overflow-hidden">
-                               {profile.avatar && profile.avatar.length > 10 ? <img src={profile.avatar} className="w-full h-full object-cover" /> : profile.username.charAt(0).toUpperCase()}
+                             <div className="w-5 h-5 rounded-md border border-purple-500/20 flex items-center justify-center text-[0.45rem] overflow-hidden">
+                               {profile.avatar && profile.avatar.length > 10 ? <img src={profile.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white font-black">{(profile.full_name || profile.username || 'U').charAt(0).toUpperCase()}</div>}
                              </div>
                              <span>@{profile.username}</span>
                              {isSelected && <Check size={10} className="ml-0.5" />}
