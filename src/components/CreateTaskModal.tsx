@@ -274,8 +274,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
               </div>
 
               {/* Visibility / Sharing Section - Refactored to grid as in image */}
-              <div className="space-y-4 bg-white/[0.02] border border-white/5 rounded-3xl p-5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/5 to-transparent pointer-events-none" />
+              <div className="space-y-4 bg-white/[0.02] border border-white/5 rounded-3xl p-5 relative">
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/5 to-transparent pointer-events-none rounded-3xl" />
                 <div className="flex items-center justify-between relative z-10 mb-2">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black flex items-center gap-1.5">
                     <span>🔒</span> Visibilidad
