@@ -89,11 +89,11 @@ export default function Navigation() {
           </NavLink>
 
           <NavLink to="/profile" className={getNavClass}>
-             <div className="relative w-5 h-5 rounded-md overflow-hidden border border-purple-500/30">
+             <div className="relative w-5 h-5 sm:w-6 sm:h-6 rounded-md overflow-hidden border border-purple-500/30 shrink-0">
                 {user?.avatar && user.avatar.length > 10 ? (
                   <img src={user.avatar} className="w-full h-full object-cover" alt="p" />
                 ) : (
-                  <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[0.55rem] font-black text-purple-400">
+                  <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center text-[10px] sm:text-xs font-black text-purple-400">
                     {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -136,16 +136,16 @@ export default function Navigation() {
             </NavLink>
           )}
 
+          {/* ── Moved AI Assistant to Scrollbar ── */}
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="flex flex-col items-center gap-1 min-w-[56px] transition-all duration-300 text-purple-400 hover:text-purple-300 drop-shadow-glow"
+            title="Asistente IA"
+          >
+            <BotMessageSquare size={20} />
+            <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">IA Core</span>
+          </button>
         </div>
-
-        {/* ── Fixed: AI Assistant ── */}
-        <button
-          onClick={() => setIsHelpOpen(true)}
-          className="w-11 h-11 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-all active:scale-95 shrink-0 shadow-lg shadow-purple-500/10"
-          title="Asistente IA"
-        >
-          <BotMessageSquare size={18} strokeWidth={2.5} />
-        </button>
 
         {/* ── Fixed: Logout ── */}
         <button
