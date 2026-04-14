@@ -81,8 +81,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!user.isSuperAdmin) {
         if (myGroupIds.length > 0) {
-          // Privacy fix: only show shared tasks from groups, never private tasks of other users
-          query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.overlap.{${myGroupIds.join(',')}})`);
+          // Privacy fix: only show shared tasks from groups, never private tasks of other users. Use 'ov' for overlap.
+          query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.ov.{${myGroupIds.join(',')}})`);
         } else {
           query = query.eq('user_id', user.id);
         }

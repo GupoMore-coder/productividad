@@ -152,7 +152,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
       await onSave({
         ...data,
         status: 'accepted',
-        isShared: (data.group_ids || []).length > 0,
+        // Support explicit privacy toggle from form
+        isShared: data.isShared,
         groupId: (data.group_ids || [])[0] || undefined,
       });
 
