@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Calendar, Clock, Type, AlignLeft, Flag, Check, Camera, RefreshCw, Trash2, IterationCw, AlertCircle } from 'lucide-react';
+import { X, Plus, Calendar, Clock, Type, AlignLeft, Flag, Check, Camera, RefreshCw, Trash2, IterationCw, AlertCircle, Users, User } from 'lucide-react';
 import { useGroups } from '../context/GroupContext';
 import { useAuth } from '../context/AuthContext';
 import { triggerHaptic } from '../utils/haptics';
@@ -23,10 +23,12 @@ interface CreateTaskModalProps {
 }
 
 export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, initialData, onDelete, onExtend }: CreateTaskModalProps) {
-  const { groups, memberships } = useGroups();
+  const { groups, memberships, fetchAllProfiles } = useGroups();
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [hpValue, setHpValue] = useState('');
+  const [userDirectory, setUserDirectory] = useState<{ id: string; email: string; full_name: string; avatar?: string }[]>([]);
+  const [userSearch, setUserSearch] = useState('');
 
   const {
     register,
@@ -44,6 +46,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
       time: format(new Date(), 'HH:mm'),
       priority: 'media',
       group_ids: [],
+      shared_user_ids: [],
       isShared: false,
       imageUrl: '',
       type: 'task',
@@ -54,6 +57,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
 
   const isEdit = !!initialData;
   const groupIds = watch('group_ids');
+  const sharedUserIds = watch('shared_user_ids') || [];
   const imageUrl = watch('imageUrl');
   const priority = watch('priority');
   const typeSelection = watch('type');
@@ -68,6 +72,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         time: initialData.time,
         priority: initialData.priority,
         group_ids: initialData.group_ids || [],
+        shared_user_ids: initialData.shared_user_ids || [],
         isShared: initialData.isShared || false,
         imageUrl: initialData.imageUrl || '',
         type: initialData.type || 'task',
@@ -82,6 +87,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         time: format(new Date(), 'HH:mm'),
         priority: 'media',
         group_ids: [],
+        shared_user_ids: [],
         isShared: false,
         imageUrl: '',
         type: 'task',
@@ -95,6 +101,19 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
     memberships.some(m => m.groupId === g.id && m.userId === user?.id && m.status === 'approved')
   );
 
+  // Load user directory for sharing with individual users
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const profiles = await fetchAllProfiles();
+        setUserDirectory(profiles.filter(p => p.id !== user?.id));
+      } catch (err) {
+        console.error('Error loading user directory:', err);
+      }
+    };
+    if (isOpen) loadUsers();
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       reset({
@@ -104,6 +123,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         time: format(new Date(), 'HH:mm'),
         priority: 'media',
         group_ids: [],
+        shared_user_ids: [],
         isShared: false,
         imageUrl: '',
         type: 'task',
@@ -119,7 +139,15 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
     const current = groupIds || [];
     const next = current.includes(id) ? current.filter(gid => gid !== id) : [...current, id];
     setValue('group_ids', next);
-    setValue('isShared', next.length > 0);
+    setValue('isShared', next.length > 0 || sharedUserIds.length > 0);
+  };
+
+  const toggleUser = (userId: string) => {
+    triggerHaptic('light');
+    const current = sharedUserIds || [];
+    const next = current.includes(userId) ? current.filter(uid => uid !== userId) : [...current, userId];
+    setValue('shared_user_ids', next);
+    setValue('isShared', (groupIds?.length ?? 0) > 0 || next.length > 0);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,8 +180,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
       await onSave({
         ...data,
         status: 'accepted',
-        // Support explicit privacy toggle from form
         isShared: data.isShared,
+        shared_user_ids: data.shared_user_ids || [],
         groupId: (data.group_ids || [])[0] || undefined,
       });
 
@@ -337,41 +365,130 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
               </div>
 
               {/* Visibility / Sharing Section */}
-              <div className="space-y-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+              <div className="space-y-4 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black flex items-center gap-1.5">
                     <span>🔒</span> Visibilidad
                   </label>
                   <span className={`text-[0.55rem] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
-                    (groupIds?.length ?? 0) > 0
+                    ((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
                       ? 'bg-purple-500/20 border-purple-500/40 text-purple-400'
                       : 'bg-white/5 border-white/10 text-slate-500'
                   }`}>
-                    {(groupIds?.length ?? 0) > 0 ? `Compartida con ${groupIds!.length} grupo(s)` : '🔐 Privada — solo tú'}
+                    {((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
+                      ? `Compartida — ${(groupIds?.length ?? 0) > 0 ? `${groupIds!.length} grupo(s)` : ''}${(groupIds?.length ?? 0) > 0 && sharedUserIds.length > 0 ? ' + ' : ''}${sharedUserIds.length > 0 ? `${sharedUserIds.length} usuario(s)` : ''}`
+                      : '🔐 Privada — solo tú'}
                   </span>
                 </div>
-                {myApprovedGroups.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {myApprovedGroups.map(g => {
-                      const isSelected = groupIds?.includes(g.id);
-                      return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => toggleGroup(g.id)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
-                            isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          <span className="text-lg">👥</span>
-                          {g.name}
-                          {isSelected && <Check size={14} />}
-                        </button>
-                      );
-                    })}
+
+                {/* Group Sharing */}
+                {myApprovedGroups.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
+                      <Users size={10} /> Equipos
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {myApprovedGroups.map(g => {
+                        const isSelected = groupIds?.includes(g.id);
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => toggleGroup(g.id)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
+                              isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
+                            }`}
+                          >
+                            <Users size={14} />
+                            {g.name}
+                            {isSelected && <Check size={14} />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-[0.6rem] text-slate-600 italic">No perteneces a ningún equipo activo para compartir.</p>
+                )}
+
+                {/* Individual User Sharing */}
+                {userDirectory.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
+                      <User size={10} /> Usuarios Específicos
+                    </span>
+                    
+                    {/* Selected Users */}
+                    {sharedUserIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {sharedUserIds.map(uid => {
+                          const profile = userDirectory.find(u => u.id === uid);
+                          if (!profile) return null;
+                          return (
+                            <button
+                              key={uid}
+                              type="button"
+                              onClick={() => toggleUser(uid)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold border bg-purple-500/20 border-purple-500/50 text-purple-400 transition-all flex items-center gap-2"
+                            >
+                              <div className="w-5 h-5 rounded-md border border-purple-500/30 overflow-hidden flex items-center justify-center shrink-0">
+                                {profile.avatar && profile.avatar.length > 10 ? (
+                                  <img src={profile.avatar} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[8px] font-black flex items-center justify-center">
+                                    {(profile.full_name || 'U').charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              {profile.full_name}
+                              <X size={12} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Search & Add Users */}
+                    <input
+                      type="text"
+                      value={userSearch}
+                      onChange={e => setUserSearch(e.target.value)}
+                      placeholder="Buscar usuario para compartir..."
+                      className="w-full bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-700"
+                    />
+                    {userSearch.trim().length > 0 && (
+                      <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar">
+                        {userDirectory
+                          .filter(u => 
+                            !sharedUserIds.includes(u.id) &&
+                            (u.full_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
+                          )
+                          .slice(0, 6)
+                          .map(u => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => { toggleUser(u.id); setUserSearch(''); }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold border bg-white/5 border-white/5 text-slate-500 hover:text-slate-300 hover:border-purple-500/30 transition-all flex items-center gap-2"
+                            >
+                              <div className="w-5 h-5 rounded-md border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                {u.avatar && u.avatar.length > 10 ? (
+                                  <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[8px] font-black flex items-center justify-center">
+                                    {(u.full_name || 'U').charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              {u.full_name}
+                              <Plus size={12} className="text-purple-400" />
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {myApprovedGroups.length === 0 && userDirectory.length === 0 && (
+                  <p className="text-[0.6rem] text-slate-600 italic">No hay equipos ni usuarios disponibles para compartir.</p>
                 )}
               </div>
 

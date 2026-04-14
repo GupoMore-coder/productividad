@@ -23,6 +23,7 @@ export interface Task {
   userId?: string;
   groupId?: string;
   group_ids?: string[];
+  shared_user_ids?: string[];
   createdBy?: string;
   isShared?: boolean;
   failureReason?: string;
@@ -80,11 +81,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let query = supabase.from('tasks').select('*');
 
       if (myGroupIds.length > 0) {
-        // Universal Privacy: Everyone (including Fernando) sees only their own tasks or shared group tasks.
+        // Universal Privacy: Everyone sees their own tasks, shared group tasks, or tasks shared directly with them.
         // Use 'ov' for PostgREST overlap operator.
-        query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.ov.{${myGroupIds.join(',')}})`);
+        query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.ov.{${myGroupIds.join(',')}}),shared_user_ids.cs.{${user.id}}`);
       } else {
-        query = query.eq('user_id', user.id);
+        query = query.or(`user_id.eq.${user.id},shared_user_ids.cs.{${user.id}}`);
       }
 
       const { data, error } = await query
@@ -99,6 +100,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdBy: t.created_by,
         failureReason: t.failure_reason,
         imageUrl: t.image_url,
+        shared_user_ids: t.shared_user_ids || [],
         isGroupTask: t.user_id !== user.id
       }));
     },
@@ -262,6 +264,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     created_by: taskData.createdBy || uid,
     group_ids: taskData.group_ids || [],
     is_shared: taskData.isShared || false,
+    shared_user_ids: taskData.shared_user_ids || [],
     image_url: taskData.imageUrl || null,
     description: taskData.description || null,
     failure_reason: taskData.failureReason || null,

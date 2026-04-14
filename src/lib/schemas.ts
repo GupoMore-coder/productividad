@@ -38,6 +38,7 @@ export const TaskSchema = z.object({
   recurrence: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly']),
   recurrenceInterval: z.number().optional(),
   group_ids: z.array(z.string()),
+  shared_user_ids: z.array(z.string()).optional(),
   isShared: z.boolean(),
   imageUrl: z.string().nullable(),
 });
