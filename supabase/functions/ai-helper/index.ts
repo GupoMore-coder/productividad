@@ -47,10 +47,9 @@ REGLAS CRÍTICAS DE RESPUESTA:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: systemInstruction }]
-        },
         contents: [
+          { role: 'user', parts: [{ text: `INSTRUCCIONES DEL SISTEMA:\n${systemInstruction}\n\nENTIENDES LAS REGLAS?` }] },
+          { role: 'model', parts: [{ text: 'Sí, he entendido todas las reglas y parámetros de sistema. Estoy listo.' }] },
           ...(history || []).map((m: any) => ({
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.text }]

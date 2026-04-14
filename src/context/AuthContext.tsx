@@ -357,14 +357,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error: dbError } = await supabase
         .from('profiles')
         .update({ 
-          full_name: data.fullName, 
+          full_name: data.fullName || data.full_name, 
           cedula: data.cedula,
           phone: data.phone,
-          secondary_phone: data.secondaryPhone,
-          secondary_email: data.secondaryEmail,
-          emergency_name: data.emergencyName,
-          emergency_relationship: data.emergencyRelationship,
-          emergency_phone: data.emergencyPhone,
+          secondary_phone: data.secondary_phone || data.secondaryPhone,
+          secondary_email: data.secondary_email || data.secondaryEmail,
+          emergency_name: data.emergency_name || data.emergencyName,
+          emergency_relationship: data.emergency_relationship || data.emergencyRelationship,
+          emergency_phone: data.emergency_phone || data.emergencyPhone,
           avatar: data.avatar,
           birth_date: data.birth_date,
           needs_setup: false,

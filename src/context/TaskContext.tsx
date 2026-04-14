@@ -405,6 +405,42 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateTask = async (id: string, updates: Partial<Task>) => updateTaskMutation.mutateAsync({ id, updates }) as Promise<Task>;
   const deleteTask = async (id: string) => deleteTaskMutation.mutateAsync(id);
 
+  // 4. In-App 1-Hour Notification Banner
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return;
+
+    const checkOneHourAlarms = () => {
+      const now = new Date();
+      tasks.forEach(t => {
+        if (t.completed || t.is_muted) return;
+        const taskTime = new Date(`${t.date}T${t.time}:00`);
+        const diffMs = taskTime.getTime() - now.getTime();
+        const diffMinutes = Math.floor(diffMs / 60000);
+
+        // Notify exactly at 60 minutes mark
+        if (diffMinutes === 60) {
+          triggerHaptic('warning');
+          window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
+            detail: {
+              id: `alert-1h-${t.id}`,
+              type: 'global',
+              title: `En 1 Hora: ${t.title}`,
+              body: t.description || `Tienes un compromiso programado a las ${t.time}. ¡Prepárate!`
+            }
+          }));
+        }
+      });
+    };
+
+    const alignTimeout = setTimeout(() => {
+      checkOneHourAlarms();
+      const interval = setInterval(checkOneHourAlarms, 60000);
+      return () => clearInterval(interval);
+    }, 60000 - (new Date().getSeconds() * 1000 + new Date().getMilliseconds()));
+
+    return () => clearTimeout(alignTimeout);
+  }, [tasks]);
+
   return (
     <TaskContext.Provider value={{ 
       tasks, addTask, updateTask, deleteTask, extendTaskSeries, loading, 

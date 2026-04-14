@@ -498,10 +498,12 @@ export default function Tasks() {
               {/* Timeline Indicator for Today */}
               {isSameDay(selectedDate, new Date()) && (
                 <div 
-                  className="absolute left-[-10px] right-[-10px] h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent z-10 pointer-events-none"
-                  style={{ top: `${(new Date().getHours() * 60 + new Date().getMinutes()) / 14.4}%`, display: (new Date().getHours() >= 7 && new Date().getHours() <= 22) ? 'block' : 'none' }}
+                  className="absolute -left-2 sm:-left-3 z-20 pointer-events-none flex items-center gap-2"
+                  style={{ top: `${(new Date().getHours() * 60 + new Date().getMinutes()) / 14.4}%`, display: (new Date().getHours() >= 0 && new Date().getHours() <= 23) ? 'flex' : 'none' }}
                 >
-                   <div className="absolute right-0 -top-2 px-2 py-0.5 rounded-md bg-purple-500 text-white text-[0.5rem] font-black">AHORA</div>
+                   <div className="w-2 h-2 rounded-full bg-purple-500 animate-ping absolute opacity-75"></div>
+                   <div className="w-2 h-2 rounded-full bg-purple-500 relative"></div>
+                   <div className="px-2 py-0.5 rounded-md bg-purple-500/20 border border-purple-500/50 backdrop-blur-md text-purple-300 text-[0.55rem] font-black uppercase tracking-widest shadow-lg shadow-purple-500/10">AHORA</div>
                 </div>
               )}
 
