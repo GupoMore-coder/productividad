@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { format, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
@@ -12,11 +11,6 @@ interface CalendarViewProps {
 }
 
 export default function CalendarView({ selectedDate, onSelectDate, activityDetails = [] }: CalendarViewProps) {
-  const [viewDate, setViewDate] = useState<Date>(selectedDate);
-  
-  useEffect(() => {
-    setViewDate(selectedDate);
-  }, [selectedDate]);
 
   const handleDatePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
@@ -24,7 +18,6 @@ export default function CalendarView({ selectedDate, onSelectDate, activityDetai
       const [year, month, day] = e.target.value.split('-').map(Number);
       const d = new Date(year, month - 1, day, 12, 0, 0);
       onSelectDate(d);
-      setViewDate(d);
     }
   };
 
@@ -32,7 +25,6 @@ export default function CalendarView({ selectedDate, onSelectDate, activityDetai
     triggerHaptic('medium');
     const today = new Date();
     onSelectDate(today);
-    setViewDate(today);
   };
 
   const goPrevMonth = () => {
