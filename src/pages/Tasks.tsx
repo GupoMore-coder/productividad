@@ -346,11 +346,18 @@ export default function Tasks() {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <motion.div 
-            whileHover={{ scale: 1.05 }}
-            className="group relative w-12 h-12 rounded-xl overflow-hidden border-2 border-purple-500 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-xl cursor-pointer"
-            onClick={() => { if (avatar.length > 10) setZoomedGallery({ photos: [avatar], index: 0 }); }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            className="group relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-purple-500/60 shadow-lg shadow-purple-500/20 bg-slate-900 flex items-center justify-center text-xl cursor-pointer ring-2 ring-purple-500/10 ring-offset-2 ring-offset-[#0f0a15] transition-all hover:border-purple-400 hover:shadow-purple-500/40"
+            onClick={() => { if (avatar.length > 10) { triggerHaptic('light'); setZoomedGallery({ photos: [avatar], index: 0 }); } }}
           >
             {avatar.length > 10 ? <img src={avatar} className="w-full h-full object-cover" alt="avatar" /> : avatar}
+            {/* Zoom overlay indicator */}
+            {avatar.length > 10 && (
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              </div>
+            )}
             {isSameDay(parseISO(user?.birth_date || ''), new Date()) && (
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-amber-200 to-yellow-400" />
             )}

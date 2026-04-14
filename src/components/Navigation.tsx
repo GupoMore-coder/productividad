@@ -89,11 +89,11 @@ export default function Navigation() {
           </NavLink>
 
           <NavLink to="/profile" className={getNavClass}>
-             <div className="relative w-5 h-5 sm:w-6 sm:h-6 rounded-md overflow-hidden border border-purple-500/30 shrink-0">
+             <div className="relative w-7 h-7 rounded-lg overflow-hidden border-2 border-purple-500/40 shrink-0 shadow-md shadow-purple-500/10">
                 {user?.avatar && user.avatar.length > 10 ? (
-                  <img src={user.avatar} className="w-full h-full object-cover" alt="p" />
+                  <img src={user.avatar} className="w-full h-full object-cover" alt="perfil" />
                 ) : (
-                  <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center text-[10px] sm:text-xs font-black text-purple-400">
+                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 flex flex-col items-center justify-center text-[11px] font-black text-white">
                     {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
                   </div>
                 )}
