@@ -81,7 +81,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!user.isSuperAdmin) {
         if (myGroupIds.length > 0) {
-          query = query.or(`user_id.eq.${user.id},group_ids.overlap.{${myGroupIds.join(',')}}`);
+          // Privacy fix: only show shared tasks from groups, never private tasks of other users
+          query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.overlap.{${myGroupIds.join(',')}})`);
         } else {
           query = query.eq('user_id', user.id);
         }
@@ -409,22 +410,39 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!tasks || tasks.length === 0) return;
 
+    const ALARM_DEDUP_KEY = 'fired_1h_alarms';
+    const getFiredAlarms = (): string[] => {
+      try { return JSON.parse(localStorage.getItem(ALARM_DEDUP_KEY) || '[]'); } catch { return []; }
+    };
+    const markAlarmFired = (id: string) => {
+      const fired = getFiredAlarms();
+      if (!fired.includes(id)) {
+        // Keep only last 50 to avoid unbounded localStorage growth
+        localStorage.setItem(ALARM_DEDUP_KEY, JSON.stringify([id, ...fired].slice(0, 50)));
+      }
+    };
+
     const checkOneHourAlarms = () => {
       const now = new Date();
+      const fired = getFiredAlarms();
       tasks.forEach(t => {
-        if (t.completed || t.is_muted) return;
+        if (t.completed || t.is_muted || t.isBirthday) return;
+        // Only alert for the current user's own tasks (not group tasks of others)
+        if (t.userId !== user?.id) return;
         const taskTime = new Date(`${t.date}T${t.time}:00`);
         const diffMs = taskTime.getTime() - now.getTime();
         const diffMinutes = Math.floor(diffMs / 60000);
+        const alarmId = `alert-1h-${t.id}-${t.date}`;
 
-        // Notify exactly at 60 minutes mark
-        if (diffMinutes === 60) {
+        // Tolerance window: 55–65 min + dedup so it fires only once
+        if (diffMinutes >= 55 && diffMinutes <= 65 && !fired.includes(alarmId)) {
+          markAlarmFired(alarmId);
           triggerHaptic('warning');
           window.dispatchEvent(new CustomEvent('app:show-unified-alarm', {
             detail: {
-              id: `alert-1h-${t.id}`,
+              id: alarmId,
               type: 'global',
-              title: `En 1 Hora: ${t.title}`,
+              title: `⏰ En 1 Hora: ${t.title}`,
               body: t.description || `Tienes un compromiso programado a las ${t.time}. ¡Prepárate!`
             }
           }));
@@ -432,6 +450,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     };
 
+    // Run immediately on mount then every minute aligned to clock
+    checkOneHourAlarms();
     const alignTimeout = setTimeout(() => {
       checkOneHourAlarms();
       const interval = setInterval(checkOneHourAlarms, 60000);

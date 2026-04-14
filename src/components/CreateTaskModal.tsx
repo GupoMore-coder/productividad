@@ -92,7 +92,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
   }, [initialData, initialDate, reset]);
 
   const myApprovedGroups = groups.filter(g => 
-    memberships.some(m => m.groupId === g.id && m.userId === (user?.id || user?.email) && m.status === 'approved')
+    memberships.some(m => m.groupId === g.id && m.userId === user?.id && m.status === 'approved')
   );
 
   useEffect(() => {
@@ -335,9 +335,21 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                 </div>
               </div>
 
-              {myApprovedGroups.length > 0 && (
-                <div className="space-y-3">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Compartir con Grupos</label>
+              {/* Visibility / Sharing Section */}
+              <div className="space-y-3 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black flex items-center gap-1.5">
+                    <span>🔒</span> Visibilidad
+                  </label>
+                  <span className={`text-[0.55rem] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                    (groupIds?.length ?? 0) > 0
+                      ? 'bg-purple-500/20 border-purple-500/40 text-purple-400'
+                      : 'bg-white/5 border-white/10 text-slate-500'
+                  }`}>
+                    {(groupIds?.length ?? 0) > 0 ? `Compartida con ${groupIds!.length} grupo(s)` : '🔐 Privada — solo tú'}
+                  </span>
+                </div>
+                {myApprovedGroups.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {myApprovedGroups.map(g => {
                       const isSelected = groupIds?.includes(g.id);
@@ -347,7 +359,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                           type="button"
                           onClick={() => toggleGroup(g.id)}
                           className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
-                            isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500'
+                            isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
                           }`}
                         >
                           <span className="text-lg">👥</span>
@@ -357,8 +369,10 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                       );
                     })}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-[0.6rem] text-slate-600 italic">No perteneces a ningún equipo activo para compartir.</p>
+                )}
+              </div>
 
               {/* v2.3: Extension UI for recurring reminders */}
               {isEdit && typeSelection === 'reminder' && recurrence !== 'none' && onExtend && (

@@ -49,7 +49,7 @@ export default function FamilyGroup() {
 
   const { fetchAllProfiles } = useGroups();
 
-  const myUserId = user?.id || user?.email || 'unknown';
+  const myUserId = user?.id || 'unknown'; // Always use UUID, never email
 
   const handleAction = (type: 'success' | 'light' | 'warning' | 'error') => triggerHaptic(type);
 
@@ -341,6 +341,8 @@ export default function FamilyGroup() {
               </div>
             </header>
             
+            {/* Invite Form — only for group owner or master admin */}
+            {(selectedGroup.creatorId === user?.id || user?.isMaster || user?.isSuperAdmin) && (
             <div className="relative" ref={dropdownRef}>
                   <form onSubmit={handleInvite} className="flex gap-2">
 
@@ -390,6 +392,7 @@ export default function FamilyGroup() {
                     </button>
                   </form>
                 </div>
+            )}
 
             {/* Pending Requests */}
             {(selectedGroup.creatorId === myUserId || user?.isMaster || user?.isSuperAdmin) && pendingRequests.length > 0 && (
