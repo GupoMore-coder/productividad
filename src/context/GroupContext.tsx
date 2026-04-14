@@ -50,6 +50,38 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
 
   // 1. Initial Load & Real-time Sync
+  const loadGroups = async () => {
+    if (!isSupabaseConfigured) return;
+    setLoading(true);
+    const { data: gData } = await supabase.from('groups').select('*, profiles!creator_id(full_name, avatar)');
+    const { data: mData } = await supabase.from('group_memberships').select('*, profiles!user_id(full_name, avatar, role)');
+    
+    if (gData) {
+      setGroups(gData.map(g => ({ 
+        id: g.id, 
+        name: g.name, 
+        creatorId: g.creator_id,
+        creator_details: g.profiles ? {
+          full_name: g.profiles.full_name,
+          avatar: g.profiles.avatar
+        } : undefined
+      })));
+    }
+    if (mData) {
+      setMemberships(mData.map(m => ({ 
+        groupId: m.group_id, 
+        userId: m.user_id, 
+        status: m.status,
+        user_details: m.profiles ? {
+          full_name: m.profiles.full_name,
+          avatar: m.profiles.avatar,
+          role: m.profiles.role
+        } : undefined
+      })));
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setGroups(JSON.parse(localStorage.getItem('mock_groups') || '[]'));
@@ -58,38 +90,11 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const loadGroups = async () => {
-      setLoading(true);
-      const { data: gData } = await supabase.from('groups').select('*, profiles!creator_id(full_name, avatar)');
-      const { data: mData } = await supabase.from('group_memberships').select('*, profiles!user_id(full_name, avatar, role)');
-      
-      if (gData) {
-        setGroups(gData.map(g => ({ 
-          id: g.id, 
-          name: g.name, 
-          creatorId: g.creator_id,
-          creator_details: g.profiles ? {
-            full_name: g.profiles.full_name,
-            avatar: g.profiles.avatar
-          } : undefined
-        })));
-      }
-      if (mData) {
-        setMemberships(mData.map(m => ({ 
-          groupId: m.group_id, 
-          userId: m.user_id, 
-          status: m.status,
-          user_details: m.profiles ? {
-            full_name: m.profiles.full_name,
-            avatar: m.profiles.avatar,
-            role: m.profiles.role
-          } : undefined
-        })));
-      }
-      setLoading(false);
-    };
-
     loadGroups();
+
+    // Re-fetch on window focus to catch changes made by other users (e.g., rejection)
+    const handleFocus = () => { loadGroups(); };
+    window.addEventListener('focus', handleFocus);
 
     if (isSupabaseConfigured && user?.id) {
        const channel = supabase.channel(`group-sync-${user.id}`)
@@ -97,8 +102,13 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .on('postgres_changes', { event: '*', schema: 'public', table: 'group_memberships' }, () => loadGroups())
         .subscribe();
 
-       return () => { supabase.removeChannel(channel).catch(console.error); };
+       return () => { 
+         window.removeEventListener('focus', handleFocus);
+         supabase.removeChannel(channel).catch(console.error); 
+       };
     }
+
+    return () => { window.removeEventListener('focus', handleFocus); };
   }, [isSupabaseConfigured, user?.id]);
 
   // 2. Local Fallback Sync
@@ -157,7 +167,33 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const requestJoin = async (groupId: string) => {
     if (!user) return;
     if (isSupabaseConfigured) {
-      await supabase.from('group_memberships').insert({ group_id: groupId, user_id: user.id, status: 'pending' });
+      try {
+        // Optimistic update — show "En Espera" immediately
+        const optimisticMembership: GroupMembership = {
+          groupId,
+          userId: user.id,
+          status: 'pending',
+          user_details: {
+            full_name: user.full_name || user.username,
+            avatar: user.avatar,
+            role: user.role
+          }
+        };
+        setMemberships(prev => [...prev, optimisticMembership]);
+
+        const { error } = await supabase.from('group_memberships').insert({ group_id: groupId, user_id: user.id, status: 'pending' });
+        if (error) throw error;
+      } catch (err: any) {
+        console.error('Error requesting join:', err);
+        // Rollback
+        setMemberships(prev => prev.filter(m => !(m.groupId === groupId && m.userId === user.id && m.status === 'pending')));
+        if (err.code === '23505') {
+          triggerHaptic('warning');
+          alert('Ya tienes una solicitud pendiente para este grupo.');
+        } else {
+          alert(`Error al solicitar unión: ${err.message}`);
+        }
+      }
     } else {
       setMemberships(prev => [...prev, { groupId, userId: user.id, status: 'pending' }]);
     }

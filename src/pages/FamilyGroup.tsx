@@ -271,7 +271,7 @@ export default function FamilyGroup() {
                         <h4 className="text-xl font-black text-white leading-tight tracking-tight mb-1">{g.name}</h4>
                         <div className="flex flex-col gap-1">
                            <span className="text-[0.6rem] text-slate-500 font-black uppercase tracking-[0.15em]">
-                             Líder: <span className="text-slate-300">{g.creator_details?.full_name || g.creatorId.split('@')[0]}</span>
+                             Líder: <span className="text-slate-300">{g.creator_details?.full_name || 'Desconocido'}</span>
                            </span>
                            <div className="flex items-center gap-2">
                              <div className="w-1.5 h-1.5 rounded-full bg-purple-500/40" />
