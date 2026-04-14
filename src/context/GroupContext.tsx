@@ -165,7 +165,22 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const approveJoin = async (groupId: string, userId: string) => {
     if (isSupabaseConfigured) {
-      await supabase.from('group_memberships').update({ status: 'approved' }).match({ group_id: groupId, user_id: userId });
+      try {
+        // Optimistic update
+        setMemberships(prev => prev.map(m => 
+          (m.groupId === groupId && m.userId === userId) ? { ...m, status: 'approved' as const } : m
+        ));
+
+        const { error } = await supabase.from('group_memberships').update({ status: 'approved' }).match({ group_id: groupId, user_id: userId });
+        if (error) throw error;
+      } catch (err: any) {
+        console.error('Error approving join:', err);
+        // Rollback on error
+        setMemberships(prev => prev.map(m => 
+          (m.groupId === groupId && m.userId === userId) ? { ...m, status: 'pending' as const } : m
+        ));
+        alert(`Error al aprobar solicitud: ${err.message}`);
+      }
     } else {
       setMemberships(prev => prev.map(m => (m.groupId === groupId && m.userId === userId) ? { ...m, status: 'approved' } : m));
     }

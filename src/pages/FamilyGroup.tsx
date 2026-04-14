@@ -215,7 +215,7 @@ export default function FamilyGroup() {
                         <div>
                           <strong className="text-white text-sm block mb-0.5">{grp.name}</strong>
                           <span className="text-[0.65rem] text-slate-500 font-bold uppercase tracking-widest">
-                            Creado por {userDirectory.find(u => u.id === grp.creatorId)?.full_name || grp.creatorId.split('@')[0]}
+                            Creado por {grp.creator_details?.full_name || userDirectory.find(u => u.id === grp.creatorId)?.full_name || 'Desconocido'}
                           </span>
                         </div>
                         <div className="flex gap-2">
@@ -404,15 +404,30 @@ export default function FamilyGroup() {
                    <Bell className="animate-bounce" size={14} /> Solicitudes Pendientes
                 </h3>
                 <div className="space-y-2">
-                  {pendingRequests.map(req => (
+                  {pendingRequests.map(req => {
+                    const resolvedName = req.user_details?.full_name || userDirectory.find(u => u.id === req.userId)?.full_name || req.userId;
+                    const resolvedAvatar = req.user_details?.avatar || userDirectory.find(u => u.id === req.userId)?.avatar;
+                    return (
                     <div key={req.userId} className="flex justify-between items-center bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl shadow-sm">
-                      <span className="text-sm font-bold text-slate-200">@{req.userId.split('@')[0]}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl border-2 border-amber-500/30 shadow-sm overflow-hidden flex items-center justify-center">
+                          {resolvedAvatar && resolvedAvatar.length > 10 ? (
+                            <img src={resolvedAvatar} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-slate-900 text-xs font-black">
+                              {resolvedName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-sm font-bold text-slate-200">{resolvedName}</span>
+                      </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { handleAction('success'); approveJoin(selectedGroup.id, req.userId); }} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-900 text-[0.6rem] font-black uppercase tracking-widest">Aprobar</button>
-                        <button onClick={() => { handleAction('warning'); rejectJoin(selectedGroup.id, req.userId); }} className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-amber-500 text-[0.6rem] font-black uppercase tracking-widest">Rechazar</button>
+                        <button onClick={() => { handleAction('success'); approveJoin(selectedGroup.id, req.userId); }} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-900 text-[0.6rem] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all">Aprobar</button>
+                        <button onClick={() => { handleAction('warning'); rejectJoin(selectedGroup.id, req.userId); }} className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-amber-500 text-[0.6rem] font-black uppercase tracking-widest hover:bg-white/10 active:scale-95 transition-all">Rechazar</button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -474,19 +489,22 @@ export default function FamilyGroup() {
               <div className="pt-4 border-t border-white/5 space-y-4">
                 <h3 className="text-[0.65rem] font-black uppercase tracking-widest text-slate-600">Invitaciones Pendientes ({invitedUsers.length})</h3>
                 <div className="grid grid-cols-1 gap-2">
-                  {invitedUsers.map(u => (
+                  {invitedUsers.map(u => {
+                    const resolvedName = u.user_details?.full_name || userDirectory.find(d => d.id === u.userId)?.full_name || u.userId;
+                    const resolvedAvatar = u.user_details?.avatar || userDirectory.find(d => d.id === u.userId)?.avatar;
+                    return (
                     <div key={u.userId} className="flex justify-between items-center px-5 py-3 bg-white/[0.01] border border-dashed border-white/10 rounded-2xl">
                       <div className="flex items-center gap-3">
                          <div className="w-8 h-8 rounded-lg border border-purple-500/20 flex items-center justify-center text-slate-500 overflow-hidden">
-                           {u.user_details?.avatar ? (
-                             <img src={u.user_details.avatar} alt="" className="w-full h-full object-cover" />
+                           {resolvedAvatar && resolvedAvatar.length > 10 ? (
+                             <img src={resolvedAvatar} alt="" className="w-full h-full object-cover" />
                            ) : (
                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[10px] font-black">
-                               {(u.user_details?.full_name || 'U').charAt(0).toUpperCase()}
+                               {resolvedName.charAt(0).toUpperCase()}
                              </div>
                            )}
                          </div>
-                         <span className="text-xs font-bold text-slate-400">{u.user_details?.full_name || u.userId}</span>
+                         <span className="text-xs font-bold text-slate-400">{resolvedName}</span>
                       </div>
                       <button 
                         onClick={() => { 
@@ -500,7 +518,8 @@ export default function FamilyGroup() {
                         <X size={12} strokeWidth={3} /> Eliminar
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
