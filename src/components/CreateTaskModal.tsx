@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Calendar, Clock, Type, AlignLeft, Flag, Check, Camera, RefreshCw, Trash2, IterationCw, AlertCircle, Users, User } from 'lucide-react';
+import { X, Plus, Calendar, Clock, Type, AlignLeft, Flag, Check, Camera, RefreshCw, Trash2, IterationCw, AlertCircle, Users, User, ChevronDown } from 'lucide-react';
 import { useGroups } from '../context/GroupContext';
 import { useAuth } from '../context/AuthContext';
 import { triggerHaptic } from '../utils/haptics';
@@ -28,7 +28,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
   const [uploading, setUploading] = useState(false);
   const [hpValue, setHpValue] = useState('');
   const [userDirectory, setUserDirectory] = useState<{ id: string; email: string; full_name: string; avatar?: string }[]>([]);
-  const [userSearch, setUserSearch] = useState('');
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const {
     register,
@@ -332,56 +332,67 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                     </span>
                     
                     <div className="relative">
-                      {/* Custom Dropdown Trigger */}
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={userSearch}
-                          onChange={e => setUserSearch(e.target.value)}
-                          onFocus={() => triggerHaptic('light')}
-                          placeholder="Buscar usuario..."
-                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 placeholder:text-slate-700 transition-all font-medium"
-                        />
-                        <User size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 pointer-events-none" />
-                      </div>
+                      {/* Dropdown Trigger Button */}
+                      <button
+                        type="button"
+                        onClick={() => { setUserDropdownOpen(v => !v); triggerHaptic('light'); }}
+                        className={`w-full bg-black/40 border rounded-2xl px-4 py-3 text-xs text-left flex justify-between items-center transition-all font-medium ${
+                          userDropdownOpen ? 'border-purple-500/50 ring-2 ring-purple-500/20 text-white' : 'border-white/10 text-slate-500 hover:border-white/20'
+                        }`}
+                      >
+                        <span>Seleccionar usuario...</span>
+                        <motion.div animate={{ rotate: userDropdownOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                          <ChevronDown size={14} className="text-slate-500" />
+                        </motion.div>
+                      </button>
 
-                      {/* Dropdown List */}
+                      {/* Full user list - shown when open */}
                       <AnimatePresence>
-                        {userSearch.trim().length > 0 && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute z-[110] left-0 right-0 top-full mt-2 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[180px] overflow-y-auto no-scrollbar"
-                          >
-                            {userDirectory
-                              .filter(u => 
-                                !sharedUserIds.includes(u.id) &&
-                                (u.full_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
-                              )
-                              .map(u => (
-                                <button
-                                  key={u.id}
-                                  type="button"
-                                  onClick={() => { toggleUser(u.id); setUserSearch(''); }}
-                                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-all flex items-center gap-3 border-b border-white/5 last:border-0"
-                                >
-                                  <div className="w-7 h-7 rounded-lg border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                                    {u.avatar && u.avatar.length > 10 ? (
-                                      <img src={u.avatar} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                      <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[10px] font-black flex items-center justify-center">
-                                        {(u.full_name || 'U').charAt(0).toUpperCase()}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-col">
-                                    <span className="text-[0.7rem] font-bold text-white">{u.full_name}</span>
-                                    <span className="text-[0.55rem] text-slate-500 truncate">{u.email}</span>
-                                  </div>
-                                </button>
-                              ))}
-                          </motion.div>
+                        {userDropdownOpen && (
+                          <>
+                            {/* Backdrop to close on outside click */}
+                            <div className="fixed inset-0 z-[109]" onClick={() => setUserDropdownOpen(false)} />
+                            <motion.div
+                              initial={{ opacity: 0, scaleY: 0.9, y: -8 }}
+                              animate={{ opacity: 1, scaleY: 1, y: 0 }}
+                              exit={{ opacity: 0, scaleY: 0.9, y: -8 }}
+                              style={{ transformOrigin: 'top' }}
+                              className="absolute z-[110] left-0 right-0 top-full mt-2 bg-[#1a1525]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[200px] overflow-y-auto no-scrollbar"
+                            >
+                              {userDirectory.filter(u => !sharedUserIds.includes(u.id)).length === 0 ? (
+                                <div className="py-6 text-center">
+                                  <p className="text-[0.6rem] text-slate-600 italic">No hay más usuarios disponibles.</p>
+                                </div>
+                              ) : (
+                                <div className="p-1.5 space-y-0.5">
+                                  {userDirectory
+                                    .filter(u => !sharedUserIds.includes(u.id))
+                                    .map(u => (
+                                      <button
+                                        key={u.id}
+                                        type="button"
+                                        onClick={() => { toggleUser(u.id); setUserDropdownOpen(false); }}
+                                        className="w-full px-3 py-2.5 rounded-xl hover:bg-purple-500/10 transition-all flex items-center gap-3 group"
+                                      >
+                                        <div className="w-8 h-8 rounded-lg border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                          {u.avatar && u.avatar.length > 10 ? (
+                                            <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                                          ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[10px] font-black flex items-center justify-center">
+                                              {(u.full_name || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-col min-w-0 text-left">
+                                          <span className="text-[0.7rem] font-bold text-slate-300 group-hover:text-white">{u.full_name}</span>
+                                          <span className="text-[0.55rem] text-slate-600 truncate">{u.email}</span>
+                                        </div>
+                                      </button>
+                                    ))}
+                                </div>
+                              )}
+                            </motion.div>
+                          </>
                         )}
                       </AnimatePresence>
                     </div>
