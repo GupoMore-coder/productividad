@@ -228,32 +228,238 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
             <form 
               id="create-task-form"
               onSubmit={handleSubmit(onFormSubmit as any)} 
-              className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar pb-24"
+              className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar pb-24"
             >
-              {/* v2.1: Type Selector */}
-              <div className="space-y-3">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Naturaleza de la Actividad</label>
-                <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
-                  <button 
-                    type="button"
-                    onClick={() => { setValue('type', 'task'); triggerHaptic('light'); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${typeSelection === 'task' ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-white'}`}
-                  >
-                    <span>📋</span> Tarea
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setValue('type', 'reminder'); triggerHaptic('light'); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${typeSelection === 'reminder' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-white'}`}
-                  >
-                    <span>🔔</span> Recordatorio
-                  </button>
+              {/* v2.1: Nature & Priority at the top for quick context */}
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Naturaleza de la Actividad</label>
+                  <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
+                    <button 
+                      type="button"
+                      onClick={() => { setValue('type', 'task'); triggerHaptic('light'); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${typeSelection === 'task' ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-white'}`}
+                    >
+                      📋 Tarea
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => { setValue('type', 'reminder'); triggerHaptic('light'); }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${typeSelection === 'reminder' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-500 hover:text-white'}`}
+                    >
+                      🔔 Recordatorio
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[0.55rem] text-slate-600 font-medium px-2 italic">
-                  {typeSelection === 'task' 
-                    ? '* Las tareas afectan métricas de desempeño e inician proceso de incumplimiento si vencen.' 
-                    : '* Los recordatorios son personales/compartibles, tienen recurrencia y no afectan métricas.'}
-                </p>
+
+                <div className="space-y-3">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Flag size={12}/> Prioridad</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['baja', 'media', 'alta'] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => { setValue('priority', p); triggerHaptic('light'); }}
+                        className={`py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
+                          priority === p 
+                            ? p === 'alta' ? 'bg-red-500/20 border-red-500/50 text-red-400' : p === 'media' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                            : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Visibility / Sharing Section - Refactored to grid as in image */}
+              <div className="space-y-4 bg-white/[0.02] border border-white/5 rounded-3xl p-5 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/5 to-transparent pointer-events-none" />
+                <div className="flex items-center justify-between relative z-10 mb-2">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black flex items-center gap-1.5">
+                    <span>🔒</span> Visibilidad
+                  </label>
+                  <div className={`flex items-center gap-1.5 text-[0.55rem] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${
+                    ((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
+                      ? 'bg-purple-500/20 border-purple-500/40 text-purple-400'
+                      : 'bg-white/5 border-white/10 text-slate-500'
+                  }`}>
+                    {((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0) ? <Users size={10} /> : <span>🔐</span>}
+                    {((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
+                      ? `COMPARTIDA`
+                      : 'PRIVADA — SOLO TÚ'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
+                  {/* Left: Teams */}
+                  <div className="space-y-3">
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
+                      <Users size={10} /> Equipos
+                    </span>
+                    <div className="flex flex-col gap-2">
+                      {myApprovedGroups.length > 0 ? (
+                        myApprovedGroups.map(g => {
+                          const isSelected = groupIds?.includes(g.id);
+                          return (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => toggleGroup(g.id)}
+                              className={`w-full px-4 py-3 rounded-2xl text-xs font-bold border transition-all flex items-center justify-between ${
+                                isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Users size={14} className={isSelected ? 'animate-pulse' : ''} />
+                                {g.name}
+                              </div>
+                              {isSelected && <Check size={14} />}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <p className="text-[0.6rem] text-slate-700 italic">No hay equipos.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Individual User Dropdown */}
+                  <div className="space-y-3">
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
+                      <User size={10} /> Usuarios Específicos
+                    </span>
+                    
+                    <div className="relative">
+                      {/* Custom Dropdown Trigger */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={userSearch}
+                          onChange={e => setUserSearch(e.target.value)}
+                          onFocus={() => triggerHaptic('light')}
+                          placeholder="Buscar usuario..."
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 placeholder:text-slate-700 transition-all font-medium"
+                        />
+                        <User size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 pointer-events-none" />
+                      </div>
+
+                      {/* Dropdown List */}
+                      <AnimatePresence>
+                        {userSearch.trim().length > 0 && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-[110] left-0 right-0 top-full mt-2 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[180px] overflow-y-auto no-scrollbar"
+                          >
+                            {userDirectory
+                              .filter(u => 
+                                !sharedUserIds.includes(u.id) &&
+                                (u.full_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
+                              )
+                              .map(u => (
+                                <button
+                                  key={u.id}
+                                  type="button"
+                                  onClick={() => { toggleUser(u.id); setUserSearch(''); }}
+                                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-all flex items-center gap-3 border-b border-white/5 last:border-0"
+                                >
+                                  <div className="w-7 h-7 rounded-lg border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                    {u.avatar && u.avatar.length > 10 ? (
+                                      <img src={u.avatar} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[10px] font-black flex items-center justify-center">
+                                        {(u.full_name || 'U').charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[0.7rem] font-bold text-white">{u.full_name}</span>
+                                    <span className="text-[0.55rem] text-slate-500 truncate">{u.email}</span>
+                                  </div>
+                                </button>
+                              ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Selected Users Chips */}
+                    {sharedUserIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
+                        {sharedUserIds.map(uid => {
+                          const profile = userDirectory.find(u => u.id === uid);
+                          if (!profile) return null;
+                          return (
+                            <button
+                              key={uid}
+                              type="button"
+                              onClick={() => toggleUser(uid)}
+                              className="px-2.5 py-1.5 rounded-xl text-[0.6rem] font-bold border bg-purple-500/10 border-purple-500/30 text-purple-400 transition-all flex items-center gap-2 group hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+                            >
+                              <div className="w-5 h-5 rounded-lg border border-purple-500/30 overflow-hidden flex items-center justify-center shrink-0">
+                                {profile.avatar && profile.avatar.length > 10 ? (
+                                  <img src={profile.avatar} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[8px] font-black flex items-center justify-center">
+                                    {(profile.full_name || 'U').charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              {profile.full_name.split(' ')[0]}
+                              <X size={10} className="group-hover:scale-125 transition-transform" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Data Feed */}
+              <div className="space-y-6 pt-2">
+                <div className="space-y-2">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Type size={12}/> Título</label>
+                  <input 
+                    {...register('title')}
+                    autoFocus
+                    placeholder="¿Qué hay que hacer?"
+                    className={`w-full bg-black/30 border ${errors.title ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700 font-medium`} 
+                  />
+                  {errors.title && <p className="text-[0.6rem] text-red-400 font-bold mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.title.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><AlignLeft size={12}/> Descripción</label>
+                  <textarea 
+                    {...register('description')}
+                    placeholder="Detalles adicionales (opcional)..." 
+                    rows={2} 
+                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700 resize-none font-medium" 
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Calendar size={12}/> Fecha</label>
+                    <input 
+                      {...register('date')}
+                      type="date" 
+                      className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Clock size={12}/> Hora</label>
+                    <input 
+                      {...register('time')}
+                      type="time" 
+                      className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-4 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* v2.2: Recurrence Selector (Only for Reminders) */}
@@ -261,10 +467,10 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/5"
+                  className="space-y-3 bg-white/5 p-5 rounded-3xl border border-white/5"
                 >
                   <label className="text-[0.65rem] uppercase tracking-widest text-slate-400 font-black ml-1 flex items-center gap-2">
-                    <RefreshCw size={12} className="text-amber-500" /> Recurrencia
+                    <RefreshCw size={12} className="text-amber-500" /> Recurrencia del Recordatorio
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
@@ -278,7 +484,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                         key={rec.val}
                         type="button"
                         onClick={() => { setValue('recurrence', rec.val as any); triggerHaptic('light'); }}
-                        className={`py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
+                        className={`py-3 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
                           recurrence === rec.val
                             ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
                             : 'bg-black/20 border-white/5 text-slate-600 hover:text-slate-400'
@@ -289,12 +495,12 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                     ))}
                   </div>
                   {recurrence !== 'none' && (
-                    <div className="mt-2 flex items-center gap-3">
-                      <span className="text-[0.6rem] text-slate-500 font-bold uppercase">Repetir cada:</span>
+                    <div className="mt-4 flex items-center gap-3 p-3 bg-black/20 rounded-2xl border border-white/5">
+                      <span className="text-[0.6rem] text-slate-500 font-bold uppercase ml-1">CADA</span>
                       <input 
                         type="number"
                         {...register('recurrenceInterval', { valueAsNumber: true })}
-                        className="w-16 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-center text-white focus:outline-none"
+                        className="w-16 bg-black/40 border border-white/10 rounded-xl px-2 py-2 text-xs text-center text-white focus:outline-none focus:ring-1 focus:ring-amber-500/30"
                         min={1}
                       />
                       <span className="text-[0.6rem] text-slate-500 font-bold uppercase">
@@ -304,193 +510,6 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                   )}
                 </motion.div>
               )}
-              <div className="space-y-2">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Type size={12}/> Título</label>
-                <input 
-                  {...register('title')}
-                  autoFocus
-                  placeholder="¿Qué hay que hacer?"
-                  className={`w-full bg-black/30 border ${errors.title ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700`} 
-                />
-                {errors.title && <p className="text-[0.6rem] text-red-400 font-bold mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.title.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><AlignLeft size={12}/> Descripción</label>
-                <textarea 
-                  {...register('description')}
-                  placeholder="Detalles adicionales (opcional)..." 
-                  rows={2} 
-                  className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all placeholder:text-slate-700 resize-none" 
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Calendar size={12}/> Fecha</label>
-                  <input 
-                    {...register('date')}
-                    type="date" 
-                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Clock size={12}/> Hora</label>
-                  <input 
-                    {...register('time')}
-                    type="time" 
-                    className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 text-sm text-white color-scheme-dark focus:ring-2 focus:ring-purple-500/20" 
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1 flex items-center gap-1.5"><Flag size={12}/> Prioridad</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['baja', 'media', 'alta'] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => { setValue('priority', p); triggerHaptic('light'); }}
-                      className={`py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest border transition-all ${
-                        priority === p 
-                          ? p === 'alta' ? 'bg-red-500/20 border-red-500/50 text-red-400' : p === 'media' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                          : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Visibility / Sharing Section */}
-              <div className="space-y-4 bg-white/[0.02] border border-white/5 rounded-2xl p-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black flex items-center gap-1.5">
-                    <span>🔒</span> Visibilidad
-                  </label>
-                  <span className={`text-[0.55rem] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
-                    ((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
-                      ? 'bg-purple-500/20 border-purple-500/40 text-purple-400'
-                      : 'bg-white/5 border-white/10 text-slate-500'
-                  }`}>
-                    {((groupIds?.length ?? 0) > 0 || sharedUserIds.length > 0)
-                      ? `Compartida — ${(groupIds?.length ?? 0) > 0 ? `${groupIds!.length} grupo(s)` : ''}${(groupIds?.length ?? 0) > 0 && sharedUserIds.length > 0 ? ' + ' : ''}${sharedUserIds.length > 0 ? `${sharedUserIds.length} usuario(s)` : ''}`
-                      : '🔐 Privada — solo tú'}
-                  </span>
-                </div>
-
-                {/* Group Sharing */}
-                {myApprovedGroups.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
-                      <Users size={10} /> Equipos
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {myApprovedGroups.map(g => {
-                        const isSelected = groupIds?.includes(g.id);
-                        return (
-                          <button
-                            key={g.id}
-                            type="button"
-                            onClick={() => toggleGroup(g.id)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${
-                              isSelected ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'
-                            }`}
-                          >
-                            <Users size={14} />
-                            {g.name}
-                            {isSelected && <Check size={14} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Individual User Sharing */}
-                {userDirectory.length > 0 && (
-                  <div className="space-y-2">
-                    <span className="text-[0.55rem] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
-                      <User size={10} /> Usuarios Específicos
-                    </span>
-                    
-                    {/* Selected Users */}
-                    {sharedUserIds.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {sharedUserIds.map(uid => {
-                          const profile = userDirectory.find(u => u.id === uid);
-                          if (!profile) return null;
-                          return (
-                            <button
-                              key={uid}
-                              type="button"
-                              onClick={() => toggleUser(uid)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold border bg-purple-500/20 border-purple-500/50 text-purple-400 transition-all flex items-center gap-2"
-                            >
-                              <div className="w-5 h-5 rounded-md border border-purple-500/30 overflow-hidden flex items-center justify-center shrink-0">
-                                {profile.avatar && profile.avatar.length > 10 ? (
-                                  <img src={profile.avatar} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[8px] font-black flex items-center justify-center">
-                                    {(profile.full_name || 'U').charAt(0).toUpperCase()}
-                                  </div>
-                                )}
-                              </div>
-                              {profile.full_name}
-                              <X size={12} />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {/* Search & Add Users */}
-                    <input
-                      type="text"
-                      value={userSearch}
-                      onChange={e => setUserSearch(e.target.value)}
-                      placeholder="Buscar usuario para compartir..."
-                      className="w-full bg-black/30 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-700"
-                    />
-                    {userSearch.trim().length > 0 && (
-                      <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar">
-                        {userDirectory
-                          .filter(u => 
-                            !sharedUserIds.includes(u.id) &&
-                            (u.full_name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
-                          )
-                          .slice(0, 6)
-                          .map(u => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => { toggleUser(u.id); setUserSearch(''); }}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold border bg-white/5 border-white/5 text-slate-500 hover:text-slate-300 hover:border-purple-500/30 transition-all flex items-center gap-2"
-                            >
-                              <div className="w-5 h-5 rounded-md border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                                {u.avatar && u.avatar.length > 10 ? (
-                                  <img src={u.avatar} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-purple-600 to-purple-800 text-white text-[8px] font-black flex items-center justify-center">
-                                    {(u.full_name || 'U').charAt(0).toUpperCase()}
-                                  </div>
-                                )}
-                              </div>
-                              {u.full_name}
-                              <Plus size={12} className="text-purple-400" />
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {myApprovedGroups.length === 0 && userDirectory.length === 0 && (
-                  <p className="text-[0.6rem] text-slate-600 italic">No hay equipos ni usuarios disponibles para compartir.</p>
-                )}
-              </div>
 
               {/* v2.3: Extension UI for recurring reminders */}
               {isEdit && typeSelection === 'reminder' && recurrence !== 'none' && onExtend && (
@@ -512,34 +531,35 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                          onClose();
                        }
                      }}
-                     className="w-full py-3 rounded-2xl bg-amber-500 text-slate-950 text-[0.65rem] font-black uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                     className="w-full py-4 rounded-2xl bg-amber-500 text-slate-950 text-[0.65rem] font-black uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2"
                    >
                      <RefreshCw size={14} /> Prorrogar Ciclo
                    </button>
-                   <p className="text-[0.5rem] text-slate-600 font-medium italic text-center">
-                      * Se generarán instancias adicionales para {recurrence === 'daily' ? '30 días' : recurrence === 'weekly' ? '6 meses' : recurrence === 'monthly' ? '12 meses' : '2 años'}.
-                   </p>
                 </div>
               )}
 
               <div className="space-y-3">
                 <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Imagen de Referencia</label>
                 <div className="flex items-center gap-4">
-                  <label className="w-20 h-20 bg-white/5 border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-white/10 transition-colors">
-                    <Camera size={24} />
-                    <span className="text-[0.5rem] font-bold mt-1 uppercase">Subir</span>
+                  <label className="w-24 h-24 bg-white/5 border border-dashed border-white/10 rounded-[28px] flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-white/10 transition-all group active:scale-95">
+                    <Camera size={28} className="group-hover:scale-110 transition-transform" />
+                    <span className="text-[0.55rem] font-black mt-2 uppercase tracking-widest">Subir</span>
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                   </label>
-                  {uploading && <RefreshCw size={24} className="animate-spin text-purple-400" />}
+                  {uploading && (
+                    <div className="w-24 h-24 flex items-center justify-center bg-black/20 rounded-[28px] border border-white/5">
+                      <RefreshCw size={24} className="animate-spin text-purple-400" />
+                    </div>
+                  )}
                   {imageUrl && !uploading && (
-                    <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-white/10">
+                    <div className="relative w-24 h-24 rounded-[28px] overflow-hidden border border-white/10 group">
                       <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                       <button 
                         type="button"
                         onClick={() => setValue('imageUrl', '')}
-                        className="absolute inset-0 bg-red-500/80 items-center justify-center hidden group-hover:flex transition-all"
+                        className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                       >
-                        <X size={16} className="text-white" />
+                        <Trash2 size={24} className="text-white" />
                       </button>
                     </div>
                   )}
