@@ -28,14 +28,27 @@ serve(async (req) => {
     )
 
     // 2. Get user subscriptions
-    const { data: subscriptions, error: subError } = await supabaseAdmin
-      .from('push_subscriptions')
-      .select('subscription')
-      .eq('user_id', user_id)
+    let subscriptions: any[] | null = null;
+    let subError: any = null;
+
+    if (user_id === "all" || user_id === "broadcast") {
+      const { data, error } = await supabaseAdmin
+        .from('push_subscriptions')
+        .select('subscription');
+      subscriptions = data;
+      subError = error;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('push_subscriptions')
+        .select('subscription')
+        .eq('user_id', user_id);
+      subscriptions = data;
+      subError = error;
+    }
 
     if (subError) throw subError
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ message: "No subscriptions found for user" }), {
+      return new Response(JSON.stringify({ message: "No subscriptions found securely" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       })
