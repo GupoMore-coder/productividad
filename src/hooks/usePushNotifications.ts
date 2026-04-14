@@ -121,7 +121,7 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (user?.id) {
-      if (Notification.permission === 'default' || Notification.permission === 'granted') {
+      if (typeof Notification !== 'undefined' && (Notification.permission === 'default' || Notification.permission === 'granted')) {
         subscribeUser();
       } else {
         console.warn('⚠️ [Push] Permiso de notificaciones fue denegado por el usuario.');
