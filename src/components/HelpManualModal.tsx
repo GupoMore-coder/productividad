@@ -145,13 +145,13 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = 'inicio'
   }, [search, tabs]);
 
   // Animation variants
-  const pageVariants = {
+  const pageVariants: any = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut", staggerChildren: 0.1 } },
     exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
   };
 
-  const itemVariants = {
+  const itemVariants: any = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 }
   };
