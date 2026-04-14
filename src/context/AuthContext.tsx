@@ -92,7 +92,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const isConsultant = role === 'Consultora de Ventas';
         const isColaborador = role === 'Colaborador';
         
-        const isSuper = profile?.is_super_admin || isMaster || isAdmin || false;
+        // Fernando is the ONLY user with absolute superpowers. 
+        // Admin maestro (Fernando) and ONLY Fernando is considered isSuperAdmin for global visibility.
+        const isSuper = profile?.is_super_admin || isMaster || false;
 
         // Master admin and bypass users NEVER need setup
         const forceSkipSetup = isMaster || isBypassUser || isMasterEmail;

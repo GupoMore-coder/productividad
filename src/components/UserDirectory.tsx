@@ -8,6 +8,8 @@ import ImageZoomModal from './ImageZoomModal';
 import { usePresence } from '../context/PresenceContext';
 import { useWhatsApp } from '../context/WhatsAppContext';
 import { useAuth } from '../context/AuthContext';
+import { X, Calendar, Flag, Eye } from 'lucide-react';
+import { triggerHaptic } from '../utils/haptics';
 
 interface AppUser {
   id: string;
@@ -70,8 +72,9 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const { onlineUsers, presenceState } = usePresence();
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [currentUser] = useState(useAuth().user);
   const { openWhatsApp } = useWhatsApp();
-  const { user: currentUser } = useAuth();
+  const [oversightUser, setOversightUser] = useState<AppUser | null>(null);
 
   useEffect(() => {
     async function loadUsers() {
@@ -246,7 +249,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.8, opacity: 0 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   className="w-full max-w-sm bg-[#1a1622] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl my-auto"
                 >
                   {/* Header with avatar */}
@@ -346,6 +349,21 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                     </div>
 
                     {/* Action Buttons */}
+                    {/* Master Admin Special Powers — Agenda Oversight */}
+                    {currentUser?.isMaster && (
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            triggerHaptic('medium');
+                            setOversightUser(u);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[0.65rem] font-black uppercase tracking-[0.2em] shadow-lg shadow-purple-500/5 hover:bg-purple-500/20 transition-all active:scale-95"
+                        >
+                          <Eye size={16} /> Ver Agenda de Usuario
+                        </button>
+                      </div>
+                    )}
+
                     {u.phone && (
                       <div className="flex gap-2 pt-1">
                         <a href={`tel:${u.phone}`} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[0.6rem] font-black uppercase tracking-widest hover:bg-blue-500/20 transition-all active:scale-95">
@@ -373,7 +391,94 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
         </AnimatePresence>
 
         {zoomedImg && <ImageZoomModal photos={[zoomedImg]} initialIndex={0} onClose={() => setZoomedImg(null)} />}
+        <AnimatePresence>
+          {oversightUser && (
+            <UserAgendaOversight 
+              targetUser={oversightUser} 
+              onClose={() => setOversightUser(null)} 
+            />
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
+  );
+}
+
+// ── Master Oversight Component ─────────────────────────────────────
+function UserAgendaOversight({ targetUser, onClose }: { targetUser: AppUser; onClose: () => void }) {
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadTargetAgenda() {
+      // Direct supabase query bypassing normal filtered contexts for the Master Admin session
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', targetUser.id)
+        .order('date', { ascending: false })
+        .order('time', { ascending: false });
+
+      if (!error && data) {
+        setTasks(data);
+      }
+      setLoading(false);
+    }
+    loadTargetAgenda();
+  }, [targetUser.id]);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }} 
+      animate={{ opacity: 1, scale: 1 }} 
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="absolute inset-4 z-[60] bg-[#1a1622] border-2 border-purple-500/40 rounded-[32px] overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.2)] flex flex-col"
+    >
+      <div className="p-6 border-b border-white/10 flex justify-between items-center bg-purple-500/5">
+        <div>
+           <h3 className="text-sm font-black text-white uppercase tracking-widest">Agenda de {targetUser.full_name?.split(' ')[0] || targetUser.username}</h3>
+           <p className="text-[0.6rem] text-purple-400 font-bold uppercase tracking-widest">Modo Supervisión Maestro</p>
+        </div>
+        <button onClick={onClose} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+        {loading ? (
+          <div className="flex items-center justify-center h-full gap-3 opacity-50">
+             <div className="w-5 h-5 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+             <span className="text-[0.6rem] font-bold uppercase tracking-widest text-slate-500">Leyendo registros...</span>
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full opacity-30">
+             <Calendar className="mb-2" size={32} />
+             <p className="text-[0.6rem] font-bold uppercase tracking-wider">No hay actividades agendadas</p>
+          </div>
+        ) : (
+          tasks.map((t: any) => (
+            <div key={t.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 flex gap-4 items-start">
+               <div className={`p-2 rounded-xl text-slate-900 ${t.priority === 'alta' ? 'bg-red-500' : t.priority === 'media' ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                  <Flag size={14} strokeWidth={3} />
+               </div>
+               <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                     <span className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest">{t.date} · {t.time}</span>
+                     <span className={`text-[0.5rem] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${t.is_shared ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-500/10 text-slate-600'}`}>
+                        {t.is_shared ? 'Compartida' : 'Privada'}
+                     </span>
+                  </div>
+                  <h4 className="text-xs font-black text-white uppercase tracking-tight mb-1">{t.title}</h4>
+                  <p className="text-[0.65rem] text-slate-500 leading-relaxed line-clamp-2">{t.description || 'Sin descripción'}</p>
+               </div>
+            </div>
+          ))
+        )}
+      </div>
+      
+      <div className="p-6 bg-black/40 text-center">
+         <p className="text-[0.55rem] text-slate-600 font-medium italic">* Esta vista es de solo lectura y no afecta las métricas ni notificaciones del usuario.</p>
+      </div>
+    </motion.div>
   );
 }

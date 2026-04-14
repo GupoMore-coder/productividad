@@ -79,13 +79,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const myGroupIds = myMemberships?.map(m => m.group_id) || [];
       let query = supabase.from('tasks').select('*');
 
-      if (!user.isSuperAdmin) {
-        if (myGroupIds.length > 0) {
-          // Privacy fix: only show shared tasks from groups, never private tasks of other users. Use 'ov' for overlap.
-          query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.ov.{${myGroupIds.join(',')}})`);
-        } else {
-          query = query.eq('user_id', user.id);
-        }
+      if (myGroupIds.length > 0) {
+        // Universal Privacy: Everyone (including Fernando) sees only their own tasks or shared group tasks.
+        // Use 'ov' for PostgREST overlap operator.
+        query = query.or(`user_id.eq.${user.id},and(is_shared.eq.true,group_ids.ov.{${myGroupIds.join(',')}})`);
+      } else {
+        query = query.eq('user_id', user.id);
       }
 
       const { data, error } = await query
