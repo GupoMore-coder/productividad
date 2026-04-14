@@ -16,7 +16,13 @@ export const WhatsAppEditorModal: React.FC = () => {
 
   const handleSend = () => {
     triggerHaptic('success');
-    const cleanPhone = state.phone.replace(/\D/g, '');
+    let cleanPhone = state.phone.replace(/\D/g, '');
+    // Normalize: if number doesn't start with country code, prepend 57 (Colombia)
+    // Colombian mobile numbers are 10 digits (3XX XXX XXXX)
+    if (cleanPhone.length === 10 && cleanPhone.startsWith('3')) {
+      cleanPhone = '57' + cleanPhone;
+    }
+    // If someone entered +57 or 57 already, it will be 12 digits — leave as is
     const encoded = encodeURIComponent(editedMessage);
     window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
     closeWhatsApp();

@@ -317,7 +317,7 @@ export const scheduleLocalNotification = (
   title: string,
   options?: NotificationOptions
 ) => {
-  if (Notification.permission === 'granted') {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     new Notification(title, {
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
@@ -335,7 +335,7 @@ import { differenceInHours, subHours } from 'date-fns';
  * Schedules -24h and -12h alarms for a given ServiceOrder based on its deliveryDate.
  */
 export async function scheduleOrderNotifications(order: ServiceOrder) {
-  if (Notification.permission !== 'granted') return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
 
   const now = new Date();
   const delivery = new Date(order.deliveryDate);
@@ -402,7 +402,7 @@ export async function cancelOrderNotifications(orderId: string) {
  * Alta: Mon (1), Wed (3), Fri (5), Sun (0)
  */
 export async function checkInventoryReminders(items: MissingItem[], userRole: string) {
-  if (Notification.permission !== 'granted') return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   
   // Restricted roles
   const authorized = ['Administrador maestro', 'Director General (CEO)', 'Gestor Administrativo'];
@@ -433,7 +433,7 @@ export async function checkInventoryReminders(items: MissingItem[], userRole: st
  * Notifies Supervisor of a new consultant request
  */
 export async function notifySupervisorOfNewRequest(itemName: string) {
-  if (Notification.permission !== 'granted') return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   await triggerCriticalAlert('🚨 Nueva Solicitud de Faltante', `Consultora ha solicitado: "${itemName}". Requiere aprobación.`);
 }
 

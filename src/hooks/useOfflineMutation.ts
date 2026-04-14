@@ -31,8 +31,18 @@ export function useOfflineMutation<TData = any, TVariables = any>(
       if (navigator.onLine) {
         try {
           return await (mutationFn as any)(variables);
-        } catch (err) {
-          console.warn('⚠️ [Vanguard] Error online, intentando modo offline persistente.', err);
+        } catch (err: any) {
+          // Only fallback to offline queue for actual network errors
+          // Re-throw database/logic errors so the UI can display them
+          const isNetworkError = !navigator.onLine || 
+            err?.message?.includes('Failed to fetch') || 
+            err?.message?.includes('NetworkError') ||
+            err?.message?.includes('ERR_INTERNET_DISCONNECTED');
+          
+          if (!isNetworkError) {
+            throw err; // Let the UI handle real errors (missing columns, permissions, etc.)
+          }
+          console.warn('⚠️ [Vanguard] Network error, switching to offline queue.', err);
         }
       }
 
