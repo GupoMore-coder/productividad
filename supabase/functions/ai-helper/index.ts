@@ -42,8 +42,8 @@ REGLAS CRÍTICAS DE RESPUESTA:
 - Mantén un tono ejecutivo, profesional y apasionado por la eficiencia.
 `;
 
-    // Using the universally stable gemini-pro on v1 endpoint
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // Using the officially supported gemini-2.5-flash model
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
