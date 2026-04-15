@@ -68,21 +68,47 @@ export default function RealtimeNotificationListener() {
       )
       .subscribe();
 
+    // Listen for GLOBAL ALERTS (Massive Broadcast for Orders/Quotes)
+    const globalChannel = supabase
+      .channel('public:global_alerts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'global_alerts' },
+        (payload) => {
+          handleNewEvent({
+            type: payload.new.type || 'critical',
+            title: payload.new.type === 'critical' ? '🚨 ALERTA CRÍTICA' : 'Anuncio Global',
+            body: payload.new.message,
+            id: payload.new.id,
+            navigateUrl: '/orders'
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(tasksChannel);
       supabase.removeChannel(alertsChannel);
+      supabase.removeChannel(globalChannel);
     };
   }, [user?.id]);
 
   const handleNewEvent = (event: any) => {
-    // Push Native OS Notification
+    // 1. Native Push (System Tray)
     scheduleLocalNotification(event.title, {
        body: event.body,
        tag: event.id
     });
 
-    // Fire Full-Screen In-App Unified Modal Alarm
+    // 2. High-intensity Sound/Vibration if critical
+    if (event.type === 'critical') {
+      import('../services/NotificationsService').then(m => {
+        m.triggerCriticalAlert(event.title, event.body);
+      });
+    }
+
+    // 3. UI Modal (Full screen)
     window.dispatchEvent(new CustomEvent('app:show-unified-alarm', { detail: event }));
   };
 

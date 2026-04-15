@@ -554,15 +554,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             description: `Estado actualizado a "${statusLabel}" por ${uName}${updates.cancelReason ? `. Justificación: ${updates.cancelReason}` : ''}` 
           }).then(({ error: hErr }) => hErr && console.warn('History log error:', hErr));
 
-          if (updates.status === 'cancelada') {
-            supabase.from('global_alerts').insert({
-              type: 'critical',
-              order_id: id,
-              user_id: user.id,
-              user_name: uName,
-              message: `🚨 ALERTA CRÍTICA: La orden #${id} ha sido cancelada por el usuario ${uName}. Justificación: ${updates.cancelReason || 'N/A'}`
-            }).then(({ error: aErr }) => aErr && console.warn('Alert log error:', aErr));
-          }
+          // v23: Massive broadcast for ANY status change as requested
+          const icon = updates.status === 'cancelada' ? '🚨' : updates.status === 'completada' ? '✅' : '🔄';
+          supabase.from('global_alerts').insert({
+            type: 'critical',
+            order_id: id,
+            user_id: user.id,
+            user_name: uName,
+            message: `${icon} CAMBIO DE ESTADO: La orden #${id} pasó a "${statusLabel.toUpperCase()}" por ${uName}${updates.cancelReason ? `. Motivo: ${updates.cancelReason}` : ''}`
+          }).then(({ error: aErr }) => aErr && console.warn('Alert log error:', aErr));
         }
         
         const isMaster = user.role === 'Administrador maestro';
@@ -710,6 +710,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         type: 'modificacion',
         user_name: uName,
         description: `Orden restablecida a modo ACTIVO por ${uName}`
+      });
+
+      await supabase.from('global_alerts').insert({
+        type: 'critical',
+        order_id: id,
+        user_id: user.id,
+        user_name: uName,
+        message: `🔄 ORDEN REACTIVADA: La orden #${id} ha sido restablecida a modo activo por el Administrador Maestro.`
       });
     }
     queryClient.invalidateQueries({ queryKey: ['orders'] });

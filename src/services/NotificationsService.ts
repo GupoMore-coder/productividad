@@ -61,7 +61,7 @@ export function getNotificationPermissionStatus(): 'default' | 'granted' | 'deni
  * defined by the task's priority level.
  */
 export async function scheduleTaskNotifications(task: Task): Promise<void> {
-  if (!hasNotificationPermission()) return;
+  if (!hasNotificationPermission() || task.completed) return;
 
   // Remove stale alarms for this task before re-scheduling
   await deleteAlarmsByTaskId(task.id);
