@@ -115,12 +115,10 @@ export default function Navigation() {
             </NavLink>
           )}
 
-          {(user?.isColaborador || user?.isMaster) && (
-             <NavLink to="/sugerencias" className={getNavClass}>
-               <Lightbulb size={20} />
-               <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Sugerencias</span>
-             </NavLink>
-          )}
+          <NavLink to="/sugerencias" className={getNavClass}>
+            <Lightbulb size={20} />
+            <span className="text-[0.6rem] font-black uppercase tracking-widest hidden sm:block">Sugerencias</span>
+          </NavLink>
 
           {user?.isMaster && (
             <NavLink to="/admin" className={getNavClass}>

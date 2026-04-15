@@ -22,7 +22,7 @@ BEGIN
 
     IF (TG_TABLE_NAME = 'service_orders') THEN
         -- Obtener nombre del creador real si es posible, o dejar generico
-        SELECT name INTO v_responsible_name FROM public.users WHERE id = NEW.created_by;
+        SELECT name INTO v_responsible_name FROM public.profiles WHERE id = NEW.created_by;
         IF v_responsible_name IS NULL THEN
             v_responsible_name := 'Agente';
         END IF;
