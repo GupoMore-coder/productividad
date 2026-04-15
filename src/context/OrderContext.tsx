@@ -315,9 +315,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fetchConfig = async () => {
       try {
         const { data: st } = await supabase.from('config_service_types').select('name').order('name');
+        
+        // v24: Resilience Merge - Always ensure new services are present even if DB is not updated yet
+        const mandatoryServices = [
+          'Bordado', 'DTF', 'Marcado laser', 'Sublimacion placa mascota', 
+          'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
+          'Vinilo adhesivo', 'Vinilo textil', 'Otros'
+        ];
+
         if (st) {
-          const names = st.map(i => i.name);
-          setServiceTypes(sortServices(names));
+          const dbNames = st.map(i => i.name);
+          // Combine unique names from both sources
+          const combined = Array.from(new Set([...mandatoryServices, ...dbNames]));
+          setServiceTypes(sortServices(combined));
+        } else {
+          setServiceTypes(sortServices(mandatoryServices));
         }
         
         const { data: tm } = await supabase.from('config_team_members').select('full_name').order('full_name');
