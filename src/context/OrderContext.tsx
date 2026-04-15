@@ -173,23 +173,24 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   if (o.quoteExpiresAt !== undefined) result.quote_expires_at = o.quoteExpiresAt;
   if (o.customerEmail !== undefined) result.customer_email = o.customerEmail;
   return result;
-};
+const MANDATORY_SERVICES = [
+  'Bordado', 'DTF', 'Marcado láser', 'Sublimación placa mascota', 
+  'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
+  'Vinilo adhesivo', 'Vinilo textil', 'Otros'
+];
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   // Helper to sort service types alphabetically but keep 'Otros' at the end
   const sortServices = (list: string[]) => {
-    const sorted = [...list].filter(s => s !== 'Otros').sort((a, b) => a.localeCompare(b));
-    if (list.includes('Otros')) sorted.push('Otros');
+    const uniqueList = Array.from(new Set(list));
+    const sorted = uniqueList.filter(s => s !== 'Otros').sort((a, b) => a.localeCompare(b));
+    if (uniqueList.includes('Otros')) sorted.push('Otros');
     return sorted;
   };
 
-  const [serviceTypes, setServiceTypes] = useState<string[]>(sortServices([
-    'Bordado', 'DTF', 'Marcado laser', 'Sublimacion placa mascota', 
-    'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
-    'Vinilo adhesivo', 'Vinilo textil', 'Otros'
-  ]));
+  const [serviceTypes, setServiceTypes] = useState<string[]>(sortServices(MANDATORY_SERVICES));
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
   const [offlineOrders, setOfflineOrders] = useState<ServiceOrder[]>([]);
   const [pendingActions, setPendingActions] = useState<any[]>([]);
@@ -316,20 +317,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const { data: st } = await supabase.from('config_service_types').select('name').order('name');
         
-        // v24: Resilience Merge - Always ensure new services are present even if DB is not updated yet
-        const mandatoryServices = [
-          'Bordado', 'DTF', 'Marcado laser', 'Sublimacion placa mascota', 
-          'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
-          'Vinilo adhesivo', 'Vinilo textil', 'Otros'
-        ];
-
-        if (st) {
+        if (st && st.length > 0) {
           const dbNames = st.map(i => i.name);
-          // Combine unique names from both sources
-          const combined = Array.from(new Set([...mandatoryServices, ...dbNames]));
-          setServiceTypes(sortServices(combined));
+          setServiceTypes(sortServices([...MANDATORY_SERVICES, ...dbNames]));
         } else {
-          setServiceTypes(sortServices(mandatoryServices));
+          setServiceTypes(sortServices(MANDATORY_SERVICES));
         }
         
         const { data: tm } = await supabase.from('config_team_members').select('full_name').order('full_name');
