@@ -173,6 +173,8 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
   if (o.quoteExpiresAt !== undefined) result.quote_expires_at = o.quoteExpiresAt;
   if (o.customerEmail !== undefined) result.customer_email = o.customerEmail;
   return result;
+};
+
 const MANDATORY_SERVICES = [
   'Bordado', 'DTF', 'Marcado láser', 'Sublimación placa mascota', 
   'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
