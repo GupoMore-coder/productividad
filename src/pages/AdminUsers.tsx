@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
-import { usePresence } from '../context/PresenceContext';
+import PresenceIndicator from '../components/ui/PresenceIndicator';
 
 interface AppUser {
   id: string;
@@ -150,7 +150,7 @@ export default function AdminUsers() {
   const [expandedEmergency, setExpandedEmergency] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteStep, setDeleteStep] = useState('');
-  const { onlineUsers } = usePresence();
+  // Presence state is accessed via PresenceIndicator component directly
 
   useEffect(() => {
     if (!user?.isSuperAdmin) navigate('/', { replace: true });
@@ -443,12 +443,8 @@ export default function AdminUsers() {
                         </div>
                       )}
                     </button>
-                    <div className="mt-1.5 flex items-center justify-center gap-1 text-[0.5rem] font-bold uppercase text-slate-500">
-                      {onlineUsers.includes(u.id) ? (
-                        <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />En línea</>
-                      ) : (
-                        <><span className="w-1.5 h-1.5 rounded-full bg-slate-700" />N/A</>
-                      )}
+                    <div className="mt-1.5 flex items-center justify-center">
+                      <PresenceIndicator userId={u.id} lastSeenFromDB={u.last_seen} variant="full" />
                     </div>
                   </td>
                   {/* ── USUARIO + Emergency Toggle ── */}

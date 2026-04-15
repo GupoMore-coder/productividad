@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { mockStorage } from '../lib/storageService';
-import { formatDistanceToNow, format, parseISO } from 'date-fns';
+import { parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ImageZoomModal from './ImageZoomModal';
-import { usePresence } from '../context/PresenceContext';
+import PresenceIndicator, { PresenceAvatarDot } from './ui/PresenceIndicator';
 import { useWhatsApp } from '../context/WhatsAppContext';
 import { useAuth } from '../context/AuthContext';
 import { X, Calendar, Flag, Eye } from 'lucide-react';
@@ -70,7 +70,6 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
-  const { onlineUsers, presenceState } = usePresence();
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [currentUser] = useState(useAuth().user);
   const { openWhatsApp } = useWhatsApp();
@@ -176,7 +175,6 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {filteredUsers.map(u => {
                   const isBday = isBirthdayToday(u.birth_date);
-                  const isOnline = onlineUsers.includes(u.id);
                   return (
                     <motion.button
                       key={u.id}
@@ -197,9 +195,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                             {(u.full_name || u.username || 'U').charAt(0).toUpperCase()}
                           </div>
                         )}
-                        {isOnline && (
-                          <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1a1622] ${presenceState[u.id]?.[0]?.status === 'paused' ? 'bg-amber-500' : 'bg-emerald-500 shadow-[0_0_8px_#10b981]'}`} />
-                        )}
+                        <PresenceAvatarDot userId={u.id} lastSeenFromDB={u.last_seen} />
                         {isBday && <div className="absolute -top-0.5 -right-0.5 text-[10px]">🎂</div>}
                       </div>
 
@@ -221,12 +217,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                       </h3>
 
                       {/* Status dot */}
-                      <div className="flex items-center gap-1">
-                        <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-600'}`} />
-                        <span className={`text-[0.45rem] font-bold uppercase tracking-widest ${isOnline ? 'text-emerald-500' : 'text-slate-600'}`}>
-                          {isOnline ? (presenceState[u.id]?.[0]?.status === 'paused' ? 'Pausa' : 'Activo') : 'Offline'}
-                        </span>
-                      </div>
+                      <PresenceIndicator userId={u.id} lastSeenFromDB={u.last_seen} variant="badge" />
                     </motion.button>
                   );
                 })}
@@ -240,7 +231,6 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
           {selectedUser && (() => {
             const u = selectedUser;
             const isBday = isBirthdayToday(u.birth_date);
-            const isOnline = onlineUsers.includes(u.id);
             return (
               <motion.div
                 key="detail-overlay"
@@ -300,12 +290,7 @@ export default function UserDirectory({ onClose }: { onClose: () => void }) {
                   <div className="px-6 pb-6 space-y-3">
                     {/* Status */}
                     <div className="flex items-center justify-center gap-2 py-2">
-                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
-                      <span className={`text-[0.6rem] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-500' : 'text-slate-500'}`}>
-                        {isOnline ? (presenceState[u.id]?.[0]?.status === 'paused' ? 'En Pausa' : 'Activo') : (
-                          u.last_seen ? `Visto ${formatDistanceToNow(new Date(u.last_seen), { addSuffix: true, locale: es })}` : 'Sin conexión'
-                        )}
-                      </span>
+                      <PresenceIndicator userId={u.id} lastSeenFromDB={u.last_seen} variant="full" />
                     </div>
 
                     <div className="h-px bg-white/5" />

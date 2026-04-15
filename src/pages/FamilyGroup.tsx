@@ -19,6 +19,7 @@ import {
 import { Skeleton } from '../components/ui/Skeleton';
 import { triggerHaptic } from '../utils/haptics';
 import { usePageTitle } from '../hooks/usePageTitle';
+import PresenceIndicator from '../components/ui/PresenceIndicator';
 
 export default function FamilyGroup() {
   const { user } = useAuth();
@@ -461,8 +462,9 @@ export default function FamilyGroup() {
                            <div className="bg-amber-500/20 text-amber-500 text-[0.5rem] font-black px-2 py-0.5 rounded-md border border-amber-500/30 uppercase tracking-tighter">Líder</div>
                          )}
                       </div>
-                      <div className="text-[0.65rem] font-black uppercase tracking-widest text-slate-500 mt-0.5">
+                      <div className="text-[0.65rem] font-black uppercase tracking-widest text-slate-500 mt-0.5 flex items-center gap-3">
                         {m.userId === selectedGroup.creatorId ? 'Coordinador General' : 'Colaborador de Grupo'}
+                        <PresenceIndicator userId={m.userId} variant="badge" />
                       </div>
                     </div>
                     {(selectedGroup.creatorId === myUserId || user?.isMaster || user?.isSuperAdmin) && m.userId !== myUserId && (

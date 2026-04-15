@@ -1,13 +1,32 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+
+/**
+ * Presence Status Types:
+ * - 'online'  → App is in the foreground (visible)
+ * - 'away'    → App is in the background (hidden/minimized)
+ * - 'offline' → No active presence (disconnected/closed)
+ */
+export type PresenceStatus = 'online' | 'away' | 'offline';
+
+export interface UserPresenceInfo {
+  status: PresenceStatus;
+  lastSeen: string | null;
+}
 
 interface PresenceContextType {
   onlineUsers: string[];
   presenceState: Record<string, any>;
+  /** Returns the full presence info for a given user ID */
+  getUserStatus: (userId: string, lastSeenFromDB?: string | null) => UserPresenceInfo;
 }
 
-const PresenceContext = createContext<PresenceContextType>({ onlineUsers: [], presenceState: {} });
+const PresenceContext = createContext<PresenceContextType>({
+  onlineUsers: [],
+  presenceState: {},
+  getUserStatus: () => ({ status: 'offline', lastSeen: null }),
+});
 
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -23,6 +42,29 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       console.warn("Failed to update last_seen:", err);
     }
   };
+
+  /**
+   * Returns the presence status and last-seen timestamp for a user.
+   * Checks the real-time presence channel first, then falls back to DB last_seen.
+   */
+  const getUserStatus = useCallback((userId: string, lastSeenFromDB?: string | null): UserPresenceInfo => {
+    const isOnline = onlineUsers.includes(userId);
+    
+    if (isOnline) {
+      const presenceData = presenceState[userId]?.[0];
+      const channelStatus = presenceData?.status;
+      
+      return {
+        status: channelStatus === 'paused' ? 'away' : 'online',
+        lastSeen: presenceData?.online_at || new Date().toISOString(),
+      };
+    }
+    
+    return {
+      status: 'offline',
+      lastSeen: lastSeenFromDB || null,
+    };
+  }, [onlineUsers, presenceState]);
 
   useEffect(() => {
     if (!user || !isSupabaseConfigured) {
@@ -52,6 +94,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
     channel.on('presence', { event: 'leave' }, ({ key }) => {
       setOnlineUsers((prev) => prev.filter((id) => id !== key));
+      // When a user leaves, update their last_seen if we are the user leaving
+      // (handled by beforeunload and visibilitychange)
     });
 
     const trackStatus = async () => {
@@ -60,7 +104,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         online_at: new Date().toISOString(),
         status
       });
-      if (status === 'active') updateLastSeen();
+      // Always update last_seen so the DB timestamp stays recent
+      updateLastSeen();
     };
 
     channel.subscribe(async (status) => {
@@ -85,7 +130,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   return (
-    <PresenceContext.Provider value={{ onlineUsers, presenceState }}>
+    <PresenceContext.Provider value={{ onlineUsers, presenceState, getUserStatus }}>
       {children}
     </PresenceContext.Provider>
   );
