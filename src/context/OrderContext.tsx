@@ -178,7 +178,18 @@ const mapOrderToDB = (o: Partial<ServiceOrder>) => {
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+  // Helper to sort service types alphabetically but keep 'Otros' at the end
+  const sortServices = (list: string[]) => {
+    const sorted = [...list].filter(s => s !== 'Otros').sort((a, b) => a.localeCompare(b));
+    if (list.includes('Otros')) sorted.push('Otros');
+    return sorted;
+  };
+
+  const [serviceTypes, setServiceTypes] = useState<string[]>(sortServices([
+    'Bordado', 'DTF', 'Marcado laser', 'Sublimacion placa mascota', 
+    'Sublimación de tazas', 'Sublimado de camisetas', 'UV DTF', 
+    'Vinilo adhesivo', 'Vinilo textil', 'Otros'
+  ]));
   const [teamMembers, setTeamMembers] = useState<string[]>([]);
   const [offlineOrders, setOfflineOrders] = useState<ServiceOrder[]>([]);
   const [pendingActions, setPendingActions] = useState<any[]>([]);
@@ -304,7 +315,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const fetchConfig = async () => {
       try {
         const { data: st } = await supabase.from('config_service_types').select('name').order('name');
-        if (st) setServiceTypes(st.map(i => i.name));
+        if (st) {
+          const names = st.map(i => i.name);
+          setServiceTypes(sortServices(names));
+        }
         
         const { data: tm } = await supabase.from('config_team_members').select('full_name').order('full_name');
         if (tm) setTeamMembers(tm.map(i => i.full_name));
