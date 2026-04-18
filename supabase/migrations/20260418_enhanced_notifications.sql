@@ -9,10 +9,20 @@ DECLARE
   supabase_url text;
   service_role_key text;
 BEGIN
-  -- Obtener secretos de la tabla (si existe) o usar placeholders si se manejan vía Supabase Dashboard
-  -- NOTA: El SERVICE_ROLE_KEY es necesario para que la Edge Function pueda consultar la tabla 'profiles'
-  SELECT value INTO supabase_url FROM secrets WHERE name = 'SUPABASE_URL';
-  SELECT value INTO service_role_key FROM secrets WHERE name = 'SERVICE_ROLE_KEY';
+  -- Obtener secretos con manejo de errores para evitar bloquear la transacción principal
+  BEGIN
+    SELECT value INTO supabase_url FROM public.secrets WHERE name = 'SUPABASE_URL';
+    SELECT value INTO service_role_key FROM public.secrets WHERE name = 'SERVICE_ROLE_KEY';
+  EXCEPTION WHEN OTHERS THEN
+    -- Si la tabla no existe o hay error, cancelamos el envío de WhatsApp pero dejamos que la orden se guarde
+    RAISE NOTICE 'No se pudo obtener credenciales de la tabla secrets. El envío de WhatsApp se omitirá.';
+    RETURN NEW;
+  END;
+
+  -- Validar que tenemos los datos necesarios antes de proceder
+  IF supabase_url IS NULL OR service_role_key IS NULL THEN
+    RETURN NEW;
+  END IF;
 
   payload := jsonb_build_object(
     'record', row_to_json(NEW),

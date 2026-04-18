@@ -10,18 +10,33 @@ BEGIN
   -- Reemplaza 'URL_DE_TU_PROYECTO' por la URL real si haces el deploy manual, 
   -- pero Supabase permite usar net.http_post dentro de la red.
   
-  PERFORM
-    net.http_post(
-      url := 'https://grsaehpmaihrztusehkb.functions.supabase.co/whatsapp-automation',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || (SELECT value FROM secrets WHERE name = 'SERVICE_ROLE_KEY') -- Opcional según config
-      ),
-      body := jsonb_build_object(
-        'record', row_to_json(NEW),
-        'type', 'INSERT'
-      )
-    );
+  -- Invocación con manejo de errores para evitar bloqueos por tabla 'secrets' inexistente
+  DECLARE
+    service_role_key text;
+  BEGIN
+    BEGIN
+      SELECT value INTO service_role_key FROM public.secrets WHERE name = 'SERVICE_ROLE_KEY';
+    EXCEPTION WHEN OTHERS THEN
+      RETURN NEW;
+    END;
+
+    IF service_role_key IS NULL THEN
+      RETURN NEW;
+    END IF;
+
+    PERFORM
+      net.http_post(
+        url := 'https://grsaehpmaihrztusehkb.functions.supabase.co/whatsapp-automation',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || service_role_key
+        ),
+        body := jsonb_build_object(
+          'record', row_to_json(NEW),
+          'type', 'INSERT'
+        )
+      );
+  END;
     
   RETURN NEW;
 END;
