@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format, addDays } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText, TrendingUp, Calculator, Trash2, Search, ChevronDown } from 'lucide-react';
+import { X, Camera, Plus, Save, Calendar, Check, RefreshCw, AlertCircle, FileText, TrendingUp, Calculator, Trash2, Search, ChevronDown, Clock } from 'lucide-react';
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage } from '../utils/imageCompressor';
@@ -164,12 +164,11 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
           services: [],
           quoteItems: [],
           notes: '',
-          isTest: false,
-          quoteItems: []
+          isTest: false
         });
       }
     }
-  }, [isOpen, initialOrder, reset, appendQuoteItem]);
+  }, [isOpen, initialOrder, reset]);
 
   // Sync internal phone state to RHF
   useEffect(() => {
@@ -491,9 +490,9 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                             setValue('services', next, { shouldValidate: true });
 
                             // v17: AUTO-ADD LINE FOR QUOTES
-                            if (!isSelected && recordType === 'cotizacion') {
+                            if (!isSelected && (recordType as string) === 'cotizacion') {
                               appendQuoteItem({ item: svc, unitPrice: 0, quantity: 1, discountPercent: 0, total: 0 });
-                            } else if (isSelected && recordType === 'cotizacion') {
+                            } else if (isSelected && (recordType as string) === 'cotizacion') {
                               // Optional: Remove line if deselected
                               const idx = watchedQuoteItems.findIndex(i => i.item === svc);
                               if (idx !== -1) removeQuoteItem(idx);

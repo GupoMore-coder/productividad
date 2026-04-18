@@ -46,12 +46,12 @@ export interface ServiceOrder {
   lastStatusChangeBy?: string;
   is_demo?: boolean;
   isTest?: boolean;
-  pdfUrl?: string;
-  pdfExpiresAt?: string;
+  pdfUrl?: string | null;
+  pdfExpiresAt?: string | null;
   history: OrderHistoryEntry[];
   recordType?: 'orden' | 'cotizacion';
   quoteItems?: { item: string; unitPrice: number; quantity: number; discountPercent?: number; total: number; }[];
-  quoteExpiresAt?: string;
+  quoteExpiresAt?: string | null;
   quoteExtendedDays?: number;
   customerEmail?: string;
   isOfflinePending?: boolean;
@@ -129,11 +129,11 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
   lastStatusChangeBy: o.last_status_change_by,
   is_demo: o.is_demo || false,
   isTest: o.is_demo || false,
-  pdfUrl: o.pdf_url,
-  pdfExpiresAt: o.pdf_expires_at,
+  pdfUrl: o.pdf_url || undefined,
+  pdfExpiresAt: o.pdf_expires_at || undefined,
   recordType: o.record_type || 'orden',
   quoteItems: o.quote_items || [],
-  quoteExpiresAt: o.quote_expires_at || null,
+  quoteExpiresAt: o.quote_expires_at || undefined,
   quoteExtendedDays: Number(o.quote_extended_days || 0),
   history: (o.order_history || []).map((h: any) => ({
     id: h.id,
@@ -740,7 +740,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.from('global_alerts').insert({
         type: 'info',
         order_id: id,
-        user_id: user.id,
+        user_id: user?.id,
         user_name: uName,
         message: `💵 NUEVO ABONO: Se recibieron $${amount.toLocaleString()} para la orden #${id} (Cliente: ${order.customerName}). Saldo restante: $${newBalance.toLocaleString()}.`
       });

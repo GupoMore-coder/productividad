@@ -108,7 +108,7 @@ export default function GlobalActivityFeed() {
     ? alerts.filter(a => !a.seen_by.includes(user.id))
     : alerts;
 
-  const getIcon = (type: string, message: string) => {
+  const getIcon = (_type: string, message: string) => {
     const msg = message.toLowerCase();
     if (msg.includes('💰') || msg.includes('precio')) return <CreditCard size={16} className="text-amber-400" />;
     if (msg.includes('📅') || msg.includes('fecha')) return <Calendar size={16} className="text-purple-400" />;

@@ -506,9 +506,9 @@ export default function Orders() {
                 onAddObservation={handleObsAdd}
                 onRegisterDeposit={registerDeposit}
                 onReactivate={() => handleReactivateAttempt(order.id)}
-                onPromote={() => {
-                  if (order.recordType === 'cotizacion') convertQuoteToOrder(order.id);
-                  else if (order.isTest) promoteDemoOrder(order.id);
+                onPromote={async (idArg) => {
+                  if (order.recordType === 'cotizacion') await convertQuoteToOrder(idArg);
+                  else if (order.isTest) await promoteDemoOrder(idArg);
                 }}
                 onDelete={deleteOrderMaster}
                 onExtendQuote={extendQuote}
