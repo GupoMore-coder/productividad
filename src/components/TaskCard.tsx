@@ -12,7 +12,8 @@ import {
   Volume2,
   VolumeX,
   Share2,
-  RefreshCw
+  RefreshCw,
+  Maximize2
 } from 'lucide-react';
 import CalendarExportMenu from './CalendarExportMenu';
 import { triggerHaptic } from '../utils/haptics';
@@ -181,19 +182,31 @@ const TaskCard = memo(function TaskCard({
               </p>
             )}
 
-            {/* Evidence Image */}
-            {task.imageUrl && (
+            {/* Evidence Image Gallery Preview */}
+            {task.imageUrls && task.imageUrls.length > 0 && (
               <motion.div 
                 whileHover={{ scale: 1.02 }}
-                className="mt-3 w-20 h-20 rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group/img"
+                className="mt-3 relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 cursor-zoom-in group/img shadow-2xl"
                 onClick={(e) => {
                   e.stopPropagation();
                   (window as any).dispatchEvent(new CustomEvent('zoom-image', { 
-                    detail: { photos: [task.imageUrl], index: 0 } 
+                    detail: { photos: task.imageUrls, index: 0 } 
                   }));
                 }}
               >
-                <img src={task.imageUrl} alt="evidencia" className="w-full h-full object-cover group-hover/img:opacity-80 transition-opacity" />
+                <img src={task.imageUrls[0]} alt="evidencia" className="w-full h-full object-cover group-hover/img:opacity-80 transition-opacity" />
+                
+                {task.imageUrls.length > 1 && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none group-hover/img:bg-black/20 transition-colors">
+                    <span className="text-white text-sm font-black tracking-widest drop-shadow-md">
+                      +{task.imageUrls.length - 1}
+                    </span>
+                  </div>
+                )}
+                
+                <div className="absolute top-1 right-1 p-1 bg-purple-500 rounded-lg shadow-lg opacity-0 group-hover/img:opacity-100 transition-opacity">
+                  <Maximize2 size={10} className="text-white" />
+                </div>
               </motion.div>
             )}
 

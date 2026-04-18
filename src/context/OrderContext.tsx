@@ -492,6 +492,18 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           }
 
+          // v24: QUOTE EXPIRATION ALERT (Notify creator on expiration day)
+          if (isQuote && dbOrder.quote_expires_at && !orderData.isTest) {
+            const expiration = parseISO(dbOrder.quote_expires_at);
+            await supabase.from('global_broadcast_queue').insert({
+              fire_at: expiration.toISOString(),
+              title: `📅 Vencimiento de Cotización`,
+              message: `¡Hoy vence la Cotización #${orderId}! Accede al documento para renovar o contactar al cliente.`,
+              order_id: orderId,
+              type: 'expiration'
+            });
+          }
+
         
         return mapOrderFromDB({ ...created, order_history: [] });
       } else {
@@ -594,6 +606,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Nuevo abono recibido: $${added.toLocaleString()} • Total abonado: $${updates.depositAmount.toLocaleString()}` 
           }).then(({ error: fErr }) => fErr && console.warn('History finance error:', fErr));
+
+          // v23: Global Alert for Additional Deposit
+          supabase.from('global_alerts').insert({
+            type: 'info',
+            order_id: id,
+            user_id: user.id,
+            user_name: uName,
+            message: `💵 NUEVO ABONO: Se recibieron $${added.toLocaleString()} para la orden #${id} (Cliente: ${existingOrder.customerName}). Total abonado: $${updates.depositAmount.toLocaleString()}.`
+          });
         }
         
         if (isTotalCostChange && user && !isMaster) {
@@ -601,6 +622,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             order_id: id, type: 'financiero', user_name: uName, 
             description: `Corrección de costo total: $${existingOrder.totalCost.toLocaleString()} -> $${updates.totalCost.toLocaleString()}` 
           }).then(({ error: cErr }) => cErr && console.warn('History correction error:', cErr));
+
+           // v23: Global Alert for Price Change
+           supabase.from('global_alerts').insert({
+             type: 'info',
+             order_id: id,
+             user_id: user.id,
+             user_name: uName,
+             message: `💰 ACTUALIZACIÓN DE PRECIO: La orden #${id} (Cliente: ${existingOrder.customerName}) cambió de $${existingOrder.totalCost.toLocaleString()} a $${updates.totalCost.toLocaleString()} por ${uName}.`
+           });
         }
 
         if (updates.deliveryDate && updates.deliveryDate !== existingOrder.deliveryDate) {
@@ -613,6 +643,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             type: 'cambio_estado',
             user_name: uName,
             description: `📅 TRASLADO DE FECHA: ${oldDate} -> ${newDate} por ${uName}`
+          });
+
+          // v23: Global Alert for Date Change
+          supabase.from('global_alerts').insert({
+            type: 'info',
+            order_id: id,
+            user_id: user.id,
+            user_name: uName,
+            message: `📅 TRASLADO DE ENTREGA: La orden #${id} (${existingOrder.customerName}) se reprogramó para el ${newDate} por ${uName}.`
           });
 
           // 2. Reschedule Background Alerts
@@ -696,6 +735,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         user_name: uName,
         description: `ABONO ADICIONAL: $${amount.toLocaleString()} | Recibido por: ${uName} | Saldo Restante: $${newBalance.toLocaleString()}`
       }).then(({ error: hErr }) => hErr && console.warn('Deposit history error:', hErr));
+
+      // v23: Global Alert for Additional Deposit
+      supabase.from('global_alerts').insert({
+        type: 'info',
+        order_id: id,
+        user_id: user.id,
+        user_name: uName,
+        message: `💵 NUEVO ABONO: Se recibieron $${amount.toLocaleString()} para la orden #${id} (Cliente: ${order.customerName}). Saldo restante: $${newBalance.toLocaleString()}.`
+      });
     } else {
       // Mock logic
       const mockOrders = await mockStorage.getItem<ServiceOrder[]>('mock_orders') || [];
@@ -820,7 +868,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         order_id: id,
         user_id: user?.id,
         user_name: uName,
-        message: `🔄 ✅ La cotización #${id.slice(-6).toUpperCase()} del cliente ${orders.find(o => o.id === id)?.customerName || 'N/A'} fue convertida en la orden de servicio oficial por el usuario ${uName}. Mas informacion en la seccion correspondiente.`
+        message: `🚀 ✅ CONVERSIÓN EXITOSA: La cotización #${id.slice(-6).toUpperCase()} fue convertida en ORDEN OFICIAL por ${uName}. ¡Un nuevo servicio en marcha!`
       });
 
       // Auditoría P-1: Programar hitos para la nueva orden convertida si tiene fecha de entrega

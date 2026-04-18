@@ -283,6 +283,15 @@ export default function Inventory() {
   const isAuthority = !!(user?.isMaster || user?.isSupervisor || (user?.isAdmin && user?.role === 'Director General (CEO)'));
   const isConsultant = user?.role === 'Consultora de Ventas' || user?.isConsultant;
 
+  // v17: Refined permissions for Suppliers (Requested by User)
+  const canManageSuppliers = !!(
+    user?.isMaster || 
+    user?.role === 'Director General (CEO)' || 
+    user?.role === 'Gestor Administrativo' || 
+    user?.role === 'Administradora Puntos de Venta' ||
+    user?.role === 'Supervisora Puntos de Venta'
+  );
+
   if (isConsultant && activeTab === 'suppliers') {
     setActiveTab('missing'); // Consultants can't see suppliers tab but can see missing items
   }
@@ -352,6 +361,11 @@ export default function Inventory() {
            <button 
             onClick={() => {
               if (activeTab === 'suppliers') {
+                if (!canManageSuppliers) {
+                  triggerHaptic('error');
+                  alert("PARA CREAR NUEVOS PROVEEDORES, PONGASE EN CONTACTO CON FERNANDO (ADMINISTRADOR MAESTRO), FLORANGELLYS (CEO), MIGUEL ALFREDO (GESTOR ADMINISTRATIVO), SHAIRA (ADMINISTRADORA PUNTOS DE VENTA)");
+                  return;
+                }
                 setEditingSupplier(null);
                 setNewSupplier({ name: '', nit: '', categories: [], contact_person: '', phone: '', secondary_contact: '', email: '', address: '', social_links: [] });
                 setShowAddSupplier(true);

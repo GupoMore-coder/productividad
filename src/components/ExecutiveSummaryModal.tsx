@@ -85,7 +85,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
   const images = useMemo(() => {
     if (!data) return [];
     if (isOrder || isQuote) return data.photos || [];
-    return data.imageUrl ? [data.imageUrl] : [];
+    return data.imageUrls || [];
   }, [data, isOrder, isQuote]);
 
   const status = data?.status || 'Pendiente';

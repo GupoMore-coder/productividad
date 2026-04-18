@@ -37,6 +37,7 @@ import { triggerHaptic } from '../utils/haptics';
 import { format, subDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { generateExecutiveReport } from '../services/ExecutiveReportService';
 import PresenceIndicator from '../components/ui/PresenceIndicator';
+import GlobalActivityFeed from '../components/GlobalActivityFeed';
 
 
 // ── Custom SVG Bar Component ──────────────────────────────────────
@@ -81,7 +82,7 @@ export default function Dashboard() {
     console.log(`Action handled: ${type}`);
   };
   
-  const [activeTab, setActiveTab] = useState<'financial' | 'productivity'>('productivity');
+  const [activeTab, setActiveTab] = useState<'financial' | 'productivity' | 'activity'>('productivity');
   const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'range' | 'global'>('global');
   const [rangeStart, setRangeStart] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [rangeEnd, setRangeEnd] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -484,6 +485,12 @@ export default function Dashboard() {
                 className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'productivity' ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20' : 'text-slate-500 hover:text-white'}`}
               >
                 Productividad
+              </button>
+              <button 
+                onClick={() => { triggerHaptic('light'); setActiveTab('activity'); }}
+                className={`px-6 py-2.5 rounded-xl text-[0.65rem] font-black uppercase tracking-widest transition-all ${activeTab === 'activity' ? 'bg-blue-500 text-slate-950 shadow-lg shadow-blue-500/20' : 'text-slate-500 hover:text-white'}`}
+              >
+                Actividad
               </button>
               {(user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant) && (
                 <button 

@@ -506,8 +506,12 @@ export default function Orders() {
                 onAddObservation={handleObsAdd}
                 onRegisterDeposit={registerDeposit}
                 onReactivate={() => handleReactivateAttempt(order.id)}
-                onPromote={() => promoteDemoOrder(order.id)}
+                onPromote={() => {
+                  if (order.recordType === 'cotizacion') convertQuoteToOrder(order.id);
+                  else if (order.isTest) promoteDemoOrder(order.id);
+                }}
                 onDelete={deleteOrderMaster}
+                onExtendQuote={extendQuote}
                 sequenceLabel={order.recordType === 'cotizacion' ? getQuoteSequenceLabel(order.id) : getOrderSequenceLabel(order.id)}
                 isOverdue={new Date(order.deliveryDate) < new Date() && filter === 'activas' && order.recordType !== 'cotizacion'}
                 isGenerating={isGeneratingPdf === order.id}

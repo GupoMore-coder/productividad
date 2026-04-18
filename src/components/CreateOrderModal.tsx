@@ -106,21 +106,20 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
   useEffect(() => {
     if (recordType === 'cotizacion') {
       let subtotal = 0;
-      const calculatedItems = watchedQuoteItems.map((item) => {
+      watchedQuoteItems.forEach((item, idx) => {
          const rawTotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
          const dist = (Number(item.discountPercent) || 0) / 100;
          const lineTotal = rawTotal * (1 - dist);
          subtotal += lineTotal;
-         return lineTotal;
+         
+         // Only update if value changed to avoid loops
+         const currentTotal = watchedQuoteItems[idx].total;
+         if (Math.abs((currentTotal || 0) - lineTotal) > 0.01) {
+           setValue(`quoteItems.${idx}.total`, lineTotal);
+         }
       });
-      // Set line totals
-      calculatedItems.forEach((total, idx) => {
-         setValue(`quoteItems.${idx}.total`, total);
-      });
-      // Set global total with IVA 19%
-      const iva = subtotal * 0.19;
-      const finalTotal = subtotal + iva;
-      setValue('totalCost', finalTotal);
+      // Global total WITHOUT IVA 19% (as requested)
+      setValue('totalCost', subtotal);
     }
   }, [watchedQuoteItems, recordType, setValue]);
 
@@ -165,16 +164,12 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
           services: [],
           quoteItems: [],
           notes: '',
-          deliveryDate: format(new Date(Date.now() + 86400000 * 3), 'yyyy-MM-dd'),
-          totalCost: 0,
-          depositAmount: 0,
-          paymentStatus: 'pendiente',
-          photos: [],
-          isTest: false
+          isTest: false,
+          quoteItems: []
         });
       }
     }
-  }, [isOpen, initialOrder, reset]);
+  }, [isOpen, initialOrder, reset, appendQuoteItem]);
 
   // Sync internal phone state to RHF
   useEffect(() => {
@@ -251,6 +246,7 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
         ...data,
         responsible: activeResponsible,
         deliveryDate: data.deliveryDate + 'T17:00',
+        quoteExpiresAt: isQuote ? data.deliveryDate : null,
         createdByRole: user?.role || 'Colaborador',
         depositAmount: isQuote ? 0 : data.depositAmount,
         paymentStatus: calculatedStatus as 'pendiente' | 'abono' | 'pagado'
@@ -355,6 +351,20 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                         >
                           Prueba
                         </button>
+                    </div>
+                  </div>
+                )}
+
+                {recordType === 'cotizacion' && (
+                  <div className="flex items-center gap-4 bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-2xl animate-in fade-in zoom-in">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={12} className="text-amber-500" />
+                        <span className="text-[0.6rem] font-black text-amber-500 uppercase tracking-widest">Vigencia 10 días</span>
+                      </div>
+                      <span className="text-[0.75rem] font-bold text-white flex items-center gap-2">
+                        Vence: <span className="bg-black/20 px-2 py-0.5 rounded-md border border-white/5">{format(addDays(new Date(), 10), 'dd/MM/yyyy')}</span>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -479,6 +489,15 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                             triggerHaptic('light');
                             const next = isSelected ? selectedServices.filter(s => s !== svc) : [...selectedServices, svc];
                             setValue('services', next, { shouldValidate: true });
+
+                            // v17: AUTO-ADD LINE FOR QUOTES
+                            if (!isSelected && recordType === 'cotizacion') {
+                              appendQuoteItem({ item: svc, unitPrice: 0, quantity: 1, discountPercent: 0, total: 0 });
+                            } else if (isSelected && recordType === 'cotizacion') {
+                              // Optional: Remove line if deselected
+                              const idx = watchedQuoteItems.findIndex(i => i.item === svc);
+                              if (idx !== -1) removeQuoteItem(idx);
+                            }
                           }} 
                           className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 ${isSelected ? 'bg-purple-500/10 border-purple-500/50 text-purple-400' : 'bg-white/5 border-white/5 text-slate-500 hover:text-slate-300'}`}
                         >
@@ -567,7 +586,9 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                 
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center ml-1">
-                    <label className="text-[0.55rem] uppercase tracking-[0.15em] text-slate-400 font-black">Total + IVA</label>
+                    <label className="text-[0.55rem] uppercase tracking-[0.15em] text-slate-400 font-black">
+                      {recordType === 'cotizacion' ? 'Total Neto' : 'Total + IVA'}
+                    </label>
                   </div>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[0.65rem] text-slate-500 font-bold">$</span>
@@ -580,6 +601,13 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
                       }`} 
                     />
                   </div>
+
+                  {recordType === 'cotizacion' && (
+                    <div className="mt-2 px-3 py-1.5 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center gap-2">
+                       <AlertCircle size={10} className="text-amber-500/50" />
+                       <span className="text-[0.5rem] font-bold text-amber-500/60 uppercase tracking-widest">Sin IVA 19%</span>
+                    </div>
+                  )}
                 </div>
                 
                 {recordType === 'orden' && (

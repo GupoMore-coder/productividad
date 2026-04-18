@@ -45,6 +45,7 @@ interface OrderCardProps {
   isGenerating?: boolean;
   sequenceLabel?: string;
   onDelete?: (id: string) => void;
+  onExtendQuote?: (id: string) => Promise<void>;
 }
 
 export const OrderCard = memo(function OrderCard({ 
@@ -59,7 +60,8 @@ export const OrderCard = memo(function OrderCard({
   isOverdue,
   isGenerating,
   sequenceLabel,
-  onDelete
+  onDelete,
+  onExtendQuote
 }: OrderCardProps) {
   const { user } = useAuth();
   const { openWhatsApp } = useWhatsApp();
@@ -363,17 +365,36 @@ export const OrderCard = memo(function OrderCard({
         {/* Status Action Buttons - Redesigned to Labels */}
         <div className="flex flex-wrap gap-2">
           {order.recordType === 'cotizacion' ? (
-            <button 
-              onClick={() => {
-                if(confirm('¿Convertir esta cotización en una Orden de Servicio Oficial?')) {
-                  onStatusChange(order.id, 'en_proceso'); // Will be intercepted or we can just call an overarching method. Alternatively:
-                  if (onPromote) onPromote(order.id);
-                }
-              }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500 hover:text-white transition-all font-black text-[0.65rem] uppercase tracking-widest active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-            >
-              <CheckCircle2 size={18} /> Convertir a Orden
-            </button>
+            <div className="flex-1 flex gap-2">
+              <button 
+                onClick={() => {
+                  if(confirm('¿Convertir esta cotización en una Orden de Servicio Oficial?')) {
+                    if (onPromote) onPromote(order.id);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500 hover:text-white transition-all font-black text-[0.65rem] uppercase tracking-widest active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+              >
+                <CheckCircle2 size={18} /> Convertir a Orden
+              </button>
+              
+              <button 
+                disabled={(order.quoteExtendedDays || 0) >= 5}
+                onClick={() => {
+                  triggerHaptic('light');
+                  if (onExtendQuote) {
+                     onExtendQuote(order.id).catch(err => alert(err.message));
+                  }
+                }}
+                className={`px-4 flex items-center justify-center gap-2 py-3 rounded-2xl transition-all font-black text-[0.65rem] uppercase tracking-widest active:scale-95 ${
+                  (order.quoteExtendedDays || 0) >= 5 
+                    ? 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
+                    : 'bg-amber-500/10 text-amber-500 border border-amber-500/30 hover:bg-amber-500/20'
+                }`}
+                title="Extender vigencia 5 días adicionales"
+              >
+                <RefreshCw size={18} className={(order.quoteExtendedDays || 0) >= 5 ? '' : 'animate-spin-slow'} /> Renovar
+              </button>
+            </div>
           ) : ['recibida', 'en_proceso', 'pendiente_entrega'].includes(order.status) ? (
             <>
               {order.status === 'recibida' && (
@@ -476,11 +497,11 @@ export const OrderCard = memo(function OrderCard({
               <Edit3 size={18} />
             </button>
 
-            {user?.isMaster && onDelete && order.isTest && (
+            {user?.isMaster && onDelete && (order.isTest || order.recordType === 'cotizacion') && (
               <button 
-                onClick={() => { if(confirm('¿BORRAR REGISTRO DE PRUEBA?')) onDelete(order.id); }} 
+                onClick={() => { if(confirm(`¿BORRAR ${order.recordType === 'cotizacion' ? 'COTIZACIÓN' : 'REGISTRO DE PRUEBA'} DEFINITIVAMENTE?`)) onDelete(order.id); }} 
                 className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20 active:scale-95 shadow-lg"
-                title="BORRAR PRUEBA (Sin rastro)"
+                title="BORRAR (Sin rastro)"
               >
                 <Trash2 size={18} />
               </button>

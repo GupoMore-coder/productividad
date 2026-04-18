@@ -48,7 +48,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
       group_ids: [],
       shared_user_ids: [],
       isShared: false,
-      imageUrl: '',
+      imageUrls: [],
       type: 'task',
       recurrence: 'none',
       recurrenceInterval: 1
@@ -58,7 +58,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
   const isEdit = !!initialData;
   const groupIds = watch('group_ids');
   const sharedUserIds = watch('shared_user_ids') || [];
-  const imageUrl = watch('imageUrl');
+  const imageUrls = watch('imageUrls') || [];
   const priority = watch('priority');
   const typeSelection = watch('type');
   const recurrence = watch('recurrence');
@@ -74,7 +74,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         group_ids: initialData.group_ids || [],
         shared_user_ids: initialData.shared_user_ids || [],
         isShared: initialData.isShared || false,
-        imageUrl: initialData.imageUrl || '',
+        imageUrls: initialData.imageUrls || [],
         type: initialData.type || 'task',
         recurrence: initialData.recurrence || 'none',
         recurrenceInterval: initialData.recurrenceInterval || 1
@@ -89,7 +89,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         group_ids: [],
         shared_user_ids: [],
         isShared: false,
-        imageUrl: '',
+        imageUrls: [],
         type: 'task',
         recurrence: 'none',
         recurrenceInterval: 1
@@ -125,7 +125,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         group_ids: [],
         shared_user_ids: [],
         isShared: false,
-        imageUrl: '',
+        imageUrls: [],
         type: 'task',
         recurrence: 'none',
         recurrenceInterval: 1
@@ -151,23 +151,44 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0] || !user) return;
+    if (!e.target.files || e.target.files.length === 0 || !user) return;
+    
+    const newFiles = Array.from(e.target.files);
+    const currentPhotos = watch('imageUrls') || [];
+
+    if (currentPhotos.length + newFiles.length > 10) {
+      triggerHaptic('warning');
+      alert('Límite alcanzado: Máximo 10 imágenes por actividad');
+      return;
+    }
+
     setUploading(true);
     try {
-      const file = e.target.files[0];
-      const compressedBase64 = await compressImage(file);
-      const blob = base64ToBlob(compressedBase64);
-      const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-      const publicUrl = await uploadFile('task-photos', `${user.id}/${fileName}`, blob);
-      setValue('imageUrl', publicUrl);
+      const uploadedUrls: string[] = [];
+      
+      for (const file of newFiles) {
+        const compressedBase64 = await compressImage(file);
+        const blob = base64ToBlob(compressedBase64);
+        const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+        const publicUrl = await uploadFile('task-photos', `${user.id}/${fileName}`, blob);
+        uploadedUrls.push(publicUrl);
+      }
+
+      setValue('imageUrls', [...currentPhotos, ...uploadedUrls]);
       triggerHaptic('success');
     } catch (err) {
       console.error('Upload Error:', err);
       triggerHaptic('error');
-      alert('Error al subir la imagen.');
+      alert('Error al subir las imágenes.');
     } finally {
       setUploading(false);
     }
+  };
+
+  const removeImage = (index: number) => {
+    triggerHaptic('light');
+    const current = watch('imageUrls') || [];
+    setValue('imageUrls', current.filter((_, i) => i !== index));
   };
 
   const onFormSubmit = async (data: TaskFormData) => {
@@ -549,31 +570,52 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
                 </div>
               )}
 
-              <div className="space-y-3">
-                <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black ml-1">Imagen de Referencia</label>
-                <div className="flex items-center gap-4">
-                  <label className="w-24 h-24 bg-white/5 border border-dashed border-white/10 rounded-[28px] flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-white/10 transition-all group active:scale-95">
-                    <Camera size={28} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-[0.55rem] font-black mt-2 uppercase tracking-widest">Subir</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between ml-1">
+                  <label className="text-[0.65rem] uppercase tracking-widest text-slate-500 font-black">Imágenes de Referencia</label>
+                  <span className="text-[0.65rem] font-black text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+                    {imageUrls.length} / 10
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-3">
+                  {/* Upload Trigger */}
+                  {imageUrls.length < 10 && (
+                    <label className="aspect-square bg-white/5 border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-white/10 transition-all group active:scale-95 shadow-lg">
+                      <Camera size={20} className="group-hover:scale-110 transition-transform" />
+                      <span className="text-[0.5rem] font-black mt-1 uppercase tracking-widest">Subir</span>
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+                    </label>
+                  )}
+
+                  {/* Loading State */}
                   {uploading && (
-                    <div className="w-24 h-24 flex items-center justify-center bg-black/20 rounded-[28px] border border-white/5">
-                      <RefreshCw size={24} className="animate-spin text-purple-400" />
+                    <div className="aspect-square flex items-center justify-center bg-black/20 rounded-2xl border border-white/5 shadow-inner">
+                      <RefreshCw size={20} className="animate-spin text-purple-400" />
                     </div>
                   )}
-                  {imageUrl && !uploading && (
-                    <div className="relative w-24 h-24 rounded-[28px] overflow-hidden border border-white/10 group">
-                      <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                      <button 
-                        type="button"
-                        onClick={() => setValue('imageUrl', '')}
-                        className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+
+                  {/* Image Grid */}
+                  <AnimatePresence>
+                    {imageUrls.map((url, idx) => (
+                      <motion.div 
+                        key={url + idx}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 group shadow-md"
                       >
-                        <Trash2 size={24} className="text-white" />
-                      </button>
-                    </div>
-                  )}
+                        <img src={url} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                        >
+                          <Trash2 size={20} className="text-white" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
 

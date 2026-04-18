@@ -40,7 +40,7 @@ export const TaskSchema = z.object({
   group_ids: z.array(z.string()),
   shared_user_ids: z.array(z.string()).optional(),
   isShared: z.boolean(),
-  imageUrl: z.string().nullable(),
+  imageUrls: z.array(z.string()),
 });
 
 export type OrderFormData = z.infer<typeof OrderSchema>;

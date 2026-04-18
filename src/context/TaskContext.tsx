@@ -28,7 +28,7 @@ export interface Task {
   isShared?: boolean;
   failureReason?: string;
   isGroupTask?: boolean;
-  imageUrl?: string;
+  imageUrls?: string[];
   isOfflinePending?: boolean; // New flag for UI indicator
   is_muted?: boolean;
   muted_alarms?: number[];
@@ -99,7 +99,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isShared: t.is_shared,
         createdBy: t.created_by,
         failureReason: t.failure_reason,
-        imageUrl: t.image_url,
+        imageUrls: t.image_urls || [],
         shared_user_ids: t.shared_user_ids || [],
         isGroupTask: t.user_id !== user.id
       }));
@@ -265,7 +265,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     group_ids: taskData.group_ids || [],
     is_shared: taskData.isShared || false,
     shared_user_ids: taskData.shared_user_ids || [],
-    image_url: taskData.imageUrl || null,
+    image_urls: taskData.imageUrls || [],
     description: taskData.description || null,
     failure_reason: taskData.failureReason || null,
     is_muted: taskData.is_muted || false,
@@ -353,7 +353,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isShared: data.is_shared,
     createdBy: data.created_by,
     failureReason: data.failure_reason,
-    imageUrl: data.image_url,
+    imageUrls: data.image_urls || [],
     recurrenceInterval: data.recurrence_interval,
     originalTaskId: data.original_task_id,
     recurrenceEndDate: data.recurrence_end_date,

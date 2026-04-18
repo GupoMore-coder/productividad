@@ -6,13 +6,14 @@ async function run() {
   
   const client = new Client({
     connectionString: dbUrl,
+    ssl: { rejectUnauthorized: false }
   });
 
   try {
     await client.connect();
     console.log('✅ Connected to Postgres.');
 
-    const sql = fs.readFileSync('supabase/migrations/20260414_broadcast_cron_engine.sql', 'utf8');
+    const sql = fs.readFileSync('supabase/migrations/20260417_add_multiple_images_tasks.sql', 'utf8');
     console.log('⏳ Executing migration...');
     
     await client.query(sql);

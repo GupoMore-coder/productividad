@@ -17,7 +17,9 @@ import {
   Info,
   ShieldCheck,
   Zap,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Timer
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 
@@ -147,12 +149,47 @@ export default function PublicOrderStatus() {
   };
 
   const statusCfg = getStatusConfig(order.status);
-  const steps = [
+  const isQuote = order.record_type === 'cotizacion';
+
+  const steps = isQuote ? [
+    { label: 'Generada', step: 1 },
+    { label: 'Enviada', step: 2 },
+    { label: 'Vigente', step: 3 },
+    { label: 'Finalizada', step: 4 }
+  ] : [
     { label: 'Recibida', step: 1 },
     { label: 'Elaboración', step: 2 },
     { label: 'Lista', step: 3 },
     { label: 'Entregada', step: 4 }
   ];
+
+  // Countdown Logic Helper
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  
+  useEffect(() => {
+    if (!isQuote || !order.quote_expires_at) return;
+    
+    const target = new Date(order.quote_expires_at).getTime();
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const diff = target - now;
+      
+      if (diff <= 0) {
+        setTimeLeft('VENCIDA');
+        clearInterval(interval);
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isQuote, order.quote_expires_at]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-20 animate-fade-in relative overflow-x-hidden">
@@ -181,8 +218,20 @@ export default function PublicOrderStatus() {
             <Package size={120} />
           </div>
           
-          <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-slate-500">Número de Orden</span>
-          <h2 className="text-5xl font-black text-white mt-1 mb-6 tracking-tight">#{order.id.toString().padStart(4, '0')}</h2>
+          <span className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-slate-500">
+            {isQuote ? 'Número de Cotización' : 'Número de Orden'}
+          </span>
+          <h2 className="text-5xl font-black text-white mt-1 mb-6 tracking-tight">#{order.id.toString().slice(-4).toUpperCase()}</h2>
+          
+          {isQuote && (
+            <div className="mb-6 flex flex-col items-center gap-2">
+               <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
+                  <Timer size={14} className="text-amber-500 animate-pulse" />
+                  <span className="text-[0.65rem] font-black text-amber-500 uppercase tracking-widest">Vence en:</span>
+               </div>
+               <span className="text-2xl font-black text-white tracking-widest font-mono">{timeLeft}</span>
+            </div>
+          )}
           
           <div 
             className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-white/5 border border-white/10 ${statusCfg.color} font-black text-xs uppercase tracking-widest`}
@@ -241,11 +290,13 @@ export default function PublicOrderStatus() {
               <Calendar size={20} />
             </div>
             <div>
-              <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest mb-0.5">Entrega Estimada</p>
+              <p className="text-[0.6rem] font-black text-slate-500 uppercase tracking-widest mb-0.5">
+                {isQuote ? 'Vencimiento' : 'Entrega Estimada'}
+              </p>
               <p className="text-sm font-bold text-white leading-tight">
-                {order.delivery_date 
-                  ? format(parseISO(order.delivery_date), 'dd MMMM, yyyy', { locale: es })
-                  : 'Fecha por confirmar'}
+                {isQuote 
+                  ? (order.quote_expires_at ? format(parseISO(order.quote_expires_at), 'dd MMMM, yyyy', { locale: es }) : 'N/A')
+                  : (order.delivery_date ? format(parseISO(order.delivery_date), 'dd MMMM, yyyy', { locale: es }) : 'Fecha por confirmar')}
               </p>
             </div>
           </div>
@@ -256,62 +307,79 @@ export default function PublicOrderStatus() {
           <div className="bg-white/[0.03] border border-white/5 rounded-[32px] p-8 shadow-xl relative group overflow-hidden">
             <div className="absolute top-0 right-0 p-4 font-black text-[4rem] text-white/[0.02] select-none uppercase tracking-tighter">Specs</div>
             <h3 className="text-[0.65rem] font-black text-[#d4bc8f] uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-              <Zap size={14} /> Servicios Contratados
+              <FileText size={14} /> {isQuote ? 'Detalle de Cotización' : 'Servicios Contratados'}
             </h3>
-            <div className="flex flex-wrap gap-2">
-              {order.services.map((s: string, i: number) => (
-                <span key={i} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-slate-300">
-                  {s}
-                </span>
-              ))}
-            </div>
-            {order.notes && (
+            
+            {isQuote && order.quote_items && order.quote_items.length > 0 ? (
+               <div className="space-y-4">
+                  {order.quote_items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center py-3 border-b border-white/5 last:border-0">
+                       <div className="flex flex-col">
+                          <span className="text-sm font-bold text-white">{item.item}</span>
+                          <span className="text-[0.6rem] text-slate-500 uppercase tracking-widest font-black">Cant: {item.quantity}</span>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {order.services.map((s: string, i: number) => (
+                  <span key={i} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-slate-300">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {!isQuote && order.notes && (
               <div className="mt-8 p-4 bg-black/40 rounded-2xl border-l-4 border-[#d4bc8f] italic text-xs text-slate-400 leading-relaxed font-medium">
                 "{order.notes}"
               </div>
             )}
           </div>
 
-          {/* New Timeline History Section */}
-          <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[0.65rem] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                <History size={14} /> Historial de Operación
-              </h3>
-              <div className="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest">En tiempo real</div>
-            </div>
-            
-            <div className="space-y-8 border-l-2 border-white/5 ml-2 pl-6">
-              {order.order_history && order.order_history.length > 0 ? (
-                order.order_history.map((h: any, i: number) => {
-                  const eventType = h.type || 'cambio_estado';
-                  return (
-                    <div key={i} className="relative">
-                      {/* Dot */}
-                      <div className={`absolute -left-[31px] top-1 w-3 h-3 rounded-full border-4 border-[#0a0a0f] ${
-                        eventType === 'creacion' ? 'bg-blue-500' :
-                        eventType === 'completada' ? 'bg-emerald-500' :
-                        eventType === 'observacion' ? 'bg-purple-500' : 'bg-[#d4bc8f]'
-                      }`} />
-                      <div className="space-y-1">
-                        <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">
-                          {h.timestamp 
-                            ? format(new Date(h.timestamp), 'dd MMM, HH:mm', { locale: es })
-                            : 'Pendiente'}
-                        </p>
-                        <p className="text-xs font-bold text-white tracking-tight">{h.description || 'Actualización de sistema'}</p>
-                        {h.type === 'observacion' && <p className="text-[0.65rem] text-purple-400/80 font-medium italic mt-1">Nota: {h.description}</p>}
+          {/* New Timeline History Section - HIDDEN FOR QUOTES */}
+          {!isQuote && (
+            <section className="bg-white/[0.02] border border-white/5 rounded-[32px] p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[0.65rem] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <History size={14} /> Historial de Operación
+                </h3>
+                <div className="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest">En tiempo real</div>
+              </div>
+              
+              <div className="space-y-8 border-l-2 border-white/5 ml-2 pl-6">
+                {order.order_history && order.order_history.length > 0 ? (
+                  order.order_history.map((h: any, i: number) => {
+                    const eventType = h.type || 'cambio_estado';
+                    return (
+                      <div key={i} className="relative">
+                        {/* Dot */}
+                        <div className={`absolute -left-[31px] top-1 w-3 h-3 rounded-full border-4 border-[#0a0a0f] ${
+                          eventType === 'creacion' ? 'bg-blue-500' :
+                          eventType === 'completada' ? 'bg-emerald-500' :
+                          eventType === 'observacion' ? 'bg-purple-500' : 'bg-[#d4bc8f]'
+                        }`} />
+                        <div className="space-y-1">
+                          <p className="text-[0.6rem] text-slate-500 font-bold uppercase tracking-widest">
+                            {h.timestamp 
+                              ? format(new Date(h.timestamp), 'dd MMM, HH:mm', { locale: es })
+                              : 'Pendiente'}
+                          </p>
+                          <p className="text-xs font-bold text-white tracking-tight">{h.description || 'Actualización de sistema'}</p>
+                          {h.type === 'observacion' && <p className="text-[0.65rem] text-purple-400/80 font-medium italic mt-1">Nota: {h.description}</p>}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-4 opacity-30">
-                  <p className="text-[0.6rem] font-bold uppercase tracking-widest">Iniciando seguimiento...</p>
-                </div>
-              )}
-            </div>
-          </section>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-4 opacity-30">
+                    <p className="text-[0.6rem] font-bold uppercase tracking-widest">Iniciando seguimiento...</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Footer */}
