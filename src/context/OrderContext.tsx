@@ -3,13 +3,15 @@ import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStorage } from '@/lib/storageService';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, subHours, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { triggerHaptic } from '@/utils/haptics';
 import { derivePaymentStatus, canCompleteOrder, TestUser } from '@/utils/businessRules';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { SyncService } from '@/services/SyncService';
 import { uploadFile } from '@/lib/supabase';
+import { OrderMilestoneService } from '@/services/OrderMilestoneService';
+import type { ServiceOrderDBRow, OrderHistoryDBRow, OrderUpdateDB } from '@/types/database';
 
 const COLORS = {
   DEEP_BG: [15, 23, 42], // Slate 900
@@ -105,7 +107,7 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType>({} as OrderContextType);
 
 // Helper for mapping DB snake_case to CamelCase
-const mapOrderFromDB = (o: any): ServiceOrder => ({
+const mapOrderFromDB = (o: ServiceOrderDBRow): ServiceOrder => ({
   id: o.id,
   customerName: o.customer_name,
   customerCedula: o.customer_cedula,
@@ -135,7 +137,7 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
   quoteItems: o.quote_items || [],
   quoteExpiresAt: o.quote_expires_at || undefined,
   quoteExtendedDays: Number(o.quote_extended_days || 0),
-  history: (o.order_history || []).map((h: any) => ({
+  history: (o.order_history || []).map((h: OrderHistoryDBRow) => ({
     id: h.id,
     timestamp: h.timestamp,
     type: h.type,
@@ -145,8 +147,8 @@ const mapOrderFromDB = (o: any): ServiceOrder => ({
 });
 
 // Helper for mapping CamelCase to DB snake_case
-const mapOrderToDB = (o: Partial<ServiceOrder>) => {
-  const result: any = {};
+const mapOrderToDB = (o: Partial<ServiceOrder>): Partial<OrderUpdateDB> => {
+  const result: Partial<OrderUpdateDB> = {};
   if (o.customerName !== undefined) result.customer_name = o.customerName;
   if (o.customerCedula !== undefined) result.customer_cedula = o.customerCedula;
   if (o.customerPhone !== undefined) result.customer_phone = o.customerPhone;
@@ -210,7 +212,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 
 
-  // 1. Fetch Orders with React Query
+  const ORDERS_PAGE_SIZE = 200;
+
+  // 1. Fetch Orders with React Query (paginado)
   const { data: orders = [], isLoading: loading } = useQuery({
     queryKey: ['orders'],
     queryFn: async () => {
@@ -218,17 +222,31 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const saved = await mockStorage.getItem<ServiceOrder[]>('mock_orders');
         return saved || [];
       }
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(`*, order_history(*)`)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      // v19: Filtrar por is_demo (columna real) y buffer de 24h
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      return data.filter(o => 
-        !o.is_demo || (o.created_at >= cutoff)
-      ).map(mapOrderFromDB);
+      let allOrders: ServiceOrder[] = [];
+      let hasMore = true;
+      let offset = 0;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('service_orders')
+          .select(`*, order_history(*)`)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + ORDERS_PAGE_SIZE - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const mapped = data.filter(o =>
+          !o.is_demo || (o.created_at >= cutoff)
+        ).map(mapOrderFromDB);
+
+        allOrders.push(...mapped);
+        offset += ORDERS_PAGE_SIZE;
+        hasMore = data.length === ORDERS_PAGE_SIZE;
+      }
+
+      return allOrders;
     },
     enabled: !!user,
   });
@@ -278,36 +296,35 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(t);
   }, [user]);
 
-  // Merge server and offline data with Vanguard Overlay System (v21)
+  // Merge server and offline data (optimizado con Map)
   const allOrders = useMemo(() => {
-    // 1. Process deletions and updates (Patches)
     const updates = pendingActions.filter(a => a.type === 'update_order');
     const deletions = new Set(pendingActions.filter(a => a.type === 'delete_order').map(a => a.payload.id));
 
-    // 2. Apply patches to server orders
-    const patchedServerOrders = orders
-      .filter(o => !deletions.has(o.id)) // Real-time deletion resilience
-      .map(o => {
-        const action = updates.find(a => a.payload.id === o.id);
-        if (action) {
-           const patches = mapOrderFromDB(action.payload);
-           return { ...o, ...patches, isOfflinePending: true };
-        }
-        return o;
-      });
+    // Map de órdenes por ID para O(1) lookup
+    const ordersMap = new Map(orders.map(o => [o.id, o]));
 
-    // 3. Process new creations (avoid duplicates)
+    // Aplicar patches
+    for (const action of updates) {
+      const existing = ordersMap.get(action.payload.id);
+      if (existing) {
+        const patches = mapOrderFromDB(action.payload);
+        ordersMap.set(action.payload.id, { ...existing, ...patches, isOfflinePending: true });
+      }
+    }
+
+    // Eliminar borradas
+    for (const id of deletions) {
+      ordersMap.delete(id);
+    }
+
+    const patchedServerOrders = Array.from(ordersMap.values());
     const serverCheckSet = new Set(patchedServerOrders.map(o => `${o.customerName}|${o.customerPhone}|${o.totalCost}`));
-    
+
     const pendingCreations = offlineOrders.filter(off => {
-      // 1. Check direct ID match (for updates that might have been processed as creations - safety)
-      if (patchedServerOrders.some(o => o.id === off.id)) return false;
-      
-      // 2. Check business match (highly likely for creations during sync lag)
+      if (ordersMap.has(off.id)) return false;
       const businessKey = `${off.customerName}|${off.customerPhone}|${off.totalCost}`;
-      if (serverCheckSet.has(businessKey)) return false;
-      
-      return true;
+      return !serverCheckSet.has(businessKey);
     });
 
     return [...pendingCreations, ...patchedServerOrders];
@@ -459,49 +476,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
            }
         }, 1500);
 
-          // 4. Schedule MILESTONES (24h, 12h, 6h) if it's an Order and NOT test
+          // 4. Schedule MILESTONES and expirations via extracted service
           const isQuote = newOrderPayload.recordType === 'cotizacion';
-          if (!isQuote && dbOrder.delivery_date && !orderData.isTest) {
-            const delivery = parseISO(dbOrder.delivery_date);
-            const milestones = [
-              { h: 24, label: '24 HORAS' },
-              { h: 12, label: '12 HORAS' },
-              { h: 6, label: '6 HORAS' }
-            ];
-  
-            for (const m of milestones) {
-              const fireAt = subHours(delivery, m.h);
-              if (fireAt > new Date()) {
-                await supabase.from('global_broadcast_queue').insert({
-                  fire_at: fireAt.toISOString(),
-                  title: `⏰ Recordatorio de Entrega - ${m.label}`,
-                  message: `La Orden #${orderId} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
-                  order_id: orderId,
-                  type: 'milestone'
-                });
-              }
-            }
-  
-            // 4.1 ADD BREACH CHECK AT EXACT DELIVERY TIME (0h)
-            await supabase.from('global_broadcast_queue').insert({
-              fire_at: delivery.toISOString(),
-              title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
-              message: `Verificando estado final de Orden #${orderId}`,
-              order_id: orderId,
-              type: 'breach_check'
-            });
+          if (!isQuote && dbOrder.delivery_date) {
+            await OrderMilestoneService.scheduleDeliveryMilestones(orderId, dbOrder.delivery_date, orderData.isTest);
           }
 
-          // v24: QUOTE EXPIRATION ALERT (Notify creator on expiration day)
-          if (isQuote && dbOrder.quote_expires_at && !orderData.isTest) {
-            const expiration = parseISO(dbOrder.quote_expires_at);
-            await supabase.from('global_broadcast_queue').insert({
-              fire_at: expiration.toISOString(),
-              title: `📅 Vencimiento de Cotización`,
-              message: `¡Hoy vence la Cotización #${orderId}! Accede al documento para renovar o contactar al cliente.`,
-              order_id: orderId,
-              type: 'expiration'
-            });
+          if (isQuote && dbOrder.quote_expires_at) {
+            await OrderMilestoneService.scheduleQuoteExpiration(orderId, dbOrder.quote_expires_at, orderData.isTest);
           }
 
         
@@ -654,37 +636,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             message: `📅 TRASLADO DE ENTREGA: La orden #${id} (${existingOrder.customerName}) se reprogramó para el ${newDate} por ${uName}.`
           });
 
-          // 2. Reschedule Background Alerts
-          const delivery = new Date(updates.deliveryDate);
-          if (delivery > new Date()) {
-            // Delete old ones
-            await supabase.from('global_broadcast_queue').delete().eq('order_id', id);
-            
-            const milestones = [
-              { h: 12, label: '12 HORAS' },
-              { h: 6, label: '6 HORAS' }
-            ];
-  
-            for (const m of milestones) {
-              const fireAt = subHours(delivery, m.h);
-              if (fireAt > new Date()) {
-                await supabase.from('global_broadcast_queue').insert({
-                  fire_at: fireAt.toISOString(),
-                  title: `⏰ Recordatorio de Entrega - ${m.label}`,
-                  message: `La Orden #${id} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
-                  order_id: id,
-                  type: 'milestone'
-                });
-              }
-            }
-  
-            await supabase.from('global_broadcast_queue').insert({
-              fire_at: delivery.toISOString(),
-              title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
-              message: `Verificando estado final de Orden #${id}`,
-              order_id: id,
-              type: 'breach_check'
-            });
+          // 2. Reschedule Background Alerts via extracted service
+          if (updates.deliveryDate) {
+            await OrderMilestoneService.rescheduleOnDateChange(id, updates.deliveryDate);
           }
         }
       } else {
@@ -871,36 +825,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         message: `🚀 ✅ CONVERSIÓN EXITOSA: La cotización #${id.slice(-6).toUpperCase()} fue convertida en ORDEN OFICIAL por ${uName}. ¡Un nuevo servicio en marcha!`
       });
 
-      // Auditoría P-1: Programar hitos para la nueva orden convertida si tiene fecha de entrega
+      // Auditoría P-1: Programar hitos via extracted service
       const orderData = (queryClient.getQueryData(['orders']) as ServiceOrder[])?.find(o => o.id === id);
       if (orderData?.deliveryDate) {
-        const delivery = parseISO(orderData.deliveryDate);
-        const milestones = [
-          { h: 24, label: '24 HORAS' },
-          { h: 12, label: '12 HORAS' },
-          { h: 6, label: '6 HORAS' }
-        ];
-
-        for (const m of milestones) {
-          const fireAt = subHours(delivery, m.h);
-          if (fireAt > new Date()) {
-            await supabase.from('global_broadcast_queue').insert({
-              fire_at: fireAt.toISOString(),
-              title: `⏰ Recordatorio de Entrega - ${m.label}`,
-              message: `La Orden #${id} vence en ${m.h} horas. Favor verificar el estado del servicio.`,
-              order_id: id,
-              type: 'milestone'
-            });
-          }
-        }
-
-        await supabase.from('global_broadcast_queue').insert({
-          fire_at: delivery.toISOString(),
-          title: `🚩 VERIFICACIÓN DE INCUMPLIMIENTO`,
-          message: `Verificando estado final de Orden #${id}`,
-          order_id: id,
-          type: 'breach_check'
-        });
+        await OrderMilestoneService.scheduleDeliveryMilestones(id, orderData.deliveryDate, false);
       }
     }
     queryClient.invalidateQueries({ queryKey: ['orders'] });

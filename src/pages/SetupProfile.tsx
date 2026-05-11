@@ -77,7 +77,7 @@ export default function SetupProfile() {
 
     try {
       const { data: { session } } = await (supabase as any).auth.getSession();
-      if (!session && !user?.isBypass) {
+      if (!session) {
         throw new Error('Tu sesión ha expirado o no es válida. Por favor, inicia sesión de nuevo.');
       }
 

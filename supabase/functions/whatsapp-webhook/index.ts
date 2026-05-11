@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Configuración de entorno (Renombradas para evitar el prefijo reservado 'SUPABASE_')
 const SB_URL = Deno.env.get('ANTIGRAVITY_SB_URL') || '';
 const SB_SERVICE_ROLE_KEY = Deno.env.get('ANTIGRAVITY_SB_SERVICE_ROLE') || '';
 const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || 'antigravity_token_2024';
@@ -14,14 +13,13 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Manejo de Preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   const url = new URL(req.url);
 
-  // 1. Verificación del Webhook (GET) solicitado por Meta
+  // 1. Webhook Verification (GET) — required by Meta
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
@@ -40,11 +38,10 @@ serve(async (req) => {
     }
   }
 
-  // 2. Recepción de Mensajes (POST)
+  // 2. Message Reception (POST)
   try {
     const body = await req.json();
     
-    // Log del payload para调试 (Importante durante pruebas)
     console.log("Notificación de Meta recibida:", JSON.stringify(body, null, 2));
 
     const entry = body.entry?.[0];
@@ -53,24 +50,21 @@ serve(async (req) => {
     const message = value?.messages?.[0];
 
     if (message) {
-      const from = message.from; // Número formateado por Meta (ej: 573012475155)
+      const from = message.from;
       const text = message.text?.body || "[Mensaje no textual o multimedia]";
       const whatsappMessageId = message.id;
 
       console.log(`Mensaje de ${from}: ${text}`);
 
-      // Normalización para búsqueda: últimos 10 dígitos (estándar Colombia/Móvil)
       const normalizedPhone = from.slice(-10);
 
-      // Intentar vincular con la orden activa más reciente de este número
-      // El cliente prefiere agrupar por "orden específica".
-      // Nota: Si el cliente tiene múltiples órdenes, se asocia a la última creada que no esté completada o cancelada.
+      // FIXED: Usar customer_phone (snake_case) que es el nombre real de la columna en Supabase
       const { data: order, error: searchError } = await supabase
         .from('service_orders')
-        .select('id, customerName')
-        .or(`customerPhone.ilike.%${normalizedPhone}`)
+        .select('id, customer_name')
+        .or(`customer_phone.ilike.%${normalizedPhone}`)
         .not('status', 'in', '("completada", "cancelada")')
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -78,7 +72,6 @@ serve(async (req) => {
 
       const orderId = order?.id || null;
 
-      // Guardar en la tabla de historial de chat
       const { error: insertError } = await supabase
         .from('whatsapp_messages')
         .insert({
@@ -97,8 +90,6 @@ serve(async (req) => {
       } else {
         console.log(`Mensaje guardado y vinculado a orden: ${orderId || 'Ninguna (Huérfano)'}`);
       }
-      
-      // Opcional: Podríamos emitir una notificación en tiempo real vía Realtime/Websockets aquí
     }
 
     return new Response(JSON.stringify({ status: "processed" }), { 

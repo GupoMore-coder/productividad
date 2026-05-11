@@ -17,6 +17,9 @@ jspm_packages/
 dist/
 dev-dist/
 
+# Migration script (contains connection strings)
+migrate.cjs
+
 # Env
 .env
 .env.local

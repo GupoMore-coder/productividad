@@ -36,8 +36,8 @@ export function usePushNotifications() {
       console.warn('❌ [Push] PushManager no está soportado en este navegador.');
       return;
     }
-    if (!isSupabaseConfigured || !user?.id || user?.isBypass) {
-      console.warn('❌ [Push] Faltan credenciales, no hay usuario, o es modo Bypass (sin Auth real).');
+    if (!isSupabaseConfigured || !user?.id) {
+      console.warn('❌ [Push] Faltan credenciales o no hay usuario.');
       return;
     }
 

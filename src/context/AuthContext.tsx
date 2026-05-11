@@ -19,7 +19,6 @@ interface AuthUser {
   isConsultant: boolean;
   isColaborador: boolean;
   isSuperAdmin: boolean;
-  isBypass?: boolean;
   sandboxExpiry?: string;
   needsSetup: boolean;
   emergency_name?: string;
@@ -80,8 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Error fetching profile:', error);
         }
 
-        // Detect master admin by multiple signals (bypass flag, email, or DB role)
-        const isBypassUser = authUser.isBypass === true;
+        // Detect master admin by DB role
         const isMasterEmail = (authUser.email || profile?.email || '').toLowerCase() === 'fernando830609@gmail.com';
         
         const role = profile?.role || authUser.role || (isMasterEmail ? 'Administrador maestro' : 'Colaborador');
@@ -96,8 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Admin maestro (Fernando) and ONLY Fernando is considered isSuperAdmin for global visibility.
         const isSuper = profile?.is_super_admin || isMaster || false;
 
-        // Master admin and bypass users NEVER need setup
-        const forceSkipSetup = isMaster || isBypassUser || isMasterEmail;
+        // Master admin NEVER needs setup
+        const forceSkipSetup = isMaster || isMasterEmail;
 
         setUser({
           ...authUser,
@@ -116,12 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } catch (err) {
         console.error('Auth sync error:', err);
-        // Even on total failure, preserve bypass user's admin status
-        if (authUser.isBypass || (authUser.email || '').toLowerCase() === 'fernando830609@gmail.com') {
-          setUser({ ...authUser, needsSetup: false, isMaster: true, isSuperAdmin: true });
-        } else {
-          setUser(authUser);
-        }
+        setUser(authUser);
       } finally {
         setLoading(false);
       }
@@ -133,20 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // 1. Try to restore Master Bypass first (Highest Priority)
-      const savedBypass = localStorage.getItem('antigravity_master_bypass');
-      if (savedBypass) {
-        try {
-          const parsed = JSON.parse(savedBypass);
-          await fetchProfileAndSetUser(parsed);
-          return;
-        } catch (e) {
-          console.error('Error restoring bypass:', e);
-          localStorage.removeItem('antigravity_master_bypass');
-        }
-      }
-
-      // 2. Try to get session from Supabase
+      // 1. Try to get session from Supabase
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -180,128 +160,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
-    const isFernando = email.trim().toLowerCase() === 'fernando830609@gmail.com';
-    const isBypassPass = pass === 'admin';
-
-    if (isFernando && isBypassPass) {
-      let profile = null;
-      if (isSupabaseConfigured) {
-        const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
-        profile = result.data;
-        if (profile && profile.bypass_allowed === false) {
-          throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
-        }
-      }
-
-      const masterUser = { 
-        ...profile,
-        id: profile?.id || 'admin-master-local',
-        email: profile?.email || email, 
-        user_metadata: { 
-          fullName: profile?.full_name || 'Fernando Marulanda', 
-          username: 'fernando',
-          avatar: profile?.avatar 
-        },
-        role: 'Administrador maestro', 
-        isMaster: true,
-        isAdmin: true,
-        isAccountant: true,
-        isSupervisor: true,
-        isConsultant: true,
-        isColaborador: true,
-        isSuperAdmin: true,
-        bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true,
-        needsSetup: false,
-        username: 'fernando',
-        full_name: profile?.full_name || 'Fernando Marulanda',
-        avatar: profile?.avatar
-      };
-      
-      const sanitizedUser = { ...masterUser };
-      delete sanitizedUser.avatar;
-      
-      try {
-        localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-      } catch (e) {
-        console.warn('Quota error, clearing storage and retrying...', e);
-        localStorage.clear();
-        try {
-          localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-        } catch (retryErr) {
-          console.error('Final storage failure:', retryErr);
-        }
-      }
-
-      setUser(masterUser);
-      return { data: { user: masterUser }, error: null };
-    }
-
-    if (!isSupabaseConfigured) throw new Error('Supabase no configurado. Usa el acceso de administrador.');
+    if (!isSupabaseConfigured) throw new Error('Supabase no configurado.');
     const res = await supabase.auth.signInWithPassword({ email, password: pass });
     if (res.error) throw res.error;
     return res;
   };
 
   const signInWithUsername = async (username: string, pass: string) => {
-    const lowerUser = username.toLowerCase();
-    const isFernando = lowerUser === 'fernando';
-    const isBypassPass = pass === 'admin';
-
-    if (isFernando && isBypassPass) {
-      let profile = null;
-      if (isSupabaseConfigured) {
-        const result = await supabase.from('profiles').select('*').ilike('username', 'fernando').single();
-        profile = result.data;
-        if (profile && profile.bypass_allowed === false) {
-          throw new Error('El acceso por bypass ha sido desactivado por seguridad. Por favor, usa tu contraseña personal de Supabase.');
-        }
-      }
-      const masterUser = { 
-        ...profile,
-        id: profile?.id || 'admin-master-local',
-        email: profile?.email || 'fernando830609@gmail.com',
-        user_metadata: { 
-          fullName: profile?.full_name || 'Fernando Marulanda', 
-          username: 'fernando',
-          avatar: profile?.avatar
-        },
-        role: 'Administrador maestro', 
-        isMaster: true,
-        isAdmin: true,
-        isAccountant: true,
-        isSupervisor: true,
-        isConsultant: true,
-        isColaborador: true,
-        isSuperAdmin: true,
-        bypass_allowed: profile?.bypass_allowed ?? true,
-        isBypass: true,
-        needsSetup: false,
-        username: 'fernando',
-        full_name: profile?.full_name || 'Fernando Marulanda',
-        avatar: profile?.avatar
-      };
-      
-      const sanitizedUser = { ...masterUser };
-      delete sanitizedUser.avatar;
-      
-      try {
-        localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-      } catch (e) {
-        console.warn('Quota error, clearing storage and retrying...', e);
-        localStorage.clear();
-        try {
-          localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-        } catch (retryErr) {
-          console.error('Final storage failure:', retryErr);
-        }
-      }
-
-      setUser(masterUser);
-      return { data: { user: masterUser }, error: null };
-    }
-
-    if (!isSupabaseConfigured) throw new Error('Supabase no configurado. Solo el acceso de administrador está disponible en modo local.');
+    if (!isSupabaseConfigured) throw new Error('Supabase no configurado.');
     const { data, error } = await supabase.from('profiles').select('email').ilike('username', username).single();
     if (error || !data) throw new Error('Usuario no encontrado');
     
@@ -380,7 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       const { data: updated } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      setUser({ ...user, ...updated, isBypass: user.isBypass });
+      setUser({ ...user, ...updated });
 
     }
   };
@@ -393,7 +259,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    localStorage.removeItem('antigravity_master_bypass');
     localStorage.removeItem('fast_access_email');
     localStorage.removeItem('fast_access_pass');
     localStorage.removeItem('fast_access_enabled');
@@ -456,50 +321,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithBiometrics = async (userId: string) => {
     const { data: profile, error: pErr } = await supabase
       .from('profiles')
-      .select('email, bypass_allowed, full_name, avatar')
+      .select('email, full_name, avatar')
       .eq('id', userId)
       .single();
     
     if (pErr || !profile) throw new Error('Usuario vinculado no encontrado.');
-
-    if (profile.email === 'fernando830609@gmail.com' && profile.bypass_allowed !== false) {
-       const masterUser = { 
-         ...profile,
-         id: userId,
-         email: profile.email, 
-         user_metadata: { 
-           fullName: profile.full_name || 'Fernando Marulanda', 
-           username: 'fernando',
-           avatar: profile.avatar 
-         },
-         role: 'Administrador maestro', 
-         isMaster: true,
-         isAdmin: true,
-         isAccountant: true,
-         isSupervisor: true,
-         isConsultant: true,
-         isColaborador: true,
-         isSuperAdmin: true,
-         isBypass: true,
-         full_name: profile.full_name || 'Fernando Marulanda',
-         avatar: profile.avatar
-       };
-       const sanitizedUser = { ...masterUser };
-       delete sanitizedUser.avatar;
-       try {
-         localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-       } catch (e) {
-         console.warn('Quota error, clearing storage and retrying...', e);
-         localStorage.clear();
-         try {
-           localStorage.setItem('antigravity_master_bypass', JSON.stringify(sanitizedUser));
-         } catch (retryErr) {
-           console.error('Final storage failure:', retryErr);
-         }
-       }
-       setUser(masterUser);
-       return { data: { user: masterUser }, error: null };
-    }
 
     const savedPass = localStorage.getItem(`antigravity_bio_pass_${userId}`);
     if (!savedPass) {
