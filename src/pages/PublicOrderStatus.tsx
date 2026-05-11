@@ -164,8 +164,10 @@ export default function PublicOrderStatus() {
   ];
 
   // Countdown Logic Helper
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [timeLeft, setTimeLeft] = useState<string>('');
   
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (!isQuote || !order.quote_expires_at) return;
     

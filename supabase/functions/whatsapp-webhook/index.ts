@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SB_URL = Deno.env.get('ANTIGRAVITY_SB_URL') || '';
-const SB_SERVICE_ROLE_KEY = Deno.env.get('ANTIGRAVITY_SB_SERVICE_ROLE') || '';
-const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || 'antigravity_token_2024';
+const SB_URL = Deno.env.get('SUPABASE_URL') || '';
+const SB_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const VERIFY_TOKEN = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || 'antigravity_secure_token_2026';
 
 const supabase = createClient(SB_URL, SB_SERVICE_ROLE_KEY);
 

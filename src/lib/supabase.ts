@@ -20,8 +20,8 @@ if (!isSupabaseConfigured) {
 
 // Cliente Supabase: usa valores reales si están configurados, si no usa placeholders seguros
 export const supabase = createClient(
-  supabaseUrl || 'https://grsaehpmaihrztusehkb.supabase.co',
-  supabaseAnonKey || 'local-demo-mode-no-network-calls'
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
 );
 
 /**

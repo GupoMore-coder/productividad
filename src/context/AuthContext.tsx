@@ -41,6 +41,7 @@ interface AuthContextType {
   extendSandbox: (userId: string, days: number) => Promise<void>;
   deleteUserSandbox: (userId: string) => Promise<void>;
   signInWithBiometrics: (userId: string) => Promise<any>;
+  linkBiometric: (userId: string, password: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -321,7 +322,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithBiometrics = async (userId: string) => {
     const { data: profile, error: pErr } = await supabase
       .from('profiles')
-      .select('email, full_name, avatar')
+      .select('email')
       .eq('id', userId)
       .single();
     
@@ -341,11 +342,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { data, error: null };
   };
 
+  const linkBiometric = async (userId: string, password: string) => {
+    localStorage.setItem(`antigravity_bio_pass_${userId}`, password);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, loading, signInWithEmail, signInWithUsername, signUp, 
       updateProfile, updatePassword, signOut, isFirstUser,
-      extendSandbox, deleteUserSandbox, signInWithBiometrics 
+      extendSandbox, deleteUserSandbox, signInWithBiometrics, linkBiometric 
     }}>
       {children}
     </AuthContext.Provider>

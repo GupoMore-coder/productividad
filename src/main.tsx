@@ -24,13 +24,15 @@ window.addEventListener('error', (e) => {
   }
 }, true);
 
-// Rutina secreta de limpieza global (una sola vez por versión)
-if (!localStorage.getItem('app_reset_v4')) {
-  localStorage.clear();
-  sessionStorage.clear();
-  localStorage.setItem('app_reset_v4', 'true');
-  console.log('App Factory Reset V4 Completo.');
-  window.location.reload();
+// Rutina de limpieza de cache de Service Worker (una sola vez por version)
+if (!localStorage.getItem('sw_cache_cleared_v5')) {
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      names.forEach(name => caches.delete(name));
+    });
+  }
+  localStorage.setItem('sw_cache_cleared_v5', 'true');
+  console.log('SW Cache清洁完毕 v5.');
 }
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {

@@ -10,8 +10,6 @@ interface ImageGalleryModalProps {
 
 export default function ImageZoomModal({ photos, initialIndex, onClose }: ImageGalleryModalProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  
-  if (!photos || photos.length === 0) return null;
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -31,7 +29,9 @@ export default function ImageZoomModal({ photos, initialIndex, onClose }: ImageG
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [photos.length]);
+  }, [onClose, handleNext, handlePrev]);
+
+  if (!photos || photos.length === 0) return null;
 
   return (
     <motion.div 

@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { triggerHaptic } from '../utils/haptics';
 
 export default function Login() {
-  const { user, signInWithEmail, signInWithUsername, signInWithBiometrics } = useAuth();
+  const { user, signInWithEmail, signInWithUsername, signInWithBiometrics, linkBiometric } = useAuth();
   const location = useLocation();
   const showWelcome = location.state?.welcome;
   
@@ -39,20 +39,17 @@ export default function Login() {
     }
     
     try {
+      let userId: string | undefined;
       if (identifier.includes('@')) {
         const { data, error: authError } = await signInWithEmail(identifier, password);
         if (authError) throw authError;
-        
-        // v11: Inicializar sesión biométrica vinculando el dispositivo tras login exitoso
-        if (data?.user?.id) {
-          localStorage.setItem(`antigravity_bio_pass_${data.user.id}`, password);
-        }
+        userId = data?.user?.id;
       } else {
         const { data } = await signInWithUsername(identifier, password);
-        if (data?.user?.id) {
-          localStorage.setItem(`antigravity_bio_pass_${data.user.id}`, password);
-        }
+        if (data?.error) throw data.error;
+        userId = data?.user?.id;
       }
+      if (userId) linkBiometric(userId, password);
       triggerHaptic('success');
     } catch (err: any) {
       triggerHaptic('error');
@@ -74,7 +71,7 @@ export default function Login() {
         triggerHaptic('success');
         
         // 2. Perform real login with the identified userId
-        const { error: signInError } = await signInWithBiometrics(authResult.userId);
+        const { error: signInError } = await signInWithBiometrics(authResult.userId!);
         
         if (signInError) throw signInError;
       } else if (authResult === null) {

@@ -205,7 +205,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Replace emojis and symbols with standard text equivalents or just remove them
     return text
       .replace(/📅|⏰|🚨|✨|🔄|✅|📋|🚩/g, '') // Common emojis used in logs
-      .replace(/[^\x00-\x7F\sÁÉÍÓÚáéíóúÑñÜü]/g, '') // Strip other non-standard chars
+      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü\s]/g, '') // Strip control characters and non-standard
       .replace(/\s+/g, ' ')
       .trim();
   };

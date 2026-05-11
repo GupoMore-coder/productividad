@@ -1,5 +1,5 @@
-import { WHATSAPP_CONFIG } from '../config/whatsapp';
-import { supabase } from '../lib/supabase';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export interface WhatsAppMessageData {
   customerName: string;
@@ -10,6 +10,21 @@ export interface WhatsAppMessageData {
 }
 
 export class WhatsAppService {
+  private static async callEdgeFunction(functionName: string, body: object) {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error?.message || 'Error en Edge Function');
+    return result;
+  }
+
   /**
    * Genera un enlace de WhatsApp Directo (wa.me) como respaldo.
    */
@@ -23,7 +38,7 @@ export class WhatsAppService {
   }
 
   /**
-   * Envía una notificación oficial utilizando la API de Meta Graph con parámetros dinámicos.
+   * Envía una notificación oficial vía Edge Function (no expone tokens al cliente).
    */
   static async sendOfficialNotification(
     phone: string, 
@@ -32,64 +47,18 @@ export class WhatsAppService {
     orderId?: string
   ) {
     const cleanPhone = phone.replace(/\D/g, '');
-    const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}/messages`;
-
-    const components = [
-      {
-        type: 'body',
-        parameters: parameters.map(value => ({
-          type: 'text',
-          text: value
-        }))
-      }
-    ];
-
-    const body = {
-      messaging_product: 'whatsapp',
-      to: cleanPhone,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: { code: 'es' },
-        components
-      }
-    };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${WHATSAPP_CONFIG.ACCESS_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
+      const result = await this.callEdgeFunction('whatsapp-send-message', {
+        phone: cleanPhone,
+        templateName,
+        parameters,
+        orderId,
       });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error?.message || 'Error al enviar mensaje');
-
-      // Registro automático en el historial de Supabase para visibilidad de chat
-      if (orderId) {
-        try {
-          await supabase.from('whatsapp_messages').insert({
-            order_id: orderId,
-            customer_phone: cleanPhone,
-            message_text: `🔔 Plantilla Envida: ${templateName}\n📄 Params: ${parameters.join(' | ')}`,
-            direction: 'outbound',
-            metadata: { 
-              meta_message_id: result.messages?.[0]?.id,
-              template: templateName,
-              params: parameters
-            }
-          });
-        } catch (dbError) {
-          console.error('Error al guardar en historial WhatsApp:', dbError);
-        }
-      }
 
       return result;
     } catch (error) {
-      console.error('WhatsApp API Error:', error);
+      console.error('WhatsApp Service Error:', error);
       throw error;
     }
   }

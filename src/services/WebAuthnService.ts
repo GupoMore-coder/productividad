@@ -4,74 +4,67 @@ import {
 } from '@simplewebauthn/browser';
 import { supabase } from '../lib/supabase';
 
-/**
- * v13: Vanguard Biometrics Service (Elite Passkey Flow)
- * Now supports "Discoverable Credentials" (Login without entering username).
- * Optimized for maximum mobile frictionless access under Antigravity standards.
- */
 export class WebAuthnService {
-  /**
-   * Registers a new biometric credential for the current user.
-   * Sets up "Resident Keys" for Zero-Click login.
-   */
-  static async registerDevice(user: any): Promise<void> {
+  private static generateChallenge(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode.apply(null, Array.from(array)));
+  }
+
+  static async registerDevice(user: { id: string; username?: string; email?: string; full_name?: string }): Promise<void> {
     if (!user) throw new Error('Usuario no autenticado');
 
-    // 1. Prepare options for a Resident Key (Passkey)
-    const options: any = {
-      challenge: btoa(Math.random().toString(36) + Date.now()),
-      rp: { name: 'Antigravity | More Paper & Design', id: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname },
+    const challenge = this.generateChallenge();
+    const rpId = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
+
+    const options = {
+      challenge,
+      rp: { name: 'Antigravity | More Paper & Design', id: rpId },
       user: {
-        id: btoa(user.id), // Vital: The userHandle
-        name: user.username || user.email,
-        displayName: user.full_name || user.username,
+        id: btoa(user.id),
+        name: user.username || user.email || 'user',
+        displayName: user.full_name || user.username || 'Usuario',
       },
       pubKeyCredParams: [
-        { alg: -7, type: 'public-key' },  // ES256
-        { alg: -257, type: 'public-key' } // RS256
+        { alg: -7, type: 'public-key' as const },
+        { alg: -257, type: 'public-key' as const }
       ],
       authenticatorSelection: { 
-        userVerification: 'required', 
-        residentKey: 'required',
+        userVerification: 'required' as const, 
+        residentKey: 'required' as const,
         requireResidentKey: true
       },
-      attestation: 'none',
+      attestation: 'none' as const,
       timeout: 60000,
     };
 
     try {
       const regResp = await startRegistration(options);
       
-      // 2. Store the public credential in Supabase
       const { error } = await supabase.from('user_credentials').insert({
         user_id: user.id,
         credential_id: regResp.id,
         public_key: btoa(JSON.stringify(regResp.response)),
-        device_type: navigator.userAgent,
+        device_type: navigator.userAgent.substring(0, 255),
         counter: 0
       });
 
       if (error) throw error;
       
-      // 3. Mark locally to identify this device
       localStorage.setItem(`antigravity_passkey_linked_${user.id}`, 'true');
       localStorage.setItem('antigravity_last_user_id', user.id);
     } catch (err) {
-      console.error('⚠️ [Vanguard] Error en registro biométrico:', err);
+      console.error('Error en registro biométrico:', err);
       throw err;
     }
   }
 
-  /**
-   * Authenticates using a previously registered biometric credential.
-   * Supports "Discoverable" flow if identifier is not provided.
-   */
-  static async authenticate(identifier?: string): Promise<any> {
+  static async authenticate(identifier?: string): Promise<{ success: boolean; userId?: string; profile?: any; credentialId?: string } | null> {
+    const challenge = this.generateChallenge();
+    const rpId = window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname;
     let allowCredentials: any[] | undefined = undefined;
 
-    // 1. If identifier is provided, fetch specific credentials first as an optimization
     if (identifier) {
-      // Find userId first
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -94,12 +87,11 @@ export class WebAuthnService {
       }
     }
 
-    // 2. Authenticate
-    const options: any = {
-      challenge: btoa(Math.random().toString(36) + Date.now()),
-      rpId: window.location.hostname === 'localhost' ? 'localhost' : window.location.hostname,
-      allowCredentials, // If undefined, it triggers "Discoverable Credential" (Passkey) flow
-      userVerification: 'required',
+    const options = {
+      challenge,
+      rpId,
+      allowCredentials,
+      userVerification: 'required' as const,
       timeout: 60000,
     };
 
@@ -107,14 +99,11 @@ export class WebAuthnService {
       const authResp = await startAuthentication(options);
       if (!authResp) return null;
 
-      // 3. Determine which user this belongs to
       let userId: string | null = null;
       
-      // The browser returns the userHandle in authResp.response.userHandle
       if (authResp.response.userHandle) {
         userId = atob(authResp.response.userHandle);
       } else {
-        // Fallback: search DB for this credential ID
         const { data: cred } = await supabase
           .from('user_credentials')
           .select('user_id')
@@ -125,7 +114,6 @@ export class WebAuthnService {
 
       if (!userId) throw new Error('No se pudo identificar al usuario vinculado con esta credencial.');
 
-      // 4. Fetch the full profile for the final login
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
       
       return { 
@@ -135,8 +123,8 @@ export class WebAuthnService {
         credentialId: authResp.id 
       };
     } catch (err: any) {
-      if (err.name === 'NotAllowedError') return null; // User cancelled
-      console.error('⚠️ [Vanguard] Error en autenticación biométrica:', err);
+      if (err.name === 'NotAllowedError') return null;
+      console.error('Error en autenticación biométrica:', err);
       throw err;
     }
   }

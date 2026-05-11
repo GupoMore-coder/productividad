@@ -294,6 +294,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       default: return [];
     }
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       let next: Date;
       switch(baseTask.recurrence) {

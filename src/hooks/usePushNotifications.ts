@@ -103,7 +103,11 @@ export function usePushNotifications() {
       }
 
       console.log('⏳ [Push] Solicitando nueva suscripción al navegador...');
-      const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BEEJYZHe9vtvzXj6Jl1+/FC5gC/X6zlh8vz7bmIoWyW8/zfBEY2tDOIQTv4auPLyYSjwoKSnoa4XgzKRFqXMPjjA==';
+      const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!publicVapidKey) {
+        console.error('❌ [Push] VITE_VAPID_PUBLIC_KEY no está configurado.');
+        return;
+      }
       const convertedKey = urlBase64ToUint8Array(publicVapidKey);
       
       const subscription = await registration.pushManager.subscribe({
