@@ -59,26 +59,50 @@ export function getNotificationPermissionStatus(): 'default' | 'granted' | 'deni
 /**
  * Persists alarm entries in IndexedDB for all future reminder slots
  * defined by the task's priority level.
+ *
+ * Para recordatorios (type='reminder') la alarma se programa a las 7:00 AM
+ * hora Colombia (GMT-5) del día del evento, a menos que tenga una hora específica configurada.
  */
 export async function scheduleTaskNotifications(task: Task): Promise<void> {
   if (!hasNotificationPermission() || task.completed) return;
 
-  // Remove stale alarms for this task before re-scheduling
   await deleteAlarmsByTaskId(task.id);
 
-  const taskDateTime = new Date(`${task.date}T${task.time}:00`).getTime();
-  
-  // v2.2: Specific offsets for Reminders (24h, 12h, 2h)
   const isReminder = task.type === 'reminder';
-  const offsets = isReminder ? [24, 12, 2] : OFFSETS_BY_PRIORITY[task.priority];
-  
+
+  if (isReminder) {
+    const [hours, minutes] = (task.time && task.time !== '00:00')
+      ? task.time.split(':').map(Number)
+      : [7, 0];
+
+    const fireAt = new Date(`${task.date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00-05:00`).getTime();
+
+    if (fireAt <= Date.now()) return;
+
+    const isMuted = task.is_muted || false;
+
+    await saveAlarm({
+      id: `${task.id}-reminder`,
+      taskId: task.id,
+      taskTitle: task.title,
+      priority: task.priority,
+      fireAt,
+      body: `🔔 Recordatorio: "${task.title}"${task.time && task.time !== '00:00' ? ` a las ${task.time}` : ' (7:00 AM)'}`,
+      fired: false,
+      isMuted,
+    });
+    return;
+  }
+
+  // Regular task: offset-based scheduling
+  const taskDateTime = new Date(`${task.date}T${task.time}:00`).getTime();
+  const offsets = OFFSETS_BY_PRIORITY[task.priority];
   const now = Date.now();
 
   for (const hours of offsets) {
     const fireAt = taskDateTime - hours * 3_600_000;
-    if (fireAt <= now) continue; // Skip past reminders
+    if (fireAt <= now) continue;
 
-    // Check if THIS specific offset is muted, or the whole task is muted
     const isSpecificMuted = (task.muted_alarms || []).includes(offsets.indexOf(hours));
     const isMuted = task.is_muted || isSpecificMuted;
 

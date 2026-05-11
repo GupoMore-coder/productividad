@@ -2,6 +2,9 @@
 // sw.ts — Custom Service Worker for Productividad GrupoMore PWA.
 // Built by vite-plugin-pwa (injectManifest strategy).
 // Handles: precaching, background sync, alarm checks, notification clicks.
+//
+// Las alarmas se verifican periódicamente incluso con la pantalla bloqueada
+// o la aplicación en segundo plano.
 // ============================================================
 /// <reference no-default-lib="true"/>
 /// <reference lib="esnext" />
@@ -17,43 +20,32 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
 };
 
-// Take control immediately on update
 self.skipWaiting();
 clientsClaim();
 
-// Precache all assets from the Vite build
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 // ── Background Sync ──────────────────────────────────────────
-// Retries failed Supabase requests (POST/PATCH/DELETE) when connection returns
-// This ensures that updates made while offline are eventually synced to the server.
-
 const bgSyncPlugin = new BackgroundSyncPlugin('supabase-queue', {
-  maxRetentionTime: 24 * 60, // Retry for max 24 hours
+  maxRetentionTime: 24 * 60,
 });
 
 registerRoute(
   ({ url }) => url.pathname.startsWith('/rest/v1/'),
-  new NetworkOnly({
-    plugins: [bgSyncPlugin],
-  }),
+  new NetworkOnly({ plugins: [bgSyncPlugin] }),
   'POST'
 );
 
 registerRoute(
   ({ url }) => url.pathname.startsWith('/rest/v1/'),
-  new NetworkOnly({
-    plugins: [bgSyncPlugin],
-  }),
+  new NetworkOnly({ plugins: [bgSyncPlugin] }),
   'PATCH'
 );
 
 registerRoute(
   ({ url }) => url.pathname.startsWith('/rest/v1/'),
-  new NetworkOnly({
-    plugins: [bgSyncPlugin],
-  }),
+  new NetworkOnly({ plugins: [bgSyncPlugin] }),
   'DELETE'
 );
 
@@ -66,6 +58,7 @@ interface Alarm {
   fireAt: number;
   body: string;
   fired: boolean;
+  isMuted?: boolean;
 }
 
 const DB_NAME = 'familia-agenda-db';
@@ -103,6 +96,17 @@ async function markFiredInDB(db: IDBDatabase, alarm: Alarm): Promise<void> {
   });
 }
 
+async function markFiredInDBByAlarmId(alarmId: string): Promise<void> {
+  try {
+    const db = await openAlarmDB();
+    const alarms = await getAllAlarms(db);
+    const alarm = alarms.find(a => a.id === alarmId);
+    if (alarm) await markFiredInDB(db, alarm);
+  } catch (err) {
+    console.error('[SW] markFiredInDBByAlarmId error:', err);
+  }
+}
+
 // ── Core: check & fire due alarms ────────────────────────────
 
 let isCheckingAlarms = false;
@@ -110,37 +114,33 @@ let isCheckingAlarms = false;
 async function checkAndFireAlarms(): Promise<void> {
   if (isCheckingAlarms) return;
   isCheckingAlarms = true;
-  
+
   try {
     const db = await openAlarmDB();
     const alarms = await getAllAlarms(db);
     const now = Date.now();
-    const dueAlarms = alarms.filter((a: any) => !a.fired && a.fireAt <= now);
+    const dueAlarms = alarms.filter(a => !a.fired && a.fireAt <= now);
 
     if (dueAlarms.length > 0) {
-      const clients = await (self as any).clients.matchAll();
-
       for (const alarm of dueAlarms) {
-        // Respect mute if stored in the alarm data or fetched
         const isMuted = !!alarm.isMuted;
-        
-        await (self as any).registration.showNotification(alarm.taskTitle, {
+
+        await self.registration.showNotification(alarm.taskTitle, {
           body: alarm.body,
           icon: '/pwa-192x192.png',
           badge: '/pwa-192x192.png',
-          vibrate: isMuted ? [] : [100, 50, 100],
-          data: { taskId: alarm.taskId },
+          vibrate: isMuted ? [] : [300, 100, 300],
           silent: isMuted,
           requireInteraction: true,
-          tag: alarm.id
+          tag: alarm.id,
+          data: { taskId: alarm.taskId },
         });
 
-        // Mark as fired in the DB
         await markFiredInDB(db, alarm);
       }
-      
-      // Notify clients to refresh UI
-      clients.forEach((client: any) => {
+
+      const clients = await self.clients.matchAll();
+      clients.forEach(client => {
         client.postMessage({ type: 'ALARMS_UPDATED' });
       });
     }
@@ -151,20 +151,61 @@ async function checkAndFireAlarms(): Promise<void> {
   }
 }
 
+// ── Periodic alarm checker (cada 15 segundos) ─────────────────
+// Se ejecuta mientras el SW esté vivo: cubre background y screen locked.
+// El navegador mantiene el SW activo mientras tenga timers pendientes
+// y notificaciones visibles.
+const ALARM_CHECK_INTERVAL = 15_000;
+
+let alarmIntervalId: ReturnType<typeof setInterval> | null = null;
+
+function startPeriodicAlarmCheck(): void {
+  if (alarmIntervalId !== null) return;
+  checkAndFireAlarms();
+  alarmIntervalId = setInterval(checkAndFireAlarms, ALARM_CHECK_INTERVAL);
+}
+
+function stopPeriodicAlarmCheck(): void {
+  if (alarmIntervalId !== null) {
+    clearInterval(alarmIntervalId);
+    alarmIntervalId = null;
+  }
+}
+
 // ── Service Worker event listeners ───────────────────────────
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(checkAndFireAlarms());
+  event.waitUntil((async () => {
+    await checkAndFireAlarms();
+    startPeriodicAlarmCheck();
+  })());
 });
 
 self.addEventListener('message', (event) => {
-  if ((event as MessageEvent).data?.type === 'CHECK_ALARMS') {
+  const msg = (event as MessageEvent).data;
+  if (msg?.type === 'CHECK_ALARMS') {
     checkAndFireAlarms();
+    startPeriodicAlarmCheck();
+  } else if (msg?.type === 'STOP_ALARM_CHECK') {
+    stopPeriodicAlarmCheck();
+  }
+});
+
+// Mantener el SW vivo cuando se recibe un sync
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'check-alarms') {
+    event.waitUntil(checkAndFireAlarms());
   }
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  const alarmId = event.notification.tag;
+  if (alarmId) {
+    markFiredInDBByAlarmId(alarmId);
+  }
+
   const url: string = (event.notification.data?.url as string) ?? '/';
 
   event.waitUntil(
@@ -180,7 +221,6 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ── Generic Push API Listener ────────────────────────────────
-// Handles incoming push messages even when the app is closed.
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -205,7 +245,6 @@ self.addEventListener('push', (event) => {
     );
   } catch (err) {
     console.error('[SW] Push error:', err);
-    // Fallback if not JSON
     event.waitUntil(
       self.registration.showNotification('Antigravity', {
         body: event.data.text(),
