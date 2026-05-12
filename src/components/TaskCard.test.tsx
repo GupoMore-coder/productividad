@@ -59,7 +59,7 @@ describe('TaskCard Component', () => {
       priority: 'media',
       completed: false,
       isShared: false,
-      status: 'pending'
+      status: 'pending_acceptance'
     };
     const { container } = render(<TaskCard task={minimalTask} />);
     expect(container).toBeTruthy();
