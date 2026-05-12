@@ -222,6 +222,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const saved = await mockStorage.getItem<ServiceOrder[]>('mock_orders');
         return saved || [];
       }
+      // eslint-disable-next-line prefer-const
       let allOrders: ServiceOrder[] = [];
       let hasMore = true;
       let offset = 0;
@@ -365,7 +366,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       return () => { supabase.removeChannel(channel); };
     }
-  }, [isSupabaseConfigured, queryClient]);
+  }, [queryClient]);
 
   // 1.1 Virtual Sequencing logic
   // 1.1 Virtual Sequencing logic
@@ -1514,4 +1515,5 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useOrders = () => useContext(OrderContext);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCircle2, ClipboardList, AlertTriangle } from 'lucide-react';
@@ -26,7 +26,7 @@ export default function UnifiedAlarmModal() {
     }
   });
 
-  const playAlarmSound = () => {
+  const playAlarmSound = useCallback(() => {
     if (!audioCtx) return;
     
     try {
@@ -64,7 +64,7 @@ export default function UnifiedAlarmModal() {
     } catch (err) {
       console.warn("[UnifiedAlarm] Audio failed:", err);
     }
-  };
+  }, [audioCtx]);
 
   useEffect(() => {
     const handleAlarm = (e: any) => {
@@ -97,7 +97,7 @@ export default function UnifiedAlarmModal() {
       window.removeEventListener('app:show-unified-alarm', handleAlarm);
       window.removeEventListener('click', unlockAudio);
     };
-  }, [audioCtx]);
+  }, [audioCtx, playAlarmSound]);
 
   const dismissCurrent = () => {
     triggerHaptic('light');

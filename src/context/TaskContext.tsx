@@ -193,7 +193,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .subscribe();
       return () => { supabase.removeChannel(channel).catch(console.error); };
     }
-  }, [isSupabaseConfigured, user?.id, queryClient]);
+  }, [user?.id, queryClient]);
 
   // 3. Mutations
   const addTaskMutation = useOfflineMutation(
@@ -462,7 +462,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 60000 - (new Date().getSeconds() * 1000 + new Date().getMilliseconds()));
 
     return () => clearTimeout(alignTimeout);
-  }, [tasks]);
+  }, [tasks, user?.id]);
 
   return (
     <TaskContext.Provider value={{ 
@@ -475,4 +475,5 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTasks = () => useContext(TaskContext);

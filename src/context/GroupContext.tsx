@@ -109,7 +109,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     return () => { window.removeEventListener('focus', handleFocus); };
-  }, [isSupabaseConfigured, user?.id]);
+  }, [user?.id]);
 
   // 2. Local Fallback Sync
   useEffect(() => {
@@ -117,7 +117,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('mock_groups', JSON.stringify(groups));
       localStorage.setItem('mock_memberships', JSON.stringify(memberships));
     }
-  }, [groups, memberships, isSupabaseConfigured]);
+  }, [groups, memberships]);
 
   const createGroup = async (name: string) => {
     if (!user) return;
@@ -437,4 +437,7 @@ export const GroupProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useGroups = () => useContext(GroupContext);
+// eslint-disable-next-line react-refresh/only-export-components
+export const useGroupsContext = () => useContext(GroupContext);

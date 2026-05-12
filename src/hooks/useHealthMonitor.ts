@@ -20,7 +20,7 @@ export const useHealthMonitor = (intervalMs = 30000) => {
     const checkHealth = async () => {
       const start = performance.now();
       let dbLatency = 0;
-      let isOnline = navigator.onLine;
+      const isOnline = navigator.onLine;
       
       try {
         // Ping Supabase (minimal check)

@@ -159,7 +159,7 @@ export default function Orders() {
       window.removeEventListener('update-order-field', handleUpdateField);
       window.removeEventListener('zoom-image', handleZoom);
     };
-  }, []);
+  }, [updateOrder]);
 
   // ── Quote expiration detector (runs every 60s) ──
   useEffect(() => {

@@ -112,7 +112,7 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
       }
     };
     if (isOpen) loadUsers();
-  }, [isOpen]);
+  }, [isOpen, fetchAllProfiles, user?.id]);
 
   useEffect(() => {
     if (isOpen) {

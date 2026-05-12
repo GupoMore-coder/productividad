@@ -122,7 +122,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = 'inicio'
 
   const isElevated = user?.isMaster || user?.role === 'Director General (CEO)' || user?.role === 'Gestor Administrativo' || user?.isAccountant || user?.isSupervisor;
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: 'inicio', label: 'Universo More', icon: Rocket, tag: 'Intro' },
     { id: 'agenda', label: 'Agenda Inteligente', icon: ClipboardList, tag: 'Core' },
     { id: 'ordenes', label: 'Órdenes & Finance', icon: Package, tag: 'Finanzas' },
@@ -131,7 +131,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = 'inicio'
     { id: 'seguridad', label: 'Seguridad Bio', icon: ShieldCheck, tag: 'Bio' },
     { id: 'admin', label: 'Administración', icon: Crown, hidden: !user?.isMaster, tag: 'Master' },
     { id: 'ia', label: 'Asistencia IA', icon: Bot, tag: 'Smart' },
-  ];
+  ], [isElevated, user?.isMaster]);
 
   const filteredTabs = useMemo(() => {
     if (!search) return tabs;

@@ -36,6 +36,7 @@ export default function FamilyGroup() {
     inviteUser,
     acceptInvitation,
     rejectInvitation,
+    fetchAllProfiles,
     loading
   } = useGroups();
   
@@ -46,8 +47,6 @@ export default function FamilyGroup() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const { fetchAllProfiles } = useGroups();
 
   const myUserId = user?.id || 'unknown'; // Always use UUID, never email
 
@@ -78,7 +77,7 @@ export default function FamilyGroup() {
       window.removeEventListener('open-create-group', handleOpen);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [fetchAllProfiles]);
 
 
   const myInvitations = useMemo(() => {

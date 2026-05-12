@@ -186,7 +186,7 @@ export default function Tasks() {
       setBirthdayAlerts(newAlerts);
     }
     checkBirthdays();
-  }, [supabase, user?.id, isSupabaseConfigured]);
+  }, [user?.id]);
 
   // v2.1: Auto-Trigger Justification Modal for Overdue Tasks
   useEffect(() => {
@@ -515,7 +515,7 @@ export default function Tasks() {
               )}
 
               {/* Service Orders - Highlighted style */}
-              {dailyOrders.filter(_ => filter === 'todos' || filter === 'ordenes').map(order => (
+              {dailyOrders.filter(() => filter === 'todos' || filter === 'ordenes').map(order => (
                 <div 
                   key={order.id} 
                   className="relative group cursor-pointer"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, ZoomIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -11,15 +11,15 @@ interface ImageGalleryModalProps {
 export default function ImageZoomModal({ photos, initialIndex, onClose }: ImageGalleryModalProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
-  const handleNext = (e?: React.MouseEvent) => {
+  const handleNext = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     setCurrentIndex((prev) => (prev + 1) % photos.length);
-  };
+  }, [photos.length]);
 
-  const handlePrev = (e?: React.MouseEvent) => {
+  const handlePrev = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);
-  };
+  }, [photos.length]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

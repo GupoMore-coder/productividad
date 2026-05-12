@@ -34,14 +34,14 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const [presenceState, setPresenceState] = useState<Record<string, any>>({});
 
   // Función para actualizar "Última vez visto" en la base de datos
-  const updateLastSeen = async () => {
+  const updateLastSeen = useCallback(async () => {
     if (!user || !isSupabaseConfigured) return;
     try {
       await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', user.id);
     } catch (err) {
       console.warn("Failed to update last_seen:", err);
     }
-  };
+  }, [user]);
 
   /**
    * Returns the presence status and last-seen timestamp for a user.
@@ -127,7 +127,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, updateLastSeen]);
 
   return (
     <PresenceContext.Provider value={{ onlineUsers, presenceState, getUserStatus }}>
@@ -136,4 +136,5 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const usePresence = () => useContext(PresenceContext);

@@ -78,7 +78,7 @@ export default function ExecutiveSummaryModal({ isOpen, onClose, data, type, use
       return users.filter(u => allowedIds.includes(u.id));
     }
     return [];
-  }, [isOrder, data?.groupId, memberships, users]);
+  }, [isOrder, data, memberships, users]);
 
   const canSendWA = isOrder ? !!data?.customerPhone : groupMembers.length > 0;
 
