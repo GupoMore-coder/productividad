@@ -51,11 +51,13 @@ if (!localStorage.getItem('sw_cache_cleared_v5')) {
   console.log('SW Cache清洁完毕 v5.');
 }
 
-const fallbackRender = ({ error }: { error: Error }) => (
+import { FallbackRender } from '@sentry/react';
+
+const fallbackRender: FallbackRender = ({ error }) => (
   <div style={{ padding: 20, background: '#fdd', color: 'red' }}>
     <h2>💥 Fatal Error</h2>
-    <pre>{error.message}</pre>
-    <pre>{error.stack}</pre>
+    <pre>{error instanceof Error ? error.message : String(error)}</pre>
+    <pre>{error instanceof Error ? error.stack : ''}</pre>
   </div>
 );
 
