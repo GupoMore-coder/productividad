@@ -161,9 +161,15 @@ export default function CreateOrderModal({ isOpen, onClose, initialOrder }: Crea
           customerName: '',
           customerCedula: '1234567890',
           customerPhone: '+57 ',
+          customerEmail: '',
           services: [],
           quoteItems: [],
           notes: '',
+          deliveryDate: format(new Date(Date.now() + 86400000 * 3), 'yyyy-MM-dd'),
+          totalCost: 0,
+          depositAmount: 0,
+          paymentStatus: 'pendiente',
+          photos: [],
           isTest: false
         });
       }
