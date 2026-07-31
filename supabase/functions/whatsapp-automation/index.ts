@@ -12,16 +12,43 @@ serve(async (req) => {
   try {
     const { record, type, old_record } = await req.json()
     
-    const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
-    const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!accessToken || !phoneNumberId || !supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Variables de entorno incompletas en Supabase.')
+    let accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
+    let phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Variables de Supabase incompletas.')
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    if (!accessToken || !phoneNumberId) {
+      const { data: secrets } = await supabase
+        .from('secrets')
+        .select('name, value')
+        .in('name', ['WHATSAPP_ACCESS_TOKEN', 'SYSTEM_USER_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'])
+
+      if (secrets) {
+        const secretMap = Object.fromEntries(secrets.map((s: any) => [s.name, s.value]))
+        accessToken = accessToken || secretMap['WHATSAPP_ACCESS_TOKEN'] || secretMap['SYSTEM_USER_TOKEN']
+        phoneNumberId = phoneNumberId || secretMap['WHATSAPP_PHONE_NUMBER_ID']
+      }
+    }
+
+    if (!accessToken || !phoneNumberId) {
+      console.log('WhatsApp desvinculado o credenciales no encontradas. Omitiendo automatización.')
+      return new Response(JSON.stringify({
+        success: true,
+        disabled: true,
+        message: 'Automatización omitida: WhatsApp desvinculado o sin credenciales.'
+      }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+
     const results = []
 
     // 1. Lógica para CLIENTE (Solo en INSERCIÓN)

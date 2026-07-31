@@ -16,13 +16,40 @@ serve(async (req) => {
       throw new Error('phone y templateName son obligatorios')
     }
 
-    const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
-    const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+    let accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
+    let phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+
+    // Si no están en Deno.env, consultar la tabla secrets de Supabase
+    if ((!accessToken || !phoneNumberId) && supabaseUrl && supabaseServiceKey) {
+      try {
+        const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+        const { data: secrets } = await adminClient
+          .from('secrets')
+          .select('name, value')
+          .in('name', ['WHATSAPP_ACCESS_TOKEN', 'SYSTEM_USER_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'])
+
+        if (secrets) {
+          const secretMap = Object.fromEntries(secrets.map((s: any) => [s.name, s.value]))
+          accessToken = accessToken || secretMap['WHATSAPP_ACCESS_TOKEN'] || secretMap['SYSTEM_USER_TOKEN']
+          phoneNumberId = phoneNumberId || secretMap['WHATSAPP_PHONE_NUMBER_ID']
+        }
+      } catch (dbError) {
+        console.warn('No se pudieron recuperar secrets de WhatsApp desde DB:', dbError)
+      }
+    }
+
     if (!accessToken || !phoneNumberId) {
-      throw new Error('WhatsApp credentials no configuradas en Supabase Secrets.')
+      console.log('WhatsApp desvinculado o credenciales no configuradas. Cancelando envío sin error.')
+      return new Response(JSON.stringify({
+        disabled: true,
+        message: 'Servicio de WhatsApp no configurado o dado de baja. Se evita petición HTTP 400/401.'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      })
     }
 
     const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`

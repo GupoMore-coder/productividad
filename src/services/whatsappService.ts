@@ -83,5 +83,21 @@ export class WhatsAppService {
   static async sendTestMessage(phone: string) {
     return this.sendOfficialNotification(phone, 'hello_world');
   }
+
+  /**
+   * Ejecuta la limpieza completa en el backend de WhatsApp:
+   * 1. Da de baja la suscripción en Meta Graph API.
+   * 2. Borra los tokens de acceso permanente en DB (public.secrets).
+   * 3. Limpia la caché del Phone Number ID.
+   */
+  static async deregisterBackend() {
+    try {
+      const result = await this.callEdgeFunction('whatsapp-deregister', {});
+      return result;
+    } catch (error) {
+      console.error('Error al dar de baja WhatsApp en backend:', error);
+      throw error;
+    }
+  }
 }
 
