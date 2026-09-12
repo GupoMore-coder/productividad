@@ -17,8 +17,21 @@ jspm_packages/
 dist/
 dev-dist/
 
-# Migration script (contains connection strings)
+# Credentials & Sensitive Files
 migrate.cjs
+fix_db_task.cjs
+test_task.mjs
+test_ai.cjs
+recovery-codes*.txt
+*.csv
+apps_script.js
+apps_script_index.html
+
+# Temp & Debug
+temp_*.txt
+brain_list.txt
+lint_report.json
+supabase/.temp/
 
 # Env
 .env

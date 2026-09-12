@@ -45,6 +45,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { triggerHaptic } from '@/utils/haptics';
 import { WhatsAppProvider } from './context/WhatsAppContext';
 import { WhatsAppEditorModal } from './components/WhatsAppEditorModal';
+import { AlertTriangle, X } from 'lucide-react';
 
 // ── Route guards ─────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ function NotificationBootstrap() {
 
 function AppRoutes() {
   const { user } = useAuth();
-  const { isSyncing, pendingCount } = useSyncManager();
+  const { isSyncing, pendingCount, syncError, clearSyncError } = useSyncManager();
   usePushNotifications();
 
   // v12: Vanguard Orientation & Layout Resilience (Zero Lag)
@@ -205,6 +206,22 @@ function AppRoutes() {
               {isSyncing ? 'Sincronizando' : 'Pendiente de Red'} ({pendingCount})
            </span>
         </button>
+      )}
+
+      {syncError && (
+        <div className="fixed top-20 left-4 right-4 sm:left-auto sm:right-4 z-[100] flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-rose-950/90 border border-rose-500/40 backdrop-blur-xl shadow-2xl text-rose-200 text-xs font-semibold animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{syncError}</span>
+          </div>
+          <button 
+            onClick={clearSyncError} 
+            className="p-1 hover:bg-rose-500/20 rounded-lg text-rose-400 hover:text-white transition-colors"
+            title="Cerrar aviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
 
       <GlobalNotificationManager />

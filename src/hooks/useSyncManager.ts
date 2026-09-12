@@ -6,7 +6,10 @@ import { triggerHaptic } from '../utils/haptics';
 export function useSyncManager() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const isSyncingRef = useRef(isSyncing);
+
+  const clearSyncError = useCallback(() => setSyncError(null), []);
 
   useEffect(() => {
     isSyncingRef.current = isSyncing;
@@ -91,8 +94,13 @@ export function useSyncManager() {
           console.error(`[Sync] Error en ${action.id}:`, error.message || error);
           
           if (action.retries >= 5 || error.code === '23505' || error.code === '42703' || error.message?.includes('column')) { 
-             console.error(`[Sync] Abortando accion permanentemente`);
+             console.error(`[Sync] Abortando accion permanentemente:`, action, error);
              await SyncService.dequeue(action.id);
+             triggerHaptic('error');
+             setSyncError(`Acción en ${action.endpoint} descartada tras 5 reintentos fallidos (${error.message || 'error de esquema'}).`);
+             window.dispatchEvent(new CustomEvent('antigravity:sync-discarded', {
+               detail: { actionId: action.id, endpoint: action.endpoint, type: action.type, error: error.message || error }
+             }));
           } else {
              throw error;
           }
@@ -126,5 +134,5 @@ export function useSyncManager() {
     return () => clearInterval(t);
   }, [processQueue]);
 
-  return { isSyncing, pendingCount, processQueue };
+  return { isSyncing, pendingCount, syncError, clearSyncError, processQueue };
 }

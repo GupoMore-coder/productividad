@@ -10,14 +10,37 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Validación de Autorización: usuario autenticado o llamada de backend interna
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado: Se requiere encabezado de autorización.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const isServiceRole = token === supabaseServiceKey
+    
+    if (!isServiceRole) {
+      const { data: { user }, error: authErr } = await adminClient.auth.getUser(token)
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: 'Sesión no válida o expirada.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        })
+      }
+    }
+
     const { phone, templateName, parameters, orderId } = await req.json()
 
     if (!phone || !templateName) {
       throw new Error('phone y templateName son obligatorios')
     }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     let accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
     let phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
@@ -25,7 +48,6 @@ serve(async (req) => {
     // Si no están en Deno.env, consultar la tabla secrets de Supabase
     if ((!accessToken || !phoneNumberId) && supabaseUrl && supabaseServiceKey) {
       try {
-        const adminClient = createClient(supabaseUrl, supabaseServiceKey)
         const { data: secrets } = await adminClient
           .from('secrets')
           .select('name, value')
@@ -87,7 +109,6 @@ serve(async (req) => {
 
     if (orderId && supabaseUrl && supabaseServiceKey) {
       try {
-        const adminClient = createClient(supabaseUrl, supabaseServiceKey)
         await adminClient.from('whatsapp_messages').insert({
           order_id: orderId,
           customer_phone: phone,

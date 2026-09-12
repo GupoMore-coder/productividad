@@ -27,6 +27,45 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Validación de Autorización
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado: Se requiere encabezado de autorización.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const isServiceRole = token === (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+
+    if (!isServiceRole) {
+      const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: 'Sesión no válida o expirada.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        })
+      }
+
+      // Si es un broadcast ("all" o "broadcast"), solo permitir a administradores
+      if (user_id === "all" || user_id === "broadcast") {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('role, is_super_admin')
+          .eq('id', user.id)
+          .single()
+
+        const canBroadcast = profile?.is_super_admin || ['Administrador maestro', 'Director General (CEO)', 'Gestor Administrativo'].includes(profile?.role)
+        if (!canBroadcast) {
+          return new Response(JSON.stringify({ error: 'Permisos insuficientes para emitir notificaciones globales.' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 403,
+          })
+        }
+      }
+    }
+
     // 2. Get user subscriptions
     let subscriptions: any[] | null = null;
     let subError: any = null;

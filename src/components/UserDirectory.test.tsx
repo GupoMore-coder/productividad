@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, waitFor, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import UserDirectory from '@/components/UserDirectory';
 
@@ -64,12 +64,18 @@ vi.mock('@/lib/supabase', () => ({
 describe('UserDirectory Component', () => {
   it('renders user directory without errors', async () => {
     const { container } = render(<UserDirectory onClose={vi.fn()} />);
+    await waitFor(() => {
+      expect(screen.getByText('Alice Active')).toBeInTheDocument();
+    });
     expect(container).toBeTruthy();
   });
 
   it('handles close callback', async () => {
     const onClose = vi.fn();
     render(<UserDirectory onClose={onClose} />);
+    await waitFor(() => {
+      expect(screen.getByText('Alice Active')).toBeInTheDocument();
+    });
     expect(onClose).not.toHaveBeenCalled();
   });
 });

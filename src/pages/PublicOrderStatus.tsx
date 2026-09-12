@@ -34,22 +34,28 @@ export default function PublicOrderStatus() {
     const fetchOrder = async () => {
       if (!orderId) return;
       try {
-        const { data, error } = await supabase
-          .from('service_orders')
-          .select(`*, order_history(*)`)
-          .eq('id', orderId)
-          .single();
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_public_order_status', { target_order_id: orderId });
 
-        if (error) throw error;
-        
-        // Sort history by timestamp descending
-        if (data.order_history) {
-          data.order_history.sort((a: any, b: any) => 
-            new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
-          );
+        if (!rpcError && rpcData) {
+          setOrder(rpcData);
+        } else {
+          // Fallback a select directo por compatibilidad
+          const { data, error } = await supabase
+            .from('service_orders')
+            .select(`*, order_history(*)`)
+            .eq('id', orderId)
+            .single();
+
+          if (error) throw error;
+          
+          if (data?.order_history) {
+            data.order_history.sort((a: any, b: any) => 
+              new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+            );
+          }
+          setOrder(data);
         }
-        
-        setOrder(data);
       } catch (err: any) {
         console.error('Error fetching public order:', err);
         setError('Orden actualizada. Comunícate a los números de contacto: 304 526 7493 / 318 380 6342');

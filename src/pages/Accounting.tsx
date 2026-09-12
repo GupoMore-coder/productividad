@@ -28,13 +28,46 @@ const Accounting = () => {
 
         for (const order of validOrders) {
              const createdAt = new Date(order.createdAt);
-             if (isSameMonth(createdAt, now)) {
+             const isCurrentMonthCreated = isSameMonth(createdAt, now);
+             const isPrevMonthCreated = isSameMonth(createdAt, prevMonthDate);
+
+             // Ventas generadas en el periodo
+             if (isCurrentMonthCreated) {
                  currentVentas += order.totalCost || 0;
-                 currentRecaudo += order.depositAmount || 0;
-                 currentSaldos += order.pendingBalance || 0;
-             } else if (isSameMonth(createdAt, prevMonthDate)) {
+             } else if (isPrevMonthCreated) {
                  prevVentas += order.totalCost || 0;
-                 prevRecaudo += order.depositAmount || 0;
+             }
+
+             // Recaudo en efectivo: revisar transacciones financieras en historial
+             let hasFinancialHistory = false;
+             if (order.history && order.history.length > 0) {
+                 for (const h of order.history) {
+                     if (h.type === 'financiero' && h.timestamp) {
+                         const hDate = new Date(h.timestamp);
+                         // Extraer monto del abono si está en la descripción (ej: "+$ 50,000")
+                         const match = h.description.match(/Abono de \$?\s*([\d.,]+)/i) || h.description.match(/\$?\s*([\d.,]+)/);
+                         const amount = match ? parseFloat(match[1].replace(/\./g, '').replace(/,/g, '')) : 0;
+                         if (amount > 0) {
+                             hasFinancialHistory = true;
+                             if (isSameMonth(hDate, now)) currentRecaudo += amount;
+                             else if (isSameMonth(hDate, prevMonthDate)) prevRecaudo += amount;
+                         }
+                     }
+                 }
+             }
+
+             // Si no tiene registros granulares de abonos en el historial, usar depositAmount según fecha
+             if (!hasFinancialHistory && (order.depositAmount || 0) > 0) {
+                 const effDate = order.completedAt ? new Date(order.completedAt) : createdAt;
+                 if (isSameMonth(effDate, now)) currentRecaudo += order.depositAmount;
+                 else if (isSameMonth(effDate, prevMonthDate)) prevRecaudo += order.depositAmount;
+             }
+
+             // Cartera pendiente acumulada (Saldos por cobrar de órdenes activas)
+             if (order.status !== 'completada') {
+                 currentSaldos += order.pendingBalance || 0;
+             }
+             if (isPrevMonthCreated && order.status !== 'completada') {
                  prevSaldos += order.pendingBalance || 0;
              }
         }

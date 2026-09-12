@@ -5,6 +5,7 @@ import { Plus, Archive, ClipboardList, Users, Check } from 'lucide-react';
 
 import { useOrders, ServiceOrder } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { useApprovals } from '../context/ApprovalContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import CreateOrderModal from '../components/CreateOrderModal';
 import OrderStatusModal from '../components/OrderStatusModal';
@@ -34,6 +35,7 @@ export default function Orders() {
     extendQuote,
     archiveExpiredQuote
   } = useOrders();
+  const { createRequest } = useApprovals();
 
   usePageTitle('Gestión de Órdenes');
 
@@ -286,18 +288,21 @@ export default function Orders() {
       await reactivateOrder(orderId);
       triggerHaptic('success');
     } else if (user?.isSupervisor || user?.role === 'Gestor Administrativo') {
-      // Create Approval Request
       const order = orders.find(o => o.id === orderId);
-      window.dispatchEvent(new CustomEvent('open-approval-request', { 
-        detail: { 
-          type: 'reactivacion_orden', 
-          source_id: orderId,
-          details: { customerName: order?.customerName, totalCost: order?.totalCost }
-        } 
-      }));
+      try {
+        await createRequest('reactivacion_orden', orderId, { 
+          customerName: order?.customerName, 
+          totalCost: order?.totalCost 
+        });
+        triggerHaptic('success');
+        alert('Solicitud de reactivación enviada correctamente al Administrador Maestro.');
+      } catch (err: any) {
+        triggerHaptic('error');
+        alert(`Error al solicitar reactivación: ${err.message || 'Error de conexión'}`);
+      }
     } else {
       triggerHaptic('error');
-      // Toast/Alert: No tienes permisos para reactivar
+      alert('Solo el Administrador Maestro o Gestores autorizados pueden solicitar la reactivación de una orden finalizada.');
     }
   };
 

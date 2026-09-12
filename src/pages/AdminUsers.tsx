@@ -284,16 +284,24 @@ export default function AdminUsers() {
 
         // 2. Fase Tareas: Borrar agenda personal y tareas asignadas/creadas por él
         setDeleteStep('Limpiando agendas y tareas compartidas...');
-        // Borrar donde sea el dueño (su agenda)
         await supabase.from('tasks').delete().eq('user_id', targetUser.id);
-        // Borrar tareas que él creó/compartió para otros
         await supabase.from('tasks').delete().eq('created_by', targetUser.id);
 
-        // 3. Fase Membresías Generales: Salir de grupos ajenos
-        setDeleteStep('Removiendo participaciones en otros grupos...');
+        // 3. Fase Membresías y Credenciales: Salir de grupos ajenos y limpiar credenciales
+        setDeleteStep('Removiendo credenciales y membresías...');
         await supabase.from('group_memberships').delete().eq('user_id', targetUser.id);
+        await supabase.from('push_subscriptions').delete().eq('user_id', targetUser.id);
+        await supabase.from('user_credentials').delete().eq('user_id', targetUser.id);
+        await supabase.from('approval_requests').delete().eq('requested_by', targetUser.id);
 
-        // 4. Fase Final: Borrar Perfil
+        // 4. Fase Órdenes y Faltantes: Reasignar órdenes al Administrador Maestro para preservar historial fiscal
+        setDeleteStep('Preservando integridad de órdenes y faltantes...');
+        if (user?.id) {
+          await supabase.from('service_orders').update({ created_by: user.id }).eq('created_by', targetUser.id);
+          await supabase.from('missing_items').update({ reported_by_id: user.id }).eq('reported_by_id', targetUser.id);
+        }
+
+        // 5. Fase Final: Borrar Perfil
         setDeleteStep('Borrando perfil definitivo...');
         const { error: pErr } = await supabase.from('profiles').delete().eq('id', targetUser.id);
         if (pErr) throw pErr;

@@ -1,11 +1,12 @@
-import * as XLSX from 'xlsx';
 import { ServiceOrder } from '../context/OrderContext';
 import { format } from 'date-fns';
 
 /**
  * Exporta los datos contables a un archivo Excel (.xlsx) con formato detallado.
+ * Usa importación dinámica de XLSX para aligerar drásticamente el bundle inicial de la PWA.
  */
-export const exportAccountingToExcel = (orders: ServiceOrder[]) => {
+export const exportAccountingToExcel = async (orders: ServiceOrder[]) => {
+  const XLSX = await import('xlsx');
   // 1. Filtrar órdenes válidas (quitar pruebas y canceladas)
   const validOrders = orders.filter(o => !o.is_demo && o.status !== 'cancelada');
 

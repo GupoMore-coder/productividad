@@ -16,6 +16,38 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Validación de Seguridad: Exclusivo para Administrador Maestro autenticado
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado: Se requiere token de autenticación.' }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: 'Sesión inválida o expirada.' }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_super_admin')
+      .eq('id', user.id)
+      .single()
+
+    const isMaster = profile?.role === 'Administrador maestro' || profile?.is_super_admin === true
+    if (!isMaster) {
+      return new Response(JSON.stringify({ error: 'Permisos insuficientes: Solo el Administrador Maestro puede ejecutar esta acción.' }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        status: 403,
+      })
+    }
+
     // Leer payload opcional o de secrets
     let reqBody: any = {}
     try {

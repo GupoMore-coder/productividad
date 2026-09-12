@@ -263,6 +263,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('fast_access_email');
     localStorage.removeItem('fast_access_pass');
     localStorage.removeItem('fast_access_enabled');
+    // Limpieza de seguridad de claves heredadas
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('antigravity_bio_pass_')) localStorage.removeItem(k);
+    });
     await supabase.auth.signOut();
     setUser(null);
   };
@@ -320,30 +324,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithBiometrics = async (userId: string) => {
-    const { data: profile, error: pErr } = await supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', userId)
-      .single();
-    
-    if (pErr || !profile) throw new Error('Usuario vinculado no encontrado.');
+    // 1. Verificar si existe sesión activa en Supabase
+    const { data: { session }, error: sErr } = await supabase.auth.getSession();
+    if (sErr) throw sErr;
 
-    const savedPass = localStorage.getItem(`antigravity_bio_pass_${userId}`);
-    if (!savedPass) {
-       throw new Error('La sesión biométrica no está inicializada o el dispositivo ha sido desvinculado. Por favor, ingresa con tu contraseña una vez para re-activar la huella.');
+    if (session?.user && session.user.id === userId) {
+      return { data: { user: session.user, session }, error: null };
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ 
-       email: profile.email, 
-       password: savedPass 
-    });
-    
-    if (error) throw error;
-    return { data, error: null };
+    // 2. Intentar refrescar la sesión existente
+    const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr && refreshData.session?.user && refreshData.session.user.id === userId) {
+      return { data: refreshData, error: null };
+    }
+
+    // 3. Si no hay sesión válida en el almacenamiento local seguro de Supabase
+    throw new Error('La sesión ha expirado en este dispositivo. Por favor, ingresa con tu contraseña una vez para reactivar el acceso biométrico.');
   };
 
-  const linkBiometric = async (userId: string, password: string) => {
-    localStorage.setItem(`antigravity_bio_pass_${userId}`, password);
+  const linkBiometric = async (userId: string, _password?: string) => {
+    // Marcamos la vinculación biométrica de forma segura sin guardar contraseñas en texto plano
+    localStorage.setItem(`antigravity_passkey_linked_${userId}`, 'true');
+    localStorage.setItem('antigravity_last_user_id', userId);
+    localStorage.removeItem(`antigravity_bio_pass_${userId}`);
   };
 
   return (

@@ -696,7 +696,7 @@ export default function HelpManualModal({ isOpen, onClose, initialTab = 'inicio'
                                   <Bot size={12} /> Jarvis Mode
                                 </div>
                               )}
-                              <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                              <span className="whitespace-pre-wrap">{msg.text}</span>
                             </div>
                           </motion.div>
                         ))}

@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
 
 /**
@@ -43,6 +42,7 @@ const COLORS = {
 };
 
 export const generateExecutiveReport = async (stats: ExecutiveStats) => {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

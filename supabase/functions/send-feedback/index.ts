@@ -14,6 +14,17 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
+    const authHeader = req.headers.get('Authorization')
+
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado: Se requiere sesión activa.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      })
+    }
+
     const { userName, message, pdfBase64 } = await req.json();
 
     if (!pdfBase64) {
@@ -25,7 +36,15 @@ serve(async (req) => {
       throw new Error("RESEND_API_KEY no encontrada en los secretos de Supabase.");
     }
 
-    console.log(`Enviando reporte para: ${userName}`);
+    // Escape HTML to prevent injection
+    const escapeHtml = (text: string) => (text || '').replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m] || m));
+
+    const safeUserName = escapeHtml(userName || 'Usuario');
+    const safeMessage = escapeHtml(message || '').replace(/\n/g, '<br>');
+
+    console.log(`Enviando reporte para: ${safeUserName}`);
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -36,14 +55,14 @@ serve(async (req) => {
       body: JSON.stringify({
         from: 'Antigravity Reports <onboarding@resend.dev>',
         to: ['fernando830609@gmail.com'],
-        subject: `Reporte de hallazgo Aplicativo Grupo More elaborado por: ${userName}`,
+        subject: `Reporte de hallazgo Aplicativo Grupo More elaborado por: ${safeUserName}`,
         html: `
           <div style="font-family: sans-serif; color: #333; line-height: 1.6;">
             <h2 style="color: #9333ea; border-bottom: 2px solid #9333ea; padding-bottom: 10px;">Nuevo Hallazgo Detectado</h2>
-            <p><strong>Usuario:</strong> ${userName}</p>
+            <p><strong>Usuario:</strong> ${safeUserName}</p>
             <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-CO')}</p>
             <div style="background: #f9f9f9; padding: 20px; border-radius: 12px; border: 1px solid #eee; margin: 20px 0;">
-              <p style="margin: 0;">${message.replace(/\n/g, '<br>')}</p>
+              <p style="margin: 0;">${safeMessage}</p>
             </div>
             <p style="font-size: 11px; color: #999;">
               Este mensaje fue generado automáticamente por el sistema Antigravity Elite Enhancement Unit.

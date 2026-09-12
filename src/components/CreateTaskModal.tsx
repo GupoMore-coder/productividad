@@ -64,6 +64,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
   const recurrence = watch('recurrence');
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (initialData) {
       reset({
         title: initialData.title,
@@ -95,7 +97,8 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
         recurrenceInterval: 1
       });
     }
-  }, [initialData, initialDate, reset]);
+    setUploading(false);
+  }, [isOpen, initialData, initialDate, reset]);
 
   const myApprovedGroups = groups.filter(g => 
     memberships.some(m => m.groupId === g.id && m.userId === user?.id && m.status === 'approved')
@@ -113,26 +116,6 @@ export default function CreateTaskModal({ isOpen, onClose, onSave, initialDate, 
     };
     if (isOpen) loadUsers();
   }, [isOpen, fetchAllProfiles, user?.id]);
-
-  useEffect(() => {
-    if (isOpen) {
-      reset({
-        title: '',
-        description: '',
-        date: initialDate || format(new Date(), 'yyyy-MM-dd'),
-        time: format(new Date(), 'HH:mm'),
-        priority: 'media',
-        group_ids: [],
-        shared_user_ids: [],
-        isShared: false,
-        imageUrls: [],
-        type: 'task',
-        recurrence: 'none',
-        recurrenceInterval: 1
-      });
-      setUploading(false);
-    }
-  }, [isOpen, reset, initialDate]);
 
   const toggleGroup = (id: string) => {
     triggerHaptic('light');
