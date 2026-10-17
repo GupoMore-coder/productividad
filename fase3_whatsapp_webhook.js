@@ -1355,11 +1355,38 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
       madrugada: [
         `Sincronización nocturna completada, ${nombre}.`
       ]
+    },
+    DEADPOOL: {
+      manana: [
+        `¡Buenos días, ${nombre}! Aquí tu mercenario contable favorito listo para hacer llover billetes.`,
+        `¡Arriba, ${nombre}! Rompiendo la cuarta pared y activando katanas financieras para este gran día.`,
+        `¡Hola, ${nombre}! Huele a chimichangas y a cero pérdidas. ¡A romperla hoy!`
+      ],
+      tarde: [
+        `¡Buenas tardes, ${nombre}! Aquí Deadpool vigilando que nadie te cobre de más ni un solo centavo.`,
+        `¡Ey, ${nombre}! Tarde perfecta para liquidar pendientes y sumar ganancias con estilo.`,
+        `¿Cómo va esa jornada, ${nombre}? Dos katanas y tus balances van derechito al éxito.`
+      ],
+      noche: [
+        `¡Buenas noches, ${nombre}! Misión cumplida por hoy. Tus arcas quedan más seguras que mi factor de curación.`,
+        `Buenas noches, ${nombre}. Cero fugas de plata y cuentas al día. ¡A descansar como un rey!`,
+        `¡Descansa, ${nombre}! Mañana volvemos a sacudir los números y a liquidar las deudas.`
+      ],
+      madrugada: [
+        `¡Silencio en el set, ${nombre}! Deadpool patrullando tus cuentas a deshoras. A dormir tranquilo.`
+      ]
     }
   };
 
   // 4. Catálogo de Outros / Lemas de cierre según personaje
   const outrosPorPerfil = {
+    DEADPOOL: [
+      "¡Rompiendo la cuarta pared y arreglando tus finanzas antes de que nos cobren impuestos!",
+      "Máxima precisión contable con chimichangas de ganancia y cero aburrimiento.",
+      "¿Quién dijo que auditar era aburrido? Dos katanas y tus balances quedan perfectos.",
+      "Tranquilo, amigo, tus arcas están más seguras que mi factor de curación.",
+      "Menos drama, más plata y muchas risas en el camino."
+    ],
     GATO_CON_BOTAS: [
       "¡Por mi sombrero y mi espada, tus finanzas están a salvo!",
       "La audacia y la disciplina hacen la verdadera riqueza.",
@@ -1396,8 +1423,9 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
   };
 
   // Determinar clave de personaje
-  let clave = "GATO_CON_BOTAS";
-  if (perfil.includes("GATO") || perfil.includes("BOTAS") || perfil.includes("PUSS")) clave = "GATO_CON_BOTAS";
+  let clave = "DEADPOOL";
+  if (perfil.includes("DEADPOOL") || perfil.includes("WADE")) clave = "DEADPOOL";
+  else if (perfil.includes("GATO") || perfil.includes("BOTAS") || perfil.includes("PUSS")) clave = "GATO_CON_BOTAS";
   else if (perfil.includes("BATMAN") || perfil.includes("BRUCE")) clave = "BATMAN";
   else if (perfil.includes("IRON_MAN") || perfil.includes("STARK")) clave = "IRON_MAN";
   else if (perfil.includes("SPIDERMAN") || perfil.includes("PETER")) clave = "SPIDERMAN";
@@ -1503,11 +1531,20 @@ function formatearTarjetaVisualAcompanante_(textoOriginal, perfilVoz, nombreUsua
   // Si ya tiene formato de tarjeta o divisores, mantener intacto
   if (t.includes("━━━━━━━━") || t.includes("━━━━━━")) return t;
 
+  let perfilEfectivo = perfilVoz;
+  if (!perfilEfectivo && typeof validarPermisoUsuario === "function") {
+    try {
+      const permDef = validarPermisoUsuario(CONFIG_FINANZAS.TELEFONO_ADMIN_DEFAULT);
+      if (permDef && permDef.perfilVoz) perfilEfectivo = permDef.perfilVoz;
+    } catch(eDef) {}
+  }
+  if (!perfilEfectivo) perfilEfectivo = "DEADPOOL";
+
   const def = (typeof obtenerDefinicionPersonajeCompleta_ === "function") 
-    ? obtenerDefinicionPersonajeCompleta_(perfilVoz)
-    : (typeof DICCIONARIO_MAESTRO_PERSONAJES_ !== "undefined" && DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilVoz || "").toUpperCase()]
-        ? DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilVoz || "").toUpperCase()]
-        : { emoji: "🐾", alias: "El Gato con Botas", titulo: "Copiloto Financiero", frasesCelebres: ["¡Por mi sombrero y mi espada, tus finanzas están a salvo!"] });
+    ? obtenerDefinicionPersonajeCompleta_(perfilEfectivo)
+    : (typeof DICCIONARIO_MAESTRO_PERSONAJES_ !== "undefined" && DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilEfectivo || "").toUpperCase()]
+        ? DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilEfectivo || "").toUpperCase()]
+        : { emoji: "⚔️", alias: "Deadpool", titulo: "Mercenario Contable", frasesCelebres: ["¡Rompiendo la cuarta pared y arreglando tus finanzas antes de que nos cobren impuestos!"] });
 
   const banner = `${def.emoji} *${def.alias.toUpperCase()}* | _${def.titulo}_`;
   const frases = (def.frasesCelebres && def.frasesCelebres.length > 0) ? def.frasesCelebres : [(def.lema || "Cuentas claras y al día.")];
@@ -2728,7 +2765,7 @@ function ejecutarEscaneoInactividad8PM() {
     // Solo si no registró NINGÚN movimiento en todo el día
     if (movimientosHoy === 0) {
       const nombreLimpio = typeof sanitizarNombreParaVoz_ === "function" ? sanitizarNombreParaVoz_(nombre) : "Fernando";
-      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "GATO_CON_BOTAS" : "FEMENINO_DULCE";
+      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "DEADPOOL" : "FEMENINO_DULCE";
       if (typeof validarPermisoUsuario === "function") {
         try {
           const perm = validarPermisoUsuario(telefono);
@@ -2840,7 +2877,7 @@ function ejecutarControlEstricto8AM() {
       }
 
       const nombreLimpio = typeof sanitizarNombreParaVoz_ === "function" ? sanitizarNombreParaVoz_(nombre) : "Fernando";
-      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "GATO_CON_BOTAS" : "FEMENINO_DULCE";
+      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "DEADPOOL" : "FEMENINO_DULCE";
       if (typeof validarPermisoUsuario === "function") {
         try {
           const perm = validarPermisoUsuario(telefono);
@@ -3038,15 +3075,29 @@ function ejecutarDisparoDiarioAlertas() {
   let enviadas = 0;
 
   // 1. Escanear obligaciones urgentes de Fernando / Super Admin (Personal, More Paper, More Design, Consolidado)
+  const telAdmin = CONFIG_FINANZAS.TELEFONO_ADMIN_DEFAULT;
+  let perfilAdmin = "DEADPOOL";
+  let nombreAdmin = "Fernando";
+  if (typeof validarPermisoUsuario === "function") {
+    try {
+      const permAdmin = validarPermisoUsuario(telAdmin);
+      if (permAdmin) {
+        if (permAdmin.perfilVoz) perfilAdmin = permAdmin.perfilVoz;
+        if (permAdmin.nombre) nombreAdmin = typeof sanitizarNombreHumano_ === "function" ? sanitizarNombreHumano_(permAdmin.nombre) : permAdmin.nombre;
+      }
+    } catch (ePerm) {
+      Logger.log("Aviso obteniendo perfil de voz admin para alertas: " + ePerm.message);
+    }
+  }
+
   const alertasAdmin = typeof escanearCompromisosPorVencer === "function" 
-    ? escanearCompromisosPorVencer(["Personal", "More Paper", "More Design", "Consolidado"]) 
+    ? escanearCompromisosPorVencer(["Personal", "More Paper", "More Design", "Consolidado"], nombreAdmin) 
     : [];
   
-  const telAdmin = CONFIG_FINANZAS.TELEFONO_ADMIN_DEFAULT;
   if (alertasAdmin && alertasAdmin.length) {
     totalAlertas += alertasAdmin.length;
     alertasAdmin.forEach(alerta => {
-      const cardAlerta = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, "GATO_CON_BOTAS", "Fernando");
+      const cardAlerta = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, perfilAdmin, nombreAdmin);
       const resultado = enviarMensajeWhatsApp(telAdmin, cardAlerta);
       if (resultado && resultado.enviado) enviadas++;
     });
@@ -3055,24 +3106,37 @@ function ejecutarDisparoDiarioAlertas() {
   // 2. Escanear obligaciones privadas de usuarios estándar activos (ej: Florangellys_Compromisos)
   const sheetCtrl = ss.getSheetByName(HOJAS.CONTROL_ACCESO);
   if (sheetCtrl && sheetCtrl.getLastRow() > 1) {
-    const usuarios = sheetCtrl.getRange(2, 1, sheetCtrl.getLastRow() - 1, 5).getValues();
+    const usuarios = sheetCtrl.getRange(2, 1, sheetCtrl.getLastRow() - 1, 10).getValues();
     usuarios.forEach(u => {
       const telUsuario = u[0];
       const rol = String(u[2]).trim().toUpperCase();
       const estado = String(u[3]).trim().toUpperCase();
       const hojas = String(u[4]);
 
-      if (rol !== "SUPER_ADMIN" && estado === "ACTIVO") {
+      if (rol !== "SUPER_ADMIN" && estado === "ACTIVO" && telUsuario) {
         const match = hojas.match(/([a-zA-Z0-9]+)_Compromisos/);
         if (match) {
           const entidadUsuario = match[1];
+          let perfilUser = (u.length >= 10 && u[9]) ? String(u[9]).trim() : "FEMENINO_DULCE";
+          let nombreUser = u[1] ? (typeof sanitizarNombreHumano_ === "function" ? sanitizarNombreHumano_(u[1]) : u[1]) : entidadUsuario;
+
+          if (typeof validarPermisoUsuario === "function") {
+            try {
+              const permUser = validarPermisoUsuario(telUsuario);
+              if (permUser) {
+                if (permUser.perfilVoz) perfilUser = permUser.perfilVoz;
+                if (permUser.nombre) nombreUser = typeof sanitizarNombreHumano_ === "function" ? sanitizarNombreHumano_(permUser.nombre) : permUser.nombre;
+              }
+            } catch (eUser) {}
+          }
+
           const alertasUser = typeof escanearCompromisosPorVencer === "function"
-            ? escanearCompromisosPorVencer([entidadUsuario])
+            ? escanearCompromisosPorVencer([entidadUsuario], nombreUser)
             : [];
           if (alertasUser && alertasUser.length) {
             totalAlertas += alertasUser.length;
             alertasUser.forEach(alerta => {
-              const cardUser = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, "FEMENINO_DULCE", u[1]);
+              const cardUser = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, perfilUser, nombreUser);
               const resUser = enviarMensajeWhatsApp(telUsuario, cardUser);
               if (resUser && resUser.enviado) enviadas++;
             });

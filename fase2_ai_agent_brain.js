@@ -1923,7 +1923,7 @@ function purgarCompromisosErroneosMorePaper(ss) {
  * Escanea los compromisos de las 3 entidades y detecta deudas que vencen en 24h o hoy.
  * Diseñada para ser disparada por un Trigger diario de Apps Script a las 8:00 AM.
  */
-function escanearCompromisosPorVencer(entidadesAChequear) {
+function escanearCompromisosPorVencer(entidadesAChequear, nombreDestinatario) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const entidades = (entidadesAChequear && Array.isArray(entidadesAChequear) && entidadesAChequear.length)
     ? entidadesAChequear
@@ -1996,7 +1996,7 @@ function escanearCompromisosPorVencer(entidadesAChequear) {
             saldoPendiente: saldo,
             fechaVencimiento: fechaParaMensaje ? Utilities.formatDate(fechaParaMensaje, Session.getScriptTimeZone(), "yyyy-MM-dd") : "Sin fecha fija",
             urgencia: urgencia,
-            mensajeWhatsApp: formatearMensajeAlertaWhatsApp_(entidad, proveedor, concepto, saldo, fechaParaMensaje, urgencia)
+            mensajeWhatsApp: formatearMensajeAlertaWhatsApp_(entidad, proveedor, concepto, saldo, fechaParaMensaje, urgencia, nombreDestinatario)
           });
 
           sheet.getRange(i + 2, 11).setValue(urgencia);
