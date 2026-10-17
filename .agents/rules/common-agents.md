@@ -2,29 +2,34 @@
 
 ## Available Agents
 
-Located in `~/.claude/agents/`:
+Located in local Antigravity directories:
+- **ECC Core & Reviewers:** `.agents/agents/*.md`
+- **The Agency Catalog (279 specialists):** `.agents/agency/<division>/*.md`
+- **Master Capability Matrix:** `.agents/MASTER_CAPABILITY_MATRIX.md`
 
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| planner | Implementation planning | Complex features, refactoring |
-| architect | System design | Architectural decisions |
-| tdd-guide | Test-driven development | New features, bug fixes |
-| code-reviewer | Code review | After writing code |
-| security-reviewer | Security analysis | Before commits |
-| build-error-resolver | Fix build errors | When build fails |
-| e2e-runner | E2E testing | Critical user flows |
-| refactor-cleaner | Dead code cleanup | Code maintenance |
-| doc-updater | Documentation | Updating docs |
-| rust-reviewer | Rust code review | Rust projects |
-| harmonyos-app-resolver | HarmonyOS app development | HarmonyOS/ArkTS projects |
+| Agent | Purpose | When to Use | Path |
+|-------|---------|-------------|------|
+| planner | Implementation planning | Complex features, refactoring | `.agents/agents/planner.md` |
+| architect | System design | Architectural decisions | `.agents/agents/architect.md` |
+| tdd-guide | Test-driven development | New features, bug fixes | `.agents/agents/tdd-guide.md` |
+| code-reviewer | Code review | After writing code | `.agents/agents/code-reviewer.md` |
+| security-reviewer | Security analysis | Before commits | `.agents/agents/security-reviewer.md` |
+| build-error-resolver | Fix build errors | When build fails | `.agents/agents/build-error-resolver.md` |
+| e2e-runner | E2E testing | Critical user flows | `.agents/agents/e2e-runner.md` |
+| refactor-cleaner | Dead code cleanup | Code maintenance | `.agents/agents/refactor-cleaner.md` |
+| doc-updater | Documentation | Updating docs | `.agents/agents/doc-updater.md` |
+| rust-reviewer | Rust code review | Rust projects | `.agents/agents/rust-reviewer.md` |
+| harmonyos-app-resolver | HarmonyOS development | HarmonyOS/ArkTS | `.agents/agents/harmonyos-app-resolver.md` |
+| *279 Agency Specialists* | Domain-specific expertise | On-demand via matrix | `.agents/agency/` |
 
 ## Immediate Agent Usage
 
 No user prompt needed:
-1. Complex feature requests - Use **planner** agent
-2. Code just written/modified - Use **code-reviewer** agent
-3. Bug fix or new feature - Use **tdd-guide** agent
-4. Architectural decision - Use **architect** agent
+1. Complex feature requests - Use **planner** agent (`.agents/agents/planner.md`)
+2. Code just written/modified - Use **code-reviewer** agent (`.agents/agents/code-reviewer.md`)
+3. Bug fix or new feature - Use **tdd-guide** agent (`.agents/agents/tdd-guide.md`)
+4. Architectural decision - Use **architect** agent (`.agents/agents/architect.md`)
+5. Specialized domain tasks - Consult `.agents/MASTER_CAPABILITY_MATRIX.md` for the lead agent
 
 ## Parallel Task Execution
 

@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Oficial de Uso y Gobernanza - Biblioteca Médica de Ortopedia</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm 12mm 12mm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+
+    :root {
+      --primary: #0f2b48;
+      --primary-dark: #0a1e33;
+      --primary-light: #1e3a5f;
+      --teal: #0d9488;
+      --teal-dark: #0f766e;
+      --teal-light: #f0fdfa;
+      --cyan: #0284c7;
+      --cyan-light: #e0f2fe;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-600: #475569;
+      --slate-800: #1e293b;
+      --amber-bg: #fffbeb;
+      --amber-border: #fde68a;
+      --amber-text: #b45309;
+      --rose-bg: #fff1f2;
+      --rose-border: #fecdd3;
+      --rose-text: #be123c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--slate-800);
+      background: #f8fafc;
+      line-height: 1.5;
+      font-size: 9.5pt;
+      -webkit-font-smoothing: antialiased;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      box-shadow: 0 10px 30px rgba(15, 43, 72, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .container {
+        box-shadow: none;
+        border-radius: 0;
+        max-width: 100%;
+        margin: 0;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+
+    /* BARRA SUPERIOR INSTITUCIONAL */
+    .top-banner {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 60%, var(--teal-dark) 100%);
+      color: #ffffff;
+      padding: 22px 28px;
+      position: relative;
+    }
+
+    .top-banner-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand-title {
+      font-size: 19pt;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      color: #ffffff;
+    }
+
+    .brand-subtitle {
+      font-size: 10.5pt;
+      font-weight: 600;
+      color: #5eead4;
+      margin-top: 4px;
+    }
+
+    .custody-badge {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 8px;
+      text-align: right;
+    }
+
+    .custody-badge-label {
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .custody-badge-name {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      justify-content: flex-end;
+    }
+
+    .status-pills {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 7.8pt;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot-pulse {
+      width: 7px;
+      height: 7px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      display: inline-block;
+    }
+
+    .content-body {
+      padding: 22px 28px;
+    }
+
+    .section-title {
+      font-size: 11.5pt;
+      font-weight: 800;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--slate-200);
+    }
+
+    .section-title span.num {
+      background: var(--teal);
+      color: #ffffff;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8.5pt;
+      font-weight: 800;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 720px) {
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 12px 14px;
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: var(--teal);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.08);
+    }
+
+    .card-accent {
+      border-left: 4px solid var(--teal);
+      background: #ffffff;
+    }
+
+    .card-feature {
+      border-left: 4px solid var(--cyan);
+      background: #ffffff;
+    }
+
+    .card-warn {
+      border-left: 4px solid var(--rose-text);
+      background: var(--rose-bg);
+      border-color: var(--rose-border);
+    }
+
+    .card-warn .card-title {
+      color: var(--rose-text);
+    }
+
+    .card-title {
+      font-size: 9.2pt;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card p, .card li {
+      font-size: 8.3pt;
+      color: var(--slate-600);
+      line-height: 1.45;
+    }
+
+    ul.card-list {
+      padding-left: 16px;
+      margin-top: 4px;
+    }
+
+    ul.card-list li {
+      margin-bottom: 3px;
+    }
+
+    .timeline-steps {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 720px) {
+      .timeline-steps {
+        flex-direction: column;
+      }
+    }
+
+    .step-box {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 12px;
+      position: relative;
+    }
+
+    .step-number {
+      display: inline-block;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 7.8pt;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .step-box h4 {
+      font-size: 9.2pt;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .step-box p {
+      font-size: 8pt;
+      color: var(--slate-600);
+      line-height: 1.4;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-bottom: 16px;
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.3pt;
+    }
+
+    table.data-table th {
+      background: var(--primary);
+      color: #ffffff;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    table.data-table td {
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--slate-200);
+      color: var(--slate-800);
+      vertical-align: middle;
+    }
+
+    table.data-table tr:nth-child(even) td {
+      background: var(--slate-50);
+    }
+
+    table.data-table tr:hover td {
+      background: #f0fdfa;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.8pt;
+      background: #e2e8f0;
+      color: var(--teal-dark);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .copyable-cmd {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7.8pt;
+      font-weight: 700;
+      color: var(--primary);
+      cursor: pointer;
+      user-select: all;
+      transition: all 0.15s ease;
+    }
+
+    .copyable-cmd:hover {
+      background: var(--teal-light);
+      border-color: var(--teal);
+      color: var(--teal-dark);
+    }
+
+    .simulator-wrapper {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 16px;
+      color: #ffffff;
+      margin-bottom: 18px;
+    }
+
+    .simulator-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+    }
+
+    .sim-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .sim-btn {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 7.5pt;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sim-btn:hover, .sim-btn.active {
+      background: var(--teal);
+      border-color: var(--teal);
+      color: #ffffff;
+    }
+
+    .chat-bubble-container {
+      background: #0b141a;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 8.3pt;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .bubble-user {
+      align-self: flex-end;
+      background: #005c4b;
+      color: #e9edef;
+      padding: 6px 12px;
+      border-radius: 8px 0 8px 8px;
+      max-width: 80%;
+    }
+
+    .bubble-bot {
+      align-self: flex-start;
+      background: #202c33;
+      color: #e9edef;
+      padding: 8px 14px;
+      border-radius: 0 8px 8px 8px;
+      max-width: 88%;
+      border-left: 3px solid var(--teal);
+      line-height: 1.45;
+    }
+
+    .bubble-bot a {
+      color: #38bdf8;
+      text-decoration: underline;
+    }
+
+    .manual-footer {
+      background: var(--slate-100);
+      border-top: 1px solid var(--slate-200);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 7.8pt;
+      color: var(--slate-600);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #copyToast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 8.5pt;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      display: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ==================== HEADER INSTITUCIONAL ==================== -->
+  <div class="top-banner">
+    <div class="top-banner-header">
+      <div>
+        <div class="brand-title">Biblioteca Médica Especializada</div>
+        <div class="brand-subtitle">Cirugía Ortopédica y Traumatología • Guía Oficial de Uso y Gobernanza</div>
+      </div>
+      <div class="custody-badge">
+        <div class="custody-badge-label">DIRECCIÓN Y CUSTODIA</div>
+        <div class="custody-badge-name">🏛️ Gestor de Contenido</div>
+      </div>
+    </div>
+
+    <div class="status-pills">
+      <div class="status-pill"><span class="dot-pulse"></span> Cloud 24/7 Operativo</div>
+      <div class="status-pill">🔒 Cero Exposición Drive</div>
+      <div class="status-pill">⏱️ Enlaces Efímeros TTL 30 min</div>
+      <div class="status-pill">🌐 Motor PubMed & Semantic Scholar</div>
+      <div class="status-pill">🔬 Motor NotebookLM Integrado</div>
+      <div class="status-pill">🎙️ Consultas por Voz</div>
+      <div class="status-pill">📷 Visión Radiográfica AO</div>
+      <div class="status-pill">☀️ Boletín Dominical</div>
+      <div class="status-pill">🛡️ Vigilancia Secreta IDS</div>
+      <div class="status-pill">📜 Documento Vivo (v2026.4)</div>
+    </div>
+  </div>
+
+  <div class="content-body">
+
+    <!-- ==================== SECCIÓN 1: FILOSOFÍA Y ANONIMATO ==================== -->
+    <div class="section-title">
+      <span class="num">1</span>
+      Filosofía, Apoyo Académico y Anonimato Cardinal
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-accent">
+        <div class="card-title">🎯 Apoyo Médico y Exención de Responsabilidad</div>
+        <p>Iniciativa médica independiente para fortalecer la formación continua de residentes y cirujanos ortopedistas. La literatura, guías y monografías provistas son de <b>carácter estrictamente pedagógico</b>; toda decisión diagnóstica y terapéutica corresponde en exclusiva al criterio clínico del médico tratante.</p>
+      </div>
+
+      <div class="card card-accent">
+        <div class="card-title">🛡️ Regla Sagrada de Anonimato Cardinal</div>
+        <p>El proyecto protege con celo inquebrantable la privacidad de la Dirección y de los usuarios registrados. Todas las solicitudes, intermediaciones y respuestas operan a través del asistente autónomo. El propietario es referenciado siempre y únicamente como el <b>Gestor de Contenido</b>.</p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 2: ONBOARDING ==================== -->
+    <div class="section-title">
+      <span class="num">2</span>
+      Protocolo de Admisión y Ciclo de Vida del Usuario
+    </div>
+    
+    <div class="timeline-steps">
+      <div class="step-box">
+        <span class="step-number">PASO 1</span>
+        <h4>Solicitud de Acceso</h4>
+        <p>El médico escribe al WhatsApp del bot indicando nombre, hospital/universidad y nivel (R1-R4, Especialista). El sistema registra la solicitud con estado <code>PENDIENTE_APROBACION</code>.</p>
+      </div>
+      <div class="step-box">
+        <span class="step-number">PASO 2</span>
+        <h4>Aprobación de la Dirección</h4>
+        <p>El <b>Gestor de Contenido</b> recibe una notificación en su consola ejecutiva privada y aprueba al solicitante mediante el comando oficial: <code>APROBAR +57...</code></p>
+      </div>
+      <div class="step-box">
+        <span class="step-number">PASO 3</span>
+        <h4>Acceso Pleno Inmediato</h4>
+        <p>El usuario recibe su confirmación de bienvenida, el enlace al Manual Oficial y cupo habilitado para realizar consultas y descargas clínicas 24/7.</p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 3: BÚSQUEDA CLÍNICA EN EL CATÁLOGO ==================== -->
+    <div class="section-title">
+      <span class="num">3</span>
+      Modalidades de Búsqueda Quirúrgica en el Catálogo Cloud
+    </div>
+
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 25%;">Modalidad</th>
+            <th style="width: 35%;">Mensaje de Ejemplo</th>
+            <th style="width: 40%;">Resultado Recuperado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>🦴 Patología o Técnica</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('Artroplastia reversa de hombro')">Artroplastia reversa de hombro 📋</span></td>
+            <td>Tratados, monografías y técnicas de abordaje, implantes y biomecánica.</td>
+          </tr>
+          <tr>
+            <td><b>🎯 Clasificación AO</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('AO 31-A2')">AO 31-A2 📋</span> o <span class="copyable-cmd" onclick="copyCmd('Schatzker II')">Schatzker II 📋</span></td>
+            <td>Técnicas de reducción, principios biológicos y selección de implantes osteosíntesis.</td>
+          </tr>
+          <tr>
+            <td><b>🔪 Abordajes Quirúrgicos</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('Abordaje anterolateral de cadera')">Abordaje anterolateral de cadera 📋</span></td>
+            <td>Planos internerviosos, anatomía aplicada y pasos de disección quirúrgica.</td>
+          </tr>
+          <tr>
+            <td><b>🔩 Instrumental y Marcas</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('Synthes LCP')">Synthes LCP 📋</span> o <span class="copyable-cmd" onclick="copyCmd('Stryker T2')">Stryker T2 📋</span></td>
+            <td>Guías oficiales de técnica quirúrgica del fabricante con instrumental paso a paso.</td>
+          </tr>
+          <tr>
+            <td><b>📄 Código DOI o ISBN</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('10.1016/j.otsr.2023.103')">10.1016/j.otsr.2023.103... 📋</span></td>
+            <td>Entrega directa del artículo o apertura automática de ticket de adquisición.</td>
+          </tr>
+          <tr>
+            <td><b>📖 Solicitud del Manual</b></td>
+            <td><span class="copyable-cmd" onclick="copyCmd('MANUAL')">MANUAL 📋</span> o <span class="copyable-cmd" onclick="copyCmd('AYUDA')">AYUDA 📋</span></td>
+            <td>Despacho instantáneo del enlace interactivo web y PDF del manual oficial.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ==================== SECCIÓN 4: MOTOR DE EVIDENCIA CIENTÍFICA GLOBAL ==================== -->
+    <div class="section-title">
+      <span class="num">4</span>
+      Motor de Evidencia Médica Global (PubMed & Semantic Scholar)
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-feature">
+        <div class="card-title">🌐 Consulta Directa a PubMed</div>
+        <p>Permite interrogar en tiempo real más de 35 millones de publicaciones biomédicas indexadas. Para formular una consulta científica, escriba en el chat:<br>
+        <span class="copyable-cmd" style="margin-top:6px;" onclick="copyCmd('EVIDENCIA: ')">EVIDENCIA: [su pregunta clínica o técnica] 📋</span><br>
+        <i style="color:#0f766e; font-size:7.8pt;">Ejemplo: EVIDENCIA: Cerclaje vs placas bloqueadas en fracturas de rótula 34-C3</i></p>
+      </div>
+
+      <div class="card card-feature">
+        <div class="card-title">📊 Entrega de Resultados Estructurados</div>
+        <ul class="card-list">
+          <li><b>Resumen WhatsApp (3-4 párrafos):</b> Consenso actual, hallazgos clave de los 3 estudios más recientes y recomendación quirúrgica.</li>
+          <li><b>Enlaces HTTPS Directos:</b> Enlaces directos a PubMed, DOI y Consensus para leer el artículo original a texto completo.</li>
+          <li><b>Ficha de Evidencia PDF:</b> Documento clínico formal descargable generado en la nube con tabla comparativa de los estudios.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 5: ANÁLISIS CRÍTICO NOTEBOOKLM ==================== -->
+    <div class="section-title">
+      <span class="num">5</span>
+      Lectura Crítica de Artículos Propios (Motor NotebookLM con Gemini)
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-feature">
+        <div class="card-title">🔬 Análisis Profundo de Documentos</div>
+        <p>El médico puede adjuntar <b>1 o 2 artículos en PDF</b> en el chat de WhatsApp acompañados del comando:<br>
+        <span class="copyable-cmd" style="margin-top:6px;" onclick="copyCmd('ANALIZAR: ')">ANALIZAR: [preguntas o foco clínico opcional] 📋</span><br>
+        El sistema procesa los documentos mediante comprensión multimodal profunda.</p>
+      </div>
+
+      <div class="card card-feature">
+        <div class="card-title">⚖️ Reglas de Servicio y Entregables</div>
+        <ul class="card-list">
+          <li><b>Límite Estricto:</b> Máximo <b>2 archivos PDF por solicitud</b> (puede realizar tantos análisis independientes como requiera a lo largo del mes).</li>
+          <li><b>Filtro de Tamaño:</b> Exclusivo para artículos científicos o capítulos de libros (&lt;30 MB / &lt;50 págs), descartando libros masivos completos.</li>
+          <li><b>Resultados:</b> Resumen PICO, metodología, significación estadística, riesgo de sesgos y (si son 2 artículos) <b>Matriz Comparativa Cruzada</b>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 6: VIAS DE INGESTA Y ENRIQUECIMIENTO ==================== -->
+    <div class="section-title">
+      <span class="num">6</span>
+      Vías de Aporte y Enriquecimiento de la Biblioteca (Cloud 24/7)
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-accent">
+        <div class="card-title">📁 Opción A: Buzón Seguro en Google Drive</div>
+        <p>Los colaboradores pueden depositar documentos en la carpeta compartida designada por la Dirección:<br>
+        <code style="font-size:7.5pt; word-break:break-all;">https://drive.google.com/drive/folders/1UDQtuZqOiiGYnphbN5xaOxaLZvGNvLI1</code><br>
+        <b>Patrón Drop-Box Ciego:</b> Cada 5 minutos, Google Apps Script escanea la carpeta en la nube con el PC del Gestor de Contenido apagado, clona el archivo transfiriendo la propiedad absoluta a la Dirección, lo desduplica, lo cataloga en <code>Inventario_Maestro</code> y <b>elimina el original del buzón público</b>, manteniéndolo siempre limpio, ciego y seguro.</p>
+      </div>
+
+      <div class="card card-accent">
+        <div class="card-title">📱 Opción B: Ingesta Directa por WhatsApp</div>
+        <p>Los médicos autorizados pueden enviar directamente un archivo PDF al chat de WhatsApp con el texto <code>APORTE</code> o <code>DONAR</code>. El agente cloud recibe el archivo, valida su integridad, lo almacena en la bóveda privada de Drive, lo clasifica por subespecialidad y le devuelve una confirmación formal de agradecimiento con su ID de indexación.</p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 7: POTENCIACIONES MULTIMODALES DEL ASISTENTE ==================== -->
+    <div class="section-title">
+      <span class="num">7</span>
+      Potenciaciones Multimodales del Asistente: Voz, Visión AO y Boletín
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-feature">
+        <div class="card-title">🎙️ Consultas por Nota de Voz (WhatsApp Audio)</div>
+        <p>Los cirujanos en áreas de lavado, consulta o quirófano pueden enviar notas de voz directamente al chat. El agente utiliza procesamiento de audio multimodal (Gemini 2.0 Flash) para transcribir con precisión la terminología ortopédica y ejecutar la búsqueda o lectura crítica sin necesidad de teclear.</p>
+      </div>
+
+      <div class="card card-feature">
+        <div class="card-title">📷 Orientación Radiográfica AO/OTA por Imagen</div>
+        <p>Al adjuntar una radiografía o tomografía en el chat, el motor de visión computacional analiza el segmento óseo, sugiere la clasificación AO/OTA preliminar más probable y recupera de forma proactiva la monografía y técnica quirúrgica de osteosíntesis correspondiente del catálogo.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-accent">
+        <div class="card-title">☀️ Boletín Dominical de Actualización Quirúrgica</div>
+        <p>Todos los domingos a las 8:00 AM (o por solicitud de la Dirección), los médicos autorizados reciben un resumen editorial con 3 perlas quirúrgicas y lecturas destacadas de la semana para debate académico en la revista de sala (Grand Rounds).</p>
+      </div>
+
+      <div class="card card-accent">
+        <div class="card-title">🔍 Búsqueda Difusa con Distancia Levenshtein (&ge;75%)</div>
+        <p>Tolerancia inteligente a errores tipográficos y de digitación rápida en el móvil (ej. <i>"artroplasta de cadra"</i>, <i>"schatzkr"</i>). El motor calcula la similitud fonética y ortográfica para recuperar el documento correcto sin frustraciones.</p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 8: SIMULADOR INTERACTIVO ==================== -->
+    <div class="page-break"></div>
+
+    <div class="simulator-wrapper no-print">
+      <div class="simulator-header">
+        <span style="font-size: 9pt; font-weight: 700; color: #38bdf8;">🩺 Simulador Interactivo de Respuestas del Bot</span>
+        <span style="font-size: 7.5pt; color: #94a3b8;">Pruebe cómo interactúa el bot en tiempo real</span>
+      </div>
+
+      <div class="sim-pills">
+        <button class="sim-btn active" onclick="setSim('AO 31-A2')">AO 31-A2</button>
+        <button class="sim-btn" onclick="setSim('EVIDENCIA: Rótula 34-C3')">EVIDENCIA: Rótula 34-C3</button>
+        <button class="sim-btn" onclick="setSim('ANALIZAR: 2 artículos LCA')">ANALIZAR: 2 PDFs</button>
+        <button class="sim-btn" onclick="setSim('Synthes LCP')">Synthes LCP</button>
+        <button class="sim-btn" onclick="setSim('MANUAL')">MANUAL</button>
+        <button class="sim-btn" onclick="setSim('MENSAJE AL GESTOR: Solicitud de libro')">Mensaje al Gestor</button>
+      </div>
+
+      <div class="chat-bubble-container" id="chatSimArea">
+        <div class="bubble-user" id="simUserBubble">AO 31-A2</div>
+        <div class="bubble-bot" id="simBotBubble">
+          📖 <b>LITERATURA ENCONTRADA</b><br>
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━<br>
+          📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>
+          ✍️ <b>Autor:</b> AO Foundation (2024)<br>
+          📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>
+          🎯 <b>Clasificación AO:</b> 31-A2<br>
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>
+          🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br>
+          <a href="#">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 9: SEGURIDAD CRIPTOGRÁFICA Y SISTEMA IDS ==================== -->
+    <div class="section-title">
+      <span class="num">8</span>
+      Seguridad Criptográfica y Vigilancia Silenciosa (Sistema IDS)
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">⏱️ Caducidad Estricta 30 min</div>
+        <p>Cada enlace emitido incluye un token criptográfico HMAC-SHA256 con vigencia de 30 minutos. Tras este lapso, el token caduca de forma irreversible.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔒 Cero Exposición Drive</div>
+        <p>Las descargas se ejecutan mediante un proxy anónimo en la nube. Las URLs de Google Drive y carpetas maestras permanecen 100% blindadas.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🛡️ Detección de Intrusos (IDS)</div>
+        <p>Vigilancia secreta activa contra manipulación de firmas (Tampering), BOLA/IDOR, inyección de fórmulas y prompt injection. Ante ataques, el sistema responde de forma neutra y despacha una Alerta Roja inmediata a la Dirección.</p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 10: CÓDIGO DE CONDUCTA ==================== -->
+    <div class="section-title">
+      <span class="num">9</span>
+      Código de Conducta y Régimen Disciplinario
+    </div>
+
+    <div class="card card-warn" style="margin-bottom: 14px;">
+      <div class="card-title">⛔ Tolerancia Cero a Lenguaje Inapropiado y Temas Ajenos</div>
+      <ul class="card-list">
+        <li><b>Exclusividad Médico-Quirúrgica:</b> La biblioteca es una herramienta de apoyo académico. Consultas sobre política, deportes o entretenimiento son descartadas de forma automática.</li>
+        <li><b>Suspensión Preventiva Inmediata:</b> Cualquier mensaje con contenido vulgar, obsceno o insultos activa la <b>inhabilitación inmediata</b> de la cuenta sin previo aviso.</li>
+        <li><b>Arbitraje de la Dirección:</b> Toda suspensión es remitida al <b>Gestor de Contenido</b>, quien es la única autoridad con potestad para revisar el incidente y ordenar el desbloqueo o la expulsión permanente.</li>
+      </ul>
+    </div>
+
+    <!-- ==================== SECCIÓN 11: CANAL INTERMEDIADO ==================== -->
+    <div class="section-title">
+      <span class="num">10</span>
+      Canal Intermediado Confidencial con la Dirección
+    </div>
+
+    <div class="grid-2">
+      <div class="card card-accent">
+        <div class="card-title">📩 Para Médicos y Residentes</div>
+        <p>Para elevar sugerencias de literatura, reportar dudas o comunicarse con la Dirección sin vulnerar el anonimato bilateral, escriba en el chat:<br>
+        <span class="copyable-cmd" style="margin-top:6px;" onclick="copyCmd('MENSAJE AL GESTOR: ')">MENSAJE AL GESTOR: [su consulta detallada] 📋</span></p>
+      </div>
+
+      <div class="card card-accent">
+        <div class="card-title">📤 Para el Gestor de Contenido (Superusuario)</div>
+        <p>Desde su consola personal privada, la Dirección emite respuestas oficiales anónimas dirigidas al médico mediante el comando:<br>
+        <span class="copyable-cmd" style="margin-top:6px;" onclick="copyCmd('RESPONDER ')">RESPONDER +573xxxxxxxxx [su mensaje oficial] 📋</span></p>
+      </div>
+    </div>
+
+    <!-- ==================== SECCIÓN 12: COMUNICADOS Y AUTOAPRENDIZAJE ==================== -->
+    <div class="section-title">
+      <span class="num">11</span>
+      Gobernanza Dinámica: Notificaciones Masivas y Autoaprendizaje
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📢 Comunicados Oficiales (Broadcast)</div>
+        <p>Cada vez que se actualicen las políticas de uso, criterios de servicio o se incorpore nueva literatura relevante, el <b>Gestor de Contenido</b> emitirá un mensaje masivo a todos los médicos autorizados mediante el comando ejecutivo:<br>
+        <code style="margin-top:4px; display:inline-block;">COMUNICADO: [anuncio de actualización...]</code><br>
+        O el atajo automático <code style="display:inline-block;">COMUNICADO_POLITICAS</code>.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🧠 Sistema de Autoaprendizaje Continuo</div>
+        <p>El bot cuenta con un sistema de telemetría y memoria permanente en la nube:
+        <ul class="card-list" style="margin-top:4px;">
+          <li><b>Expansión de Sinónimos:</b> Mapeo automático de términos equivalentes (ej. prótesis ➔ artroplastia / reemplazo; LCA ➔ ligamento cruzado).</li>
+          <li><b>Detección de Brechas:</b> Las consultas sin resultados quedan registradas en <code>Memoria_Aprendizaje</code> para orientar nuevas adquisiciones.</li>
+        </ul>
+        </p>
+      </div>
+    </div>
+
+  </div> <!-- /content-body -->
+
+  <!-- ==================== FOOTER ==================== -->
+  <div class="manual-footer">
+    <div>
+      <b>Biblioteca Médica Especializada</b> • Dirección: Gestor de Contenido<br>
+      Servicio académico autónomo cloud 24/7 • Ortopedia y Traumatología
+    </div>
+    <div style="text-align: right;">
+      <span>Documento Oficial Vivo • Edición 2026.4</span><br>
+      <span style="color: var(--teal); font-weight: 700;">Vigencia y Actualización Permanente</span>
+    </div>
+  </div>
+
+</div> <!-- /container -->
+
+<!-- TOAST FLOTANTE DE COPIADO -->
+<div id="copyToast">¡Comando copiado al portapapeles!</div>
+
+<script>
+  function copyCmd(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    const toast = document.getElementById('copyToast');
+    toast.style.display = 'block';
+    setTimeout(function() {
+      toast.style.display = 'none';
+    }, 2000);
+  }
+
+  const simData = {
+    'AO 31-A2': {
+      user: 'AO 31-A2',
+      bot: '📖 <b>LITERATURA ENCONTRADA</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>✍️ <b>Autor:</b> AO Foundation (2024)<br>📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>🎯 <b>Clasificación AO:</b> 31-A2<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br><a href="#" onclick="alert(\'Enlace seguro y anónimo de descarga\')">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'
+    },
+    'EVIDENCIA: Rótula 34-C3': {
+      user: 'EVIDENCIA: Manejo quirúrgico de fracturas de rótula 34-C3 cerclaje vs placas bloqueadas',
+      bot: '🌐 <b>SÍNTESIS DE EVIDENCIA BIOMÉDICA (PubMed & Semantic Scholar)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Consenso Clínico:</b> Las placas bloqueadas de bajo perfil muestran menor tasa de fracaso de osteosíntesis (4.2% vs 16.8%) y menor irritación del aparato extensor comparado con el cerclaje tradicional modificado.<br><br><b>Estudios Clave Recuperados:</b><br>1. <i>Smith et al. (2025)</i> - Locked plating vs Tension Band in AO/OTA 34-C3 (OTA Int).<br>2. <i>Kramer et al. (2024)</i> - Biomechanical rigidity in comminuted patella fractures.<br>3. <i>García et al. (2024)</i> - Systematic review of anterior knee pain.<br><br>🔗 <a href="#">PubMed #42338183</a> | <a href="#">DOI: 10.1016/otsr.2024</a> | <a href="#">Consensus Search</a><br><br>📥 <b>Ficha de Evidencia PDF:</b> <a href="#">https://script.google.com/.../exec?token=evid_...</a>'
+    },
+    'ANALIZAR: 2 artículos LCA': {
+      user: 'ANALIZAR: Comparar plastia HTH vs Tendón Cuadricipital [Adjunta 2 PDFs]',
+      bot: '🔬 <b>LECTURA CRÍTICA NOTEBOOKLM (2 Artículos Procesados)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Objetivo PICO:</b> Comparación de estabilidad anteroposterior y dolor anterior de rodilla en reconstrucción de LCA.<br><br><b>Matriz Comparativa Cruzada:</b><br>• <i>Estudio 1 (Müller 2024):</i> HTH muestra 8% más dolor anterior al arrodillarse; fijación ósea más rápida.<br>• <i>Estudio 2 (Chen 2025):</i> Tendón cuadricipital presenta menor morbilidad de zona donante sin diferencia en tasa de rerrotura a 2 años (p=0.48).<br><br><b>Nivel de Evidencia:</b> Nivel II (Ensayos prospectivos aleatorizados).<br><br>📥 <b>Informe de Lectura Crítica PDF:</b> <a href="#">https://script.google.com/.../exec?token=crit_...</a>'
+    },
+    'Synthes LCP': {
+      user: 'Synthes LCP',
+      bot: '📖 <b>LITERATURA ENCONTRADA</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Synthes LCP Locking Compression Plate System Technique Guide<br>✍️ <b>Autor:</b> DePuy Synthes Trauma (2022)<br>📁 <b>Especialidad:</b> Catálogos e Instrumental Quirúrgico<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br><a href="#" onclick="alert(\'Enlace seguro y anónimo de descarga\')">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'
+    },
+    'MANUAL': {
+      user: 'MANUAL',
+      bot: '📖 <b>MANUAL DE USO Y GOBERNANZA DEL PROYECTO</b><br><b>Dirección:</b> Gestor de Contenido<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Este documento contiene las directrices completas para:<br>• Búsquedas quirúrgicas en el catálogo cloud.<br>• Consulta de evidencia en PubMed (EVIDENCIA:).<br>• Lectura crítica de artículos propios (ANALIZAR: máx 2 PDFs).<br>• Buzón Drive ciego y donaciones por WhatsApp.<br>• Enlaces efímeros de 30 minutos.<br>• Código de Conducta y Moderación Activa.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>📥 <b>Manual Oficial Interactivo & PDF:</b><br><a href="#" onclick="alert(\'Abre el portal oficial del manual\')">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'
+    },
+    'MENSAJE AL GESTOR: Solicitud de libro': {
+      user: 'MENSAJE AL GESTOR: ¿Sería posible adquirir la última edición de Green Operative Hand?',
+      bot: '📩 <b>Mensaje Transmitido a la Dirección</b><br><br>Su comunicación ha sido remitida al <b>Gestor de Contenido</b> de forma estrictamente confidencial.<br>Le notificaremos en este mismo chat en cuanto se emita una respuesta.'
+    }
+  };
+
+  function setSim(key) {
+    const data = simData[key];
+    if (!data) return;
+    document.getElementById('simUserBubble').innerHTML = data.user;
+    document.getElementById('simBotBubble').innerHTML = data.bot;
+
+    const btns = document.querySelectorAll('.sim-btn');
+    btns.forEach(b => {
+      if (b.innerText === key || b.getAttribute('onclick').includes(key)) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

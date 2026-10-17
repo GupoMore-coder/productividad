@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0",
+  "description": "Reglas de clasificación quirúrgica, extracción de colofón y heurísticas anatómicas especializadas para Ortopedia y Traumatología.",
+  "rules": {
+    "commercial_catalogs": {
+      "id": "RULE_COMMERCIAL_CATALOG_TECHNIQUE",
+      "description": "Catálogos de técnica quirúrgica, instrumental quirúrgico y/o material de osteosíntesis comercial.",
+      "target_folder": "Catálogos de Materiales ortopédicos",
+      "known_manufacturers": [
+        "Synthes", "DePuy Synthes", "Stryker", "Zimmer", "Zimmer Biomet", "Smith & Nephew",
+        "Arthrex", "Medtronic", "Wright", "Aesculap", "Acumed", "Biomet", "Integra",
+        "ConMed", "KLS Martin", "Orthofix", "B. Braun", "Lima Corporate", "Waldemar Link"
+      ],
+      "triggers": [
+        "técnica quirúrgica", "tecnica quirurgica", "technique guide", "surgical technique",
+        "catálogo", "catalogo", "instrumental", "osteotomy system", "nailing system",
+        "plating system", "cslp", "expert nailing", "tomofix", "synmesh", "distractor",
+        "external fixator"
+      ],
+      "naming_template": "{year} - {manufacturer} - {clean_title} [{doc_type}].pdf",
+      "year_extraction_strategy": "INSPECT_LAST_PAGE_COLOPHON_THEN_FIRST_PAGE"
+    },
+    "ao_chapter_extract": {
+      "id": "RULE_AO_CHAPTER_EXTRACT",
+      "description": "Extractos de capítulos de libros AO sin año de publicación ni título de libro formal.",
+      "target_folder": "Temas generales",
+      "triggers": [
+        "ao foundation", "ao principles", "evaluation/classification of closed and open injuries",
+        "soft-tissue injury"
+      ],
+      "structure_indicator": "Capítulo sin año ni libro",
+      "naming_template": "Capitulo AO, {author}, {topic_name}.pdf"
+    },
+    "ao_manual_extract": {
+      "id": "RULE_AO_MANUAL_EXTRACT",
+      "description": "Extractos de manuales de participantes AO Foundation sin año editorial formal.",
+      "target_folder": "Temas generales",
+      "triggers": [
+        "manual del participante", "laboratorio de habilidades ao", "ao skills lab",
+        "participating manual"
+      ],
+      "structure_indicator": "Manual práctico AO",
+      "naming_template": "Manual AO Foundation, {author}, {topic_name}.pdf"
+    },
+    "multi_volume_atlas": {
+      "id": "RULE_MULTI_VOLUME_ATLAS",
+      "description": "Atlas o libros enciclopédicos sin año de publicación, DOI o ISBN formal.",
+      "target_folder": "Temas generales",
+      "triggers": [
+        "atlas de osteosíntesis", "atlas de osteosintesis", "vías de acceso quirúrgico",
+        "vias de acceso quirurgico"
+      ],
+      "naming_template": "{author}, {title}, {volume_and_segment}.pdf",
+      "consolidation_precedence": {
+        "master_filename": "667072418-Atlas-de-Osteosintesis",
+        "contains": ["Volumen 1 Extremidad Superior", "Volumen 2 Extremidad Inferior"],
+        "action_on_partial": "DISCARD_PARTIAL_PRESERVE_CONSOLIDATED"
+      }
+    }
+  }
+}

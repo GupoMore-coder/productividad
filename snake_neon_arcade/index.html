@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="CyberSnake 2099 - El clásico juego de la culebra reinventado con estética Neón Cyberpunk, partículas, audio sintetizado y tabla de récords online.">
+  <meta name="theme-color" content="#080811">
+  <title>CyberSnake 2099 | Neon Arcade Online</title>
+
+  <!-- Google Fonts: Orbitron (Arcade/Cyber) & Outfit (Modern UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Fondo con rejilla neón y luces ambientales -->
+  <div class="cyber-background" aria-hidden="true">
+    <div class="ambient-glow glow-cyan"></div>
+    <div class="ambient-glow glow-pink"></div>
+    <div class="cyber-grid"></div>
+  </div>
+
+  <div class="app-container" id="appRoot">
+    <!-- Header / Barra Superior -->
+    <header class="game-header">
+      <div class="branding">
+        <h1 class="logo-title">CYBER<span class="neon-text-pink">SNAKE</span> <span class="logo-tag">2099</span></h1>
+        <p class="logo-sub">NEON ARCADE ONLINE</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnAudioToggle" class="hud-btn" title="Activar/Silenciar Sonido" aria-label="Control de Sonido">
+          <span class="btn-icon" id="audioIcon">🔊</span>
+        </button>
+        <button id="btnLeaderboardOpen" class="hud-btn" title="Tabla de Clasificación" aria-label="Ver Récords">
+          <span class="btn-icon">🏆</span>
+          <span class="btn-label-desktop">RÉCORDS</span>
+        </button>
+        <button id="btnSettingsOpen" class="hud-btn" title="Ajustes y Dificultad" aria-label="Ajustes de Juego">
+          <span class="btn-icon">⚙️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- HUD de Puntuación en Tiempo Real -->
+    <section class="hud-dashboard" aria-label="Marcador del juego">
+      <div class="hud-card" id="cardScore">
+        <span class="hud-label">PUNTOS</span>
+        <span class="hud-value neon-cyan" id="hudScore">0</span>
+      </div>
+
+      <div class="hud-card" id="cardCombo">
+        <span class="hud-label">COMBO</span>
+        <div class="combo-wrapper">
+          <span class="hud-value neon-gold" id="hudMultiplier">x1.0</span>
+          <div class="combo-meter">
+            <div class="combo-fill" id="comboFillBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-card" id="cardHighScore">
+        <span class="hud-label">RÉCORD</span>
+        <span class="hud-value neon-pink" id="hudHighScore">0</span>
+      </div>
+
+      <div class="hud-card" id="cardSpeed">
+        <span class="hud-label">NIVEL</span>
+        <span class="hud-value neon-green" id="hudSpeedLevel">NIV 1</span>
+      </div>
+    </section>
+
+    <!-- Área Principal de Juego (Canvas) -->
+    <main class="game-stage">
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <canvas id="gameCanvas" width="600" height="600" aria-label="Tablero de juego de la serpiente"></canvas>
+
+        <!-- Overlay de Inicio / Pausa -->
+        <div class="stage-overlay" id="stageOverlay">
+          <div class="overlay-card" id="overlayCard">
+            <div class="overlay-glitch-badge">SISTEMA LISTO</div>
+            <h2 class="overlay-title" id="overlayTitle">CYBER SNAKE</h2>
+            <p class="overlay-desc" id="overlayDesc">Usa las flechas, WASD o los controles táctiles para navegar y devorar orbes de energía.</p>
+            <button class="neon-primary-btn" id="btnStartGame">
+              <span class="btn-shimmer"></span>
+              <span id="btnStartText">INICIAR PARTIDA</span>
+            </button>
+            <div class="keyboard-hints" id="keyboardHints">
+              <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> Moverse</span>
+              <span><kbd>ESPACIO</kbd> Pausar</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Banner de Notificación de Combo Flotante -->
+        <div class="combo-toast" id="comboToast" aria-live="polite"></div>
+      </div>
+    </main>
+
+    <!-- Controles Táctiles para Móviles / Tablets -->
+    <div class="touch-controls" id="touchControls" aria-label="Controles táctiles virtuales">
+      <div class="dpad-cross">
+        <button class="dpad-btn dpad-up" id="btnTouchUp" aria-label="Arriba">▲</button>
+        <button class="dpad-btn dpad-left" id="btnTouchLeft" aria-label="Izquierda">◀</button>
+        <button class="dpad-btn dpad-center" id="btnTouchPause" aria-label="Pausa">⏸</button>
+        <button class="dpad-btn dpad-right" id="btnTouchRight" aria-label="Derecha">▶</button>
+        <button class="dpad-btn dpad-down" id="btnTouchDown" aria-label="Abajo">▼</button>
+      </div>
+    </div>
+
+    <!-- Barra de Estado / Leyenda de Power-ups Inferior -->
+    <footer class="game-footer">
+      <div class="powerup-legend">
+        <div class="legend-item"><span class="legend-dot dot-apple"></span> Manzana (+100)</div>
+        <div class="legend-item"><span class="legend-dot dot-star"></span> Estrella Dorada (x3 Pts)</div>
+        <div class="legend-item"><span class="legend-dot dot-chrono"></span> Orbe Crono (Slow-Mo)</div>
+        <div class="legend-item"><span class="legend-dot dot-overdrive"></span> Turbo Gem (+500)</div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: GAME OVER & GUARDADO DE RÉCORD -->
+  <div class="modal-backdrop" id="modalGameOver" aria-hidden="true" role="dialog" aria-labelledby="gameOverTitle">
+    <div class="modal-box modal-gameover">
+      <div class="modal-header-tag">SEÑAL INTERRUMPIDA</div>
+      <h2 class="modal-title neon-text-pink" id="gameOverTitle">GAME OVER</h2>
+      
+      <div class="gameover-stats">
+        <div class="stat-pill">
+          <span class="stat-title">Puntuación Final</span>
+          <span class="stat-val neon-cyan" id="goFinalScore">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-title">Mejor Combo</span>
+          <span class="stat-val neon-gold" id="goBestCombo">x1.0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-title">Orbes Comidos</span>
+          <span class="stat-val neon-green" id="goFoodCount">0</span>
+        </div>
+      </div>
+
+      <div class="record-badge hidden" id="goNewRecordBadge">
+        ✨ ¡NUEVO RÉCORD PERSONAL! ✨
+      </div>
+
+      <form class="save-score-form" id="formSaveScore" onsubmit="return false;">
+        <label for="playerAliasInput" class="input-label">Ingresa tu Nombre o Alias Cyber:</label>
+        <div class="input-group">
+          <input type="text" id="playerAliasInput" maxlength="15" placeholder="PILOTO-01" required autocomplete="off">
+          <button type="submit" class="neon-primary-btn btn-save" id="btnSaveScore">GUARDAR</button>
+        </div>
+        <p class="save-feedback" id="saveFeedback"></p>
+      </form>
+
+      <div class="modal-actions">
+        <button class="neon-secondary-btn" id="btnRestartGame">JUGAR DE NUEVO</button>
+        <button class="hud-btn" id="btnViewLeaderboardFromGO">VER RÉCORDS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TABLA DE CLASIFICACIÓN (LEADERBOARD) -->
+  <div class="modal-backdrop" id="modalLeaderboard" aria-hidden="true" role="dialog" aria-labelledby="leaderboardTitle">
+    <div class="modal-box modal-leaderboard">
+      <div class="modal-top-bar">
+        <h2 class="modal-title neon-cyan" id="leaderboardTitle">🏆 SALÓN DE LA FAMA</h2>
+        <button class="close-modal-btn" id="btnCloseLeaderboard" aria-label="Cerrar modal">✕</button>
+      </div>
+
+      <!-- Pestañas: TOP 10 Global vs Mis Partidas -->
+      <div class="tab-selector">
+        <button class="tab-btn active" id="tabGlobal" data-tab="global">TOP MUNDIAL</button>
+        <button class="tab-btn" id="tabLocal" data-tab="local">MIS RÉCORDS</button>
+      </div>
+
+      <div class="leaderboard-table-container">
+        <table class="leaderboard-table" id="leaderboardTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>JUGADOR</th>
+              <th>DIFICULTAD</th>
+              <th>PUNTOS</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <!-- Filas dinámicas insertadas por leaderboard.js -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer-actions">
+        <button class="neon-secondary-btn" id="btnClearLocalScores" title="Restablecer récords locales">Reiniciar mis datos</button>
+        <button class="neon-primary-btn" id="btnCloseLeaderboardBtn">REGRESAR AL JUEGO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AJUSTES Y DIFICULTAD -->
+  <div class="modal-backdrop" id="modalSettings" aria-hidden="true" role="dialog" aria-labelledby="settingsTitle">
+    <div class="modal-box modal-settings">
+      <div class="modal-top-bar">
+        <h2 class="modal-title neon-gold" id="settingsTitle">⚙️ CONFIGURACIÓN</h2>
+        <button class="close-modal-btn" id="btnCloseSettings" aria-label="Cerrar modal">✕</button>
+      </div>
+
+      <div class="settings-group">
+        <label class="setting-title">MODO DE DIFICULTAD</label>
+        <div class="difficulty-picker">
+          <label class="diff-option">
+            <input type="radio" name="difficulty" value="casual">
+            <div class="diff-card">
+              <span class="diff-name">CASUAL (ZEN)</span>
+              <span class="diff-desc">Sin colisión con paredes. Cruzas el borde al lado opuesto. Velocidad relajada.</span>
+            </div>
+          </label>
+          <label class="diff-option">
+            <input type="radio" name="difficulty" value="arcade" checked>
+            <div class="diff-card">
+              <span class="diff-name">ARCADE (CLÁSICO)</span>
+              <span class="diff-desc">Muros mortales, incremento gradual de velocidad y ritmo equilibrado.</span>
+            </div>
+          </label>
+          <label class="diff-option">
+            <input type="radio" name="difficulty" value="cyber">
+            <div class="diff-card">
+              <span class="diff-name">CYBER TURBO</span>
+              <span class="diff-desc">Velocidad extrema, mayor spawn de ítems dorados y multiplicador x2 inicial.</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label class="setting-title">OPCIONES GRÁFICAS Y AUDIO</label>
+        <div class="toggle-option">
+          <span>Efecto Glow / Resplandor Neón</span>
+          <input type="checkbox" id="toggleGlow" checked>
+        </div>
+        <div class="toggle-option">
+          <span>Partículas de Destello al Comer</span>
+          <input type="checkbox" id="toggleParticles" checked>
+        </div>
+        <div class="toggle-option">
+          <span>Sonido Sintetizado Arcade</span>
+          <input type="checkbox" id="toggleAudio" checked>
+        </div>
+      </div>
+
+      <div class="modal-footer-actions">
+        <button class="neon-primary-btn" id="btnSaveSettings">GUARDAR Y CERRAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts Modulares -->
+  <script src="audio.js"></script>
+  <script src="leaderboard.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

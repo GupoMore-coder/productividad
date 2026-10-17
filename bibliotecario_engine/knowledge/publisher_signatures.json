@@ -1,0 +1,26 @@
+{
+  "signatures": {
+    "10.1016": { "publisher": "Elsevier", "location": "Header top-left or citation footer", "field": "DOI" },
+    "10.1097": { "publisher": "Wolters Kluwer / LWW / JAAOS / JOT", "location": "Header or legal footer", "field": "DOI" },
+    "10.1007": { "publisher": "Springer / CORR / SICOT", "location": "Top banner or bottom running head", "field": "DOI" },
+    "10.1186": { "publisher": "BioMed Central (BMC)", "location": "Top banner right next to journal name", "field": "DOI" },
+    "10.1177": { "publisher": "SAGE (J. Hand Surg)", "location": "Top running block or sidebar", "field": "DOI" },
+    "10.2106": { "publisher": "JBJS", "location": "Page header running title or bottom DOI link", "field": "DOI" },
+    "10.1056": { "publisher": "NEJM", "location": "Title header / footer", "field": "DOI" },
+    "10.3390": { "publisher": "MDPI", "location": "Top banner", "field": "DOI" },
+    "10.58814": { "publisher": "Rev. Colombiana de Ortopedia y Traumatología", "location": "Footer left margin", "field": "DOI" },
+    "10.31434": { "publisher": "Revista Médica Sinergia", "location": "Header left margin", "field": "DOI" }
+  },
+  "learned_patterns": [
+    {
+      "pattern": "Estudio de rodilla",
+      "action": "IGNORE_PLACEHOLDER",
+      "description": "El texto 'Estudio de rodilla' es un artefacto del prompt anterior y debe ser ignorado como título."
+    },
+    {
+      "pattern": "Smith",
+      "action": "SUSPECT_PLACEHOLDER",
+      "description": "Verificar con DOI si el autor 'Smith' fue insertado por defecto."
+    }
+  ]
+}

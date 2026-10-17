@@ -1,0 +1,52 @@
+{
+  "rules": [
+    {
+      "trigger_keywords": ["columna", "discitis", "vertebral", "espondilodiscitis"],
+      "primary_folder": "Infeccioso",
+      "secondary_folder": "Columna",
+      "reason": "Patología infecciosa con compromiso vertebral específico."
+    },
+    {
+      "trigger_keywords": ["pie diabetico", "pie diabético", "ulcera pie"],
+      "primary_folder": "Infeccioso",
+      "secondary_folder": "Pie y Tobillo",
+      "reason": "Complicación infecciosa/osteomielitis de pie diabético."
+    },
+    {
+      "trigger_keywords": ["tibia", "gustilo", "fractura expuesta tibia"],
+      "primary_folder": "Infeccioso",
+      "secondary_folder": "Rodilla y Tibia",
+      "reason": "Infección y osteosíntesis en fracturas abiertas de tibia."
+    },
+    {
+      "trigger_keywords": ["pediatria", "pediátrica", "infancia", "aep"],
+      "primary_folder": "Infeccioso",
+      "secondary_folder": "Ortopedia Pediatrica",
+      "reason": "Infecciones osteoarticulares pediátricas."
+    },
+    {
+      "trigger_keywords": ["knee", "rodilla", "patella", "rotula"],
+      "primary_folder": "Abordajes",
+      "secondary_folder": "Rodilla y Tibia",
+      "reason": "Vías de abordaje quirúrgico específicas de la rodilla."
+    },
+    {
+      "trigger_keywords": ["shoulder", "hombro", "elbow", "codo"],
+      "primary_folder": "Abordajes",
+      "secondary_folder": "Hombro",
+      "reason": "Vías de abordaje quirúrgico del miembro superior."
+    },
+    {
+      "trigger_keywords": ["tumor", "oncologia", "sarcoma", "reseccion tumoral"],
+      "primary_folder": "Abordajes",
+      "secondary_folder": "Ortopedia Oncologica",
+      "reason": "Abordajes quirúrgicos para resección y salvamento en tumores óseos."
+    },
+    {
+      "trigger_keywords": ["sports", "deportiva", "artroscopia"],
+      "primary_folder": "Abordajes",
+      "secondary_folder": "Ortopedia Deportiva y artroscopia",
+      "reason": "Abordajes y portales artroscópicos en lesiones deportivas."
+    }
+  ]
+}

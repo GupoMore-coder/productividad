@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Antigravity Finanzas | Prompt & Canvas Dashboard</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js para visualizaciones financieras de alto rendimiento -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #080c14;
+      --bg-surface: #0f172a;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.25);
+      
+      --accent-cyan: #38bdf8;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-violet: #8b5cf6;
+      --accent-gold: #fbbf24;
+      --border-buffett: rgba(251, 191, 36, 0.3);
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: radial-gradient(circle at 10% 20%, #0d1527 0%, var(--bg-base) 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* BARRA SUPERIOR EJECUTIVA */
+    header {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-card);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+    }
+
+    .brand-title h1 {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      background: linear-gradient(90deg, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-title p {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    /* SELECTOR DE ENTIDADES */
+    .entity-switcher {
+      display: flex;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .entity-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 7px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .entity-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .entity-btn.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.25));
+      color: var(--accent-cyan);
+      border: 1px solid var(--border-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .entity-btn.user-tab {
+      border: 1px dashed rgba(168, 85, 247, 0.45);
+      color: #c084fc;
+      background: rgba(168, 85, 247, 0.05);
+    }
+
+    .entity-btn.user-tab:hover {
+      border-color: #a855f7;
+      background: rgba(168, 85, 247, 0.15);
+      color: #f3e8ff;
+    }
+
+    .entity-btn.user-tab.active {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.25));
+      color: #f0abfc;
+      border: 1px solid #c084fc;
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35);
+    }
+
+    .btn-refresh {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border-card);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .btn-refresh:hover {
+      border-color: var(--accent-cyan);
+      transform: rotate(45deg);
+    }
+
+    /* CONTENEDOR PRINCIPAL */
+    main {
+      flex: 1;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* SECCIÓN COPILOTO FINANCIERO CON IA (PROMPT BAR) */
+    .prompt-copilot-card {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.7));
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      padding: 20px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .prompt-copilot-card::before {
+      content: '';
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .prompt-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .prompt-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .prompt-badges {
+      display: flex;
+      gap: 8px;
+    }
+
+    .badge-ia {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .prompt-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .prompt-input {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 14px;
+      color: #fff;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .prompt-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+    }
+
+    .prompt-input::placeholder {
+      color: var(--text-dim);
+    }
+
+    .btn-submit-prompt {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+      border: none;
+      color: #080c14;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 0 24px;
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-submit-prompt:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.45);
+    }
+
+    .prompt-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+
+    /* REPORTE DE IA DESPLEGABLE */
+    #ai-response-box {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(8, 12, 20, 0.8);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 14px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ai-analysis-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      margin-bottom: 12px;
+    }
+
+    .ai-lists-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .ai-subcard {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .ai-subcard h4 {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ai-subcard ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ai-subcard li {
+      font-size: 12px;
+      color: var(--text-muted);
+      position: relative;
+      padding-left: 14px;
+    }
+
+    .ai-subcard li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--accent-cyan);
+    }
+
+    /* WIDGET ORACULO WARREN BUFFETT & GOBERNANZA */
+    .buffett-oracle-card {
+      background: linear-gradient(135deg, rgba(20, 26, 43, 0.95), rgba(15, 23, 42, 0.9));
+      border: 1px solid var(--border-buffett);
+      border-radius: 20px;
+      padding: 18px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .buffett-oracle-card::before {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 140px;
+      height: 140px;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .buffett-oracle-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .buffett-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--accent-gold);
+      letter-spacing: -0.2px;
+    }
+
+    .buffett-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-fortress {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .buffett-quote-box {
+      background: rgba(8, 12, 20, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #e2e8f0;
+      font-style: italic;
+    }
+
+    .buffett-quote-box::before {
+      content: '"';
+      color: var(--accent-gold);
+      font-size: 18px;
+      font-weight: 800;
+      margin-right: 4px;
+    }
+
+    .buffett-pills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .buffett-pill {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .buffett-pill-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+    }
+
+    .buffett-pill-val {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* RADAR DE ANTIGÜEDAD DE CARTERA (AGING) */
+    .aging-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .aging-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+
+    .aging-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 2px;
+    }
+
+    .aging-amount {
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    /* SECCIÓN CUENTAS BANCARIAS OFICIALES */
+    .bank-accounts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .bank-card {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(30, 41, 59, 0.65));
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-card);
+      border-radius: 20px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s ease;
+    }
+
+    .bank-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    .bank-card.personal::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #0f766e, #14b8a6);
+    }
+
+    .bank-card.negocios::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #0284c7, #6366f1);
+    }
+
+    .bank-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .bank-badge {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .bank-badge.personal {
+      background: rgba(20, 184, 166, 0.15);
+      color: #2dd4bf;
+      border: 1px solid rgba(20, 184, 166, 0.3);
+    }
+
+    .bank-badge.negocios {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .bank-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .bank-chip {
+      font-size: 22px;
+    }
+
+    .bank-balance {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #fff;
+      margin: 6px 0 10px 0;
+    }
+
+    .bank-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 8px;
+    }
+
+    .bank-flow {
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* TARJETAS DE KPIS PRINCIPALES */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-card);
+      border-radius: 18px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .kpi-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .kpi-card.neto::after { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-indigo)); }
+    .kpi-card.ingresos::after { background: var(--accent-emerald); }
+    .kpi-card.gastos::after { background: var(--accent-rose); }
+    .kpi-card.cobrar::after { background: var(--accent-cyan); }
+    .kpi-card.pagar::after { background: var(--accent-amber); }
+    .kpi-card.whatsapp::after { background: var(--accent-violet); }
+
+    .kpi-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .kpi-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-icon {
+      font-size: 18px;
+      opacity: 0.8;
+    }
+
+    .kpi-value {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .kpi-subtext {
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* BARRA DE PROGRESO DE WHATSAPP */
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-violet), var(--accent-cyan));
+      border-radius: 10px;
+      transition: width 0.5s ease;
+    }
+
+    /* SECCIÓN DE GRÁFICOS */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 2fr 1.2fr;
+      gap: 20px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-card);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chart-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-container {
+      position: relative;
+      flex: 1;
+      min-height: 240px;
+    }
+
+    /* SECCIÓN DE DETALLE: COMPROMISOS Y TRANSACCIONES */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .list-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-card);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .items-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .items-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .items-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+    }
+
+    /* ELEMENTO DE COMPROMISO / DEUDA */
+    .compromiso-item {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+
+    .compromiso-item:hover {
+      background: rgba(30, 41, 59, 0.7);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .comp-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .comp-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .comp-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .comp-valores {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .comp-monto {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .urgencia-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      display: inline-block;
+      align-self: flex-end;
+    }
+
+    .urgencia-VENCIDO { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); border: 1px solid var(--accent-rose); }
+    .urgencia-URGENTE_48H { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+    .urgencia-PROXIMO_7D { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+    .urgencia-NORMAL { background: rgba(148, 163, 184, 0.2); color: var(--text-muted); }
+    .urgencia-CUMPLIDO { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
+
+    /* ELEMENTO DE TRANSACCIÓN RECIENTE */
+    .trans-item {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .trans-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .trans-badge-entidad {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+    }
+
+    .trans-desc h5 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .trans-desc p {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .trans-monto {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .trans-monto.ingreso { color: var(--accent-emerald); }
+    .trans-monto.gasto { color: var(--accent-rose); }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border-card);
+      padding: 16px 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 960px) {
+      .charts-grid, .details-grid, .ai-lists-grid {
+        grid-template-columns: 1fr;
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .entity-switcher {
+        width: 100%;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <div class="brand-title">
+        <h1>Antigravity Financial Engine</h1>
+        <p><span class="status-pulse"></span> Prompt & Canvas Dashboard v2026</p>
+      </div>
+    </div>
+
+    <!-- SELECTOR DE ENTIDADES -->
+    <div class="entity-switcher" id="entity-switcher">
+      <button class="entity-btn active" data-entidad="Consolidado" onclick="cambiarEntidad('Consolidado')">🌐 Consolidado</button>
+      <button class="entity-btn" data-entidad="Personal" onclick="cambiarEntidad('Personal')">👤 Personal</button>
+      <button class="entity-btn" data-entidad="More Paper" onclick="cambiarEntidad('More Paper')">📚 More Paper</button>
+      <button class="entity-btn" data-entidad="More Design" onclick="cambiarEntidad('More Design')">🎨 More Design</button>
+      <span id="contenedor-usuarios-dinamicos" style="display: inline-flex; gap: 4px;"></span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="badge-fortress" id="header-fortress-badge">🛡️ Fortress: Calculando...</span>
+      <button class="btn-refresh" title="Actualizar datos en tiempo real" onclick="cargarDatosDashboard()">🔄</button>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main>
+
+    <!-- BANNER DE ESTADO Y ERRORES VISIBLES -->
+    <div id="dashboard-error-banner" style="display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose); border-radius: 12px; margin-bottom: 20px; padding: 12px 20px; font-size: 13px; color: #fecdd3; align-items: center; justify-content: space-between; gap: 12px;">
+      <span id="dashboard-error-text">⚠️ Error al sincronizar con Google Sheets.</span>
+      <button onclick="cargarDatosDashboard()" style="background: var(--accent-rose); color: #fff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer;">Reintentar</button>
+    </div>
+
+    <!-- SECCIÓN ORÁCULO DE WARREN BUFFETT & GOBERNANZA DE CAPITAL -->
+    <section class="buffett-oracle-card">
+      <div class="buffett-oracle-header">
+        <div class="buffett-title">
+          <span>🏛️</span> Oráculo Financiero & Consejo Global de Liderazgo
+        </div>
+        <div class="buffett-badges">
+          <span class="badge-fortress" id="buffett-fortress-badge">🛡️ Cash Fortress: Calculando...</span>
+          <span class="badge-ia" style="background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">Gobernanza Pro 2.0</span>
+        </div>
+      </div>
+
+      <div class="buffett-quote-box" id="buffett-quote-text">
+        Cargando dictamen de asignación de capital y salud de caja...
+      </div>
+
+      <div class="buffett-pills-grid">
+        <div class="buffett-pill">
+          <span class="buffett-pill-title">Owner Earnings (Flujo Dueño)</span>
+          <span class="buffett-pill-val" id="buffett-owner-earnings" style="color: var(--accent-emerald);">$0</span>
+        </div>
+        <div class="buffett-pill">
+          <span class="buffett-pill-title">Margen Real Operativo</span>
+          <span class="buffett-pill-val" id="buffett-owner-margin" style="color: var(--accent-cyan);">0%</span>
+        </div>
+        <div class="buffett-pill">
+          <span class="buffett-pill-title">Autonomía de Caja (Runway)</span>
+          <span class="buffett-pill-val" id="buffett-runway-val" style="color: var(--accent-gold);">0 días</span>
+        </div>
+        <div class="buffett-pill">
+          <span class="buffett-pill-title">Capital Atrapado en Calle</span>
+          <span class="buffett-pill-val" id="buffett-capital-calle" style="color: var(--accent-amber);">$0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN COPILOTO FINANCIERO CON IA (PROMPT BAR) -->
+    <section class="prompt-copilot-card">
+      <div class="prompt-header">
+        <div class="prompt-title">
+          <span>✨</span> Copiloto IA & Asesor Senior Tecnológico (Consejo Global & Pioneros Tech)
+        </div>
+        <div class="prompt-badges">
+          <span class="badge-ia" id="badge-ia-entidad">Entidad: Consolidado</span>
+        </div>
+      </div>
+
+      <div class="prompt-form">
+        <input type="text" id="prompt-input" class="prompt-input" 
+               placeholder="Pregúntale a tu Asesor Senior y a los Consejos Globales (ej: 'Evalúa mi margen real', '¿Cómo optimizar mi liquidez?', 'Estrategia de innovación digital')..."
+               onkeydown="if(event.key === 'Enter') ejecutarPromptIA()">
+        <button class="btn-submit-prompt" id="btn-prompt" onclick="ejecutarPromptIA()">
+          <span>⚡ Analizar</span>
+        </button>
+      </div>
+
+      <div class="prompt-chips">
+        <span class="chip" style="border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;" onclick="usarChip('Dame el dictamen del Consejo Asesor Global sobre mi liquidez, márgenes y cuentas por cobrar')">🏛️ Dictamen Consejo Global</span>
+        <span class="chip" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="usarChip('Dame la visión del Consejo de Tecnología e IA para acelerar la automatización, desarrollo web y productividad digital')">💻 Consejo Tech & IA</span>
+        <span class="chip" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="usarChip('Evalúa la ciberseguridad, modelo Zero Trust y privacidad de datos de mi sistema')">🛡️ Ciberseguridad & Privacidad</span>
+        <span class="chip" style="border-color: rgba(16, 185, 129, 0.4); color: #34d399;" onclick="usarChip('¿Cuál es mi colchón de seguridad Cash Fortress y cómo protegerlo?')">🛡️ Cash Fortress</span>
+        <span class="chip" onclick="usarChip('Genera un informe financiero ejecutivo general')">📊 Informe General</span>
+        <span class="chip" onclick="usarChip('¿Cuáles son mis deudas más urgentes y cómo impactan mi liquidez?')">⚡ Deudas Urgentes</span>
+        <span class="chip" onclick="usarChip('Analiza el desempeño y rentabilidad de More Design')">🎨 More Design</span>
+        <span class="chip" onclick="usarChip('Revisa las compras y proveedores de More Paper')">📚 More Paper</span>
+        <span class="chip" onclick="usarChip('¿Cómo están los gastos de Personal y la tasa de ahorro?')">👤 Finanzas Personales</span>
+      </div>
+
+      <!-- VISOR DE RESPUESTA DE IA -->
+      <div id="ai-response-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="font-size: 13px; font-weight: 700; color: var(--accent-cyan);">📋 Diagnóstico Ejecutivo de IA</h3>
+          <span id="ai-fuente-tag" style="font-size: 10px; color: var(--text-dim);"></span>
+        </div>
+        <p class="ai-analysis-text" id="ai-texto-analisis"></p>
+
+        <div class="ai-lists-grid">
+          <div class="ai-subcard">
+            <h4 style="color: #38bdf8;">📌 Puntos Clave Identificados</h4>
+            <ul id="ai-lista-puntos"></ul>
+          </div>
+          <div class="ai-subcard">
+            <h4 style="color: #10b981;">💡 Recomendaciones Estratégicas</h4>
+            <ul id="ai-lista-recs"></ul>
+          </div>
+        </div>
+
+        <!-- CONSEJO WARREN BUFFETT -->
+        <div id="ai-buffett-box" style="display: none; margin-top: 14px; padding: 14px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 12px;">
+          <h4 style="font-size: 12px; font-weight: 700; color: #fbbf24; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <span>🏛️</span> Dictamen del Consejo Asesor Global (13 Líderes Mundiales)
+          </h4>
+          <p id="ai-texto-buffett" style="font-size: 12.5px; line-height: 1.5; color: #fde68a; font-style: italic;"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN CUENTAS BANCARIAS Y LIQUIDEZ REAL -->
+    <section class="bank-accounts-grid">
+      <div class="bank-card personal">
+        <div class="bank-card-header">
+          <div>
+            <span class="bank-badge personal">👤 PERSONAL</span>
+            <h4>Bancolombia Ahorros ***2103</h4>
+          </div>
+          <span class="bank-chip">💳</span>
+        </div>
+        <div class="bank-balance" id="bank-personal-balance">$0</div>
+        <div class="bank-footer">
+          <span>Ingresos propios asociados</span>
+          <span id="bank-personal-flow" class="bank-flow">Ing: $0 | Gas: $0</span>
+        </div>
+      </div>
+
+      <div class="bank-card negocios">
+        <div class="bank-card-header">
+          <div>
+            <span class="bank-badge negocios">🏢 EMPRESARIAL (CUENTA COMÚN)</span>
+            <h4>Bancolombia Ahorros ***7194</h4>
+          </div>
+          <span class="bank-chip">💳</span>
+        </div>
+        <div class="bank-balance" id="bank-negocios-balance">$0</div>
+        <div class="bank-footer">
+          <span>More Paper & More Design</span>
+          <span id="bank-negocios-desglose" class="bank-flow">Paper: $0 | Design: $0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRID DE KPIS -->
+    <section class="kpi-grid">
+      <div class="kpi-card neto">
+        <div class="kpi-header">
+          <span class="kpi-title">Owner Earnings (Flujo Dueño)</span>
+          <span class="kpi-icon">💎</span>
+        </div>
+        <div class="kpi-value" id="kpi-flujo-neto">$0</div>
+        <div class="kpi-subtext" id="kpi-sub-neto">Margen neto operativo</div>
+      </div>
+
+      <div class="kpi-card ingresos">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Ingresos</span>
+          <span class="kpi-icon">📈</span>
+        </div>
+        <div class="kpi-value" id="kpi-ingresos" style="color: var(--accent-emerald);">$0</div>
+        <div class="kpi-subtext">Entradas registradas</div>
+      </div>
+
+      <div class="kpi-card gastos">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Gastos</span>
+          <span class="kpi-icon">📉</span>
+        </div>
+        <div class="kpi-value" id="kpi-gastos" style="color: var(--accent-rose);">$0</div>
+        <div class="kpi-subtext">Egresos acumulados</div>
+      </div>
+
+      <div class="kpi-card cobrar">
+        <div class="kpi-header">
+          <span class="kpi-title">Cuentas por Cobrar</span>
+          <span class="kpi-icon">🤝</span>
+        </div>
+        <div class="kpi-value" id="kpi-cobrar" style="color: var(--accent-cyan);">$0</div>
+        <div class="kpi-subtext">Cartera activa a favor</div>
+      </div>
+
+      <div class="kpi-card pagar">
+        <div class="kpi-header">
+          <span class="kpi-title">Cuentas por Pagar</span>
+          <span class="kpi-icon">⏳</span>
+        </div>
+        <div class="kpi-value" id="kpi-pagar" style="color: var(--accent-amber);">$0</div>
+        <div class="kpi-subtext">Compromisos pendientes</div>
+      </div>
+
+      <div class="kpi-card whatsapp">
+        <div class="kpi-header">
+          <span class="kpi-title">WhatsApp Meta API</span>
+          <span class="kpi-icon">💬</span>
+        </div>
+        <div class="kpi-value" id="kpi-wa-consumo" style="font-size: 18px; color: var(--accent-violet);">0 / 1.000</div>
+        <div class="kpi-subtext" id="kpi-wa-pct">0% del cupo gratuito mensual</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="kpi-wa-barra" style="width: 0%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRID DE GRÁFICOS -->
+    <section class="charts-grid">
+      <!-- Gráfico de Flujo de Caja -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">📊 Evolución de Flujo de Caja (Ingresos vs Gastos)</div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartFlujoCaja"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfico de Categorías -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">🍕 Gastos por Categoría</div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartCategorias"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- DETALLES: COMPROMISOS Y TRANSACCIONES -->
+    <section class="details-grid">
+      <!-- Compromisos y Deudas -->
+      <div class="list-card">
+        <div class="chart-header">
+          <div class="chart-title">📅 Compromisos & Vencimientos Próximos</div>
+          <span style="font-size: 11px; color: var(--text-dim);" id="comp-count">0 obligaciones</span>
+        </div>
+
+        <!-- RADAR DE ANTIGÜEDAD DE CARTERA (AGING DE BUFFETT) -->
+        <div class="aging-grid" id="buffett-aging-grid">
+          <div class="aging-card">
+            <div class="aging-label">0-15d (Normal)</div>
+            <div class="aging-amount" id="aging-0-15" style="color: var(--accent-emerald);">$0</div>
+          </div>
+          <div class="aging-card">
+            <div class="aging-label">16-30d (Atención)</div>
+            <div class="aging-amount" id="aging-16-30" style="color: var(--accent-cyan);">$0</div>
+          </div>
+          <div class="aging-card">
+            <div class="aging-label">31-60d (Alerta)</div>
+            <div class="aging-amount" id="aging-31-60" style="color: var(--accent-amber);">$0</div>
+          </div>
+          <div class="aging-card">
+            <div class="aging-label">>60d (Crítico)</div>
+            <div class="aging-amount" id="aging-60plus" style="color: var(--accent-rose);">$0</div>
+          </div>
+        </div>
+
+        <div class="items-scroll" id="lista-compromisos">
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+
+      <!-- Transacciones Recientes -->
+      <div class="list-card">
+        <div class="chart-header">
+          <div class="chart-title">🧾 Últimos Movimientos Registrados</div>
+          <span style="font-size: 11px; color: var(--text-dim);" id="trans-count">0 movimientos</span>
+        </div>
+        <div class="items-scroll" id="lista-transacciones">
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    Antigravity Financial Engine © 2026 • Desarrollado para Fernando (Grupo More) • Sincronización en tiempo real con Google Sheets & WhatsApp Cloud API.
+  </footer>
+
+  <!-- LÓGICA JAVASCRIPT DEL CLIENTE -->
+  <script>
+    let entidadActual = 'Consolidado';
+    let chartFlujo = null;
+    let chartCats = null;
+
+    // Formateador de Moneda Colombiana (COP)
+    const fmtCOP = val => '$' + Number(val || 0).toLocaleString('es-CO');
+
+    // Datos pre-inyectados desde el servidor (cero latencia de carga inicial)
+    let datosIniciales = null;
+    <? if (typeof datosInicialesJSON !== "undefined" && datosInicialesJSON && datosInicialesJSON !== "null") { ?>
+      try {
+        datosIniciales = JSON.parse(<?= datosInicialesJSON ?>);
+      } catch(e) {
+        console.warn("Aviso parseando datos pre-inyectados:", e);
+      }
+    <? } ?>
+
+    // Inicialización al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      if (datosIniciales && datosIniciales.ok) {
+        procesarRespuestaDatos(datosIniciales);
+      }
+      cargarDatosDashboard();
+      // Auto-refresco cada 60 segundos
+      setInterval(cargarDatosDashboard, 60000);
+    });
+
+    function cambiarEntidad(nuevaEntidad) {
+      entidadActual = nuevaEntidad;
+      document.querySelectorAll('.entity-btn').forEach(btn => {
+        const ent = btn.getAttribute('data-entidad') || btn.innerText;
+        btn.classList.toggle('active', ent.toLowerCase().includes(nuevaEntidad.toLowerCase()));
+      });
+      document.getElementById('badge-ia-entidad').innerText = 'Entidad: ' + nuevaEntidad;
+      cargarDatosDashboard();
+    }
+
+    function renderizarPestanasUsuarios(usuarios) {
+      const cont = document.getElementById('contenedor-usuarios-dinamicos');
+      if (!cont) return;
+
+      if (!usuarios || !usuarios.length) {
+        cont.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      usuarios.forEach(u => {
+        const esActivo = entidadActual.toLowerCase() === u.entidad.toLowerCase() ? 'active' : '';
+        html += `<button class="entity-btn user-tab ${esActivo}" data-entidad="${u.entidad}" onclick="cambiarEntidad('${u.entidad}')" title="Finanzas individuales de ${u.nombre}">👤 ${u.primerNombre || u.nombre.split(' ')[0]}</button>`;
+      });
+      cont.innerHTML = html;
+    }
+
+    function usarChip(texto) {
+      document.getElementById('prompt-input').value = texto;
+      ejecutarPromptIA();
+    }
+
+    /**
+     * Muestra alerta visual elegante en la interfaz ante fallos de sincronización
+     */
+    function mostrarErrorDashboard(msg) {
+      const banner = document.getElementById('dashboard-error-banner');
+      const text = document.getElementById('dashboard-error-text');
+      if (banner && text) {
+        text.innerText = "⚠️ " + msg;
+        banner.style.display = 'flex';
+      }
+    }
+
+    function ocultarErrorDashboard() {
+      const banner = document.getElementById('dashboard-error-banner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    /**
+     * Carga de datos con compatibilidad dual:
+     * 1. Dentro de Google Apps Script (google.script.run)
+     * 2. Standalone / Navegador externo (fetch a la URL activa)
+     */
+    function cargarDatosDashboard() {
+      const btnRefresh = document.querySelector('.btn-refresh');
+      if (btnRefresh) btnRefresh.style.transform = 'rotate(180deg)';
+      ocultarErrorDashboard();
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(data => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            procesarRespuestaDatos(data);
+          })
+          .withFailureHandler(err => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            console.error("Error Apps Script:", err);
+            mostrarErrorDashboard("Error al consultar Google Sheets: " + (err.message || err));
+          })
+          .obtenerMetricasCompletasDashboard(entidadActual);
+      } else {
+        // Modo API HTTP / Fetch
+        fetch(`?action=getDashboardData&entidad=${encodeURIComponent(entidadActual)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            procesarRespuestaDatos(data);
+          })
+          .catch(err => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            console.warn("Fetch local/API no disponible:", err);
+          });
+      }
+    }
+
+    function procesarRespuestaDatos(data) {
+      if (!data || !data.ok) return;
+
+      // Renderizar dinámicamente pestañas de usuarios individuales si existen
+      renderizarPestanasUsuarios(data.usuariosDinamicos);
+
+      const k = data.kpis;
+      document.getElementById('kpi-flujo-neto').innerText = fmtCOP(k.flujoNeto);
+      document.getElementById('kpi-ingresos').innerText = fmtCOP(k.totalIngresos);
+      document.getElementById('kpi-gastos').innerText = fmtCOP(k.totalGastos);
+      document.getElementById('kpi-cobrar').innerText = fmtCOP(k.cuentasPorCobrar);
+      document.getElementById('kpi-pagar').innerText = fmtCOP(k.cuentasPorPagar);
+
+      const kpiNeto = document.getElementById('kpi-flujo-neto');
+      kpiNeto.style.color = k.flujoNeto >= 0 ? 'var(--accent-cyan)' : 'var(--accent-rose)';
+      document.getElementById('kpi-sub-neto').innerText = `Rentabilidad: ${k.tasaAhorroRentabilidad}%`;
+
+      // Cuentas Bancarias Oficiales & Liquidez Real
+      if (data.cuentasBancarias) {
+        const b = data.cuentasBancarias;
+        const elBPer = document.getElementById('bank-personal-balance');
+        const elBNeg = document.getElementById('bank-negocios-balance');
+        if (elBPer) elBPer.innerText = fmtCOP(b.personal2103.saldoDisponible);
+        if (elBNeg) elBNeg.innerText = fmtCOP(b.negocios7194.saldoDisponible);
+
+        const elFlowPer = document.getElementById('bank-personal-flow');
+        if (elFlowPer) elFlowPer.innerText = `Ing: ${fmtCOP(b.personal2103.ingresos)} | Gas: ${fmtCOP(b.personal2103.gastos)}`;
+
+        const elDesgNeg = document.getElementById('bank-negocios-desglose');
+        if (elDesgNeg && b.negocios7194.desglose) {
+          const d = b.negocios7194.desglose;
+          let textoDesg = `Paper: ${fmtCOP(d.morePaper.neto)} | Design: ${fmtCOP(d.moreDesign.neto)}`;
+          if (d.nominaGlobal && d.nominaGlobal.gastos > 0) {
+            textoDesg += ` | Nómina: -${fmtCOP(d.nominaGlobal.gastos)}`;
+          }
+          elDesgNeg.innerText = textoDesg;
+        }
+      }
+
+      // WhatsApp Quota
+      const wa = data.cuotaWhatsApp;
+      document.getElementById('kpi-wa-consumo').innerText = `${wa.consumidas} / ${wa.limite}`;
+      document.getElementById('kpi-wa-pct').innerText = `${wa.porcentaje}% consumido`;
+      document.getElementById('kpi-wa-barra').style.width = Math.min(wa.porcentaje, 100) + '%';
+
+      // Métricas Estratégicas Warren Buffett (Owner Earnings, Cash Fortress & Aging)
+      if (data.metricasBuffett) {
+        const mb = data.metricasBuffett;
+        const elOE = document.getElementById('buffett-owner-earnings');
+        const elOEMargin = document.getElementById('buffett-owner-margin');
+        const elRunway = document.getElementById('buffett-runway-val');
+        const elCalle = document.getElementById('buffett-capital-calle');
+        const elQuote = document.getElementById('buffett-quote-text');
+        const elFortBadge = document.getElementById('buffett-fortress-badge');
+        const elHeadFort = document.getElementById('header-fortress-badge');
+
+        if (elOE) elOE.innerText = fmtCOP(mb.ownerEarnings);
+        if (elOEMargin) elOEMargin.innerText = `${mb.margenOwnerEarnings}%`;
+        if (elRunway) elRunway.innerText = `${mb.runwayDias} días`;
+        if (elCalle) elCalle.innerText = fmtCOP(mb.capitalAtrapadoCalle);
+        if (elQuote && mb.dictamenBuffett) elQuote.innerText = mb.dictamenBuffett;
+
+        const fortressText = `🛡️ Fortress: ${mb.runwayDias}d (${mb.labelFortaleza || 'Normal'})`;
+        if (elFortBadge) {
+          elFortBadge.innerText = fortressText;
+          elFortBadge.style.color = mb.colorFortaleza || '#34d399';
+          elFortBadge.style.borderColor = mb.colorFortaleza || '#10b981';
+        }
+        if (elHeadFort) {
+          elHeadFort.innerText = fortressText;
+          elHeadFort.style.color = mb.colorFortaleza || '#34d399';
+          elHeadFort.style.borderColor = mb.colorFortaleza || '#10b981';
+        }
+
+        // Radar de Antigüedad de Cartera (Aging de Buffett)
+        if (mb.carteraAging) {
+          const ca = mb.carteraAging;
+          const a1 = document.getElementById('aging-0-15');
+          const a2 = document.getElementById('aging-16-30');
+          const a3 = document.getElementById('aging-31-60');
+          const a4 = document.getElementById('aging-60plus');
+          if (a1) a1.innerText = fmtCOP(ca.tramo0_15d.monto);
+          if (a2) a2.innerText = fmtCOP(ca.tramo16_30d.monto);
+          if (a3) a3.innerText = fmtCOP(ca.tramo31_60d.monto);
+          if (a4) a4.innerText = fmtCOP(ca.tramoMas60d.monto);
+        }
+      }
+
+      // Actualizar Gráficos
+      actualizarGraficoFlujo(data.flujoMensual);
+      actualizarGraficoCategorias(data.categoriasGastos);
+
+      // Renderizar Listas
+      renderizarCompromisos(data.compromisos);
+      renderizarTransacciones(data.ultimasTransacciones);
+    }
+
+    function actualizarGraficoFlujo(flujoMensual) {
+      const ctx = document.getElementById('chartFlujoCaja').getContext('2d');
+      const labels = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.mes) : ['Mes Actual'];
+      const dataIng = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.ingresos) : [0];
+      const dataGas = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.gastos) : [0];
+
+      if (chartFlujo) chartFlujo.destroy();
+
+      chartFlujo = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: dataIng,
+              backgroundColor: 'rgba(16, 185, 129, 0.75)',
+              borderColor: '#10b981',
+              borderRadius: 6,
+              borderWidth: 1
+            },
+            {
+              label: 'Gastos',
+              data: dataGas,
+              backgroundColor: 'rgba(244, 63, 94, 0.75)',
+              borderColor: '#f43f5e',
+              borderRadius: 6,
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans' } } }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#64748b', callback: v => '$' + (v / 1000) + 'k' }
+            }
+          }
+        }
+      });
+    }
+
+    function actualizarGraficoCategorias(categorias) {
+      const ctx = document.getElementById('chartCategorias').getContext('2d');
+      const labels = (categorias && categorias.length) ? categorias.slice(0, 6).map(c => c.categoria) : ['Sin gastos'];
+      const data = (categorias && categorias.length) ? categorias.slice(0, 6).map(c => c.total) : [1];
+
+      if (chartCats) chartCats.destroy();
+
+      chartCats = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: [
+              '#38bdf8', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 }, boxWidth: 12 }
+            }
+          },
+          cutout: '70%'
+        }
+      });
+    }
+
+    function renderizarCompromisos(lista) {
+      const cont = document.getElementById('lista-compromisos');
+      document.getElementById('comp-count').innerText = `${lista ? lista.length : 0} obligaciones`;
+      cont.innerHTML = '';
+
+      if (!lista || lista.length === 0) {
+        cont.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-dim); font-size: 13px;">No hay compromisos pendientes para esta entidad. ✨</div>';
+        return;
+      }
+
+      lista.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'compromiso-item';
+        item.innerHTML = `
+          <div class="comp-info">
+            <span class="comp-title">${c.concepto}</span>
+            <span class="comp-sub">${c.tercero} • Vence: ${c.fechaVencimiento || 'Sin fecha'}</span>
+          </div>
+          <div class="comp-valores">
+            <span class="comp-monto" style="color: ${c.tipo === 'POR_COBRAR' ? 'var(--accent-cyan)' : 'var(--accent-amber)'}">
+              ${fmtCOP(c.saldoPendiente || c.montoOriginal)}
+            </span>
+            <span class="urgencia-badge urgencia-${c.urgencia}">${c.urgencia.replace('_', ' ')}</span>
+          </div>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    function renderizarTransacciones(lista) {
+      const cont = document.getElementById('lista-transacciones');
+      document.getElementById('trans-count').innerText = `${lista ? lista.length : 0} movimientos`;
+      cont.innerHTML = '';
+
+      if (!lista || lista.length === 0) {
+        cont.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-dim); font-size: 13px;">No hay transacciones registradas aún.</div>';
+        return;
+      }
+
+      lista.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'trans-item';
+        const esIngreso = t.tipo === 'INGRESO';
+        item.innerHTML = `
+          <div class="trans-left">
+            <span class="trans-badge-entidad">${t.entidad}</span>
+            <div class="trans-desc">
+              <h5>${t.concepto}</h5>
+              <p>${t.categoria} • ${t.fecha}</p>
+            </div>
+          </div>
+          <span class="trans-monto ${esIngreso ? 'ingreso' : 'gasto'}">
+            ${esIngreso ? '+' : '-'}${fmtCOP(t.monto)}
+          </span>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    /**
+     * Ejecuta el Copiloto de IA con Gemini 3.6 Flash
+     */
+    function ejecutarPromptIA() {
+      const input = document.getElementById('prompt-input');
+      const texto = input.value.trim();
+      if (!texto) return;
+
+      const btn = document.getElementById('btn-prompt');
+      btn.innerHTML = '<span>⏳ Pensando...</span>';
+      btn.disabled = true;
+
+      const cajaRespuesta = document.getElementById('ai-response-box');
+      cajaRespuesta.style.display = 'block';
+      document.getElementById('ai-texto-analisis').innerText = 'Analizando tus métricas en tiempo real con inteligencia artificial...';
+      document.getElementById('ai-lista-puntos').innerHTML = '';
+      document.getElementById('ai-lista-recs').innerHTML = '';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(renderizarRespuestaIA)
+          .withFailureHandler(err => {
+            document.getElementById('ai-texto-analisis').innerText = 'Error al consultar la IA: ' + err.message;
+            btn.innerHTML = '<span>⚡ Analizar</span>';
+            btn.disabled = false;
+          })
+          .procesarPromptDashboard(texto, entidadActual);
+      } else {
+        fetch(`?action=processPrompt&prompt=${encodeURIComponent(texto)}&entidad=${encodeURIComponent(entidadActual)}`)
+          .then(res => res.json())
+          .then(renderizarRespuestaIA)
+          .catch(err => {
+            document.getElementById('ai-texto-analisis').innerText = 'No se pudo conectar con el servicio de IA: ' + err.message;
+          })
+          .finally(() => {
+            btn.innerHTML = '<span>⚡ Analizar</span>';
+            btn.disabled = false;
+          });
+      }
+    }
+
+    function renderizarRespuestaIA(rep) {
+      const btn = document.getElementById('btn-prompt');
+      btn.innerHTML = '<span>⚡ Analizar</span>';
+      btn.disabled = false;
+
+      if (!rep || !rep.ok) {
+        document.getElementById('ai-texto-analisis').innerText = rep.error || 'No se pudo generar el análisis.';
+        return;
+      }
+
+      document.getElementById('ai-fuente-tag').innerText = rep.fuente || 'Gemini 3.6 Flash';
+      document.getElementById('ai-texto-analisis').innerText = rep.analisis;
+
+      const ulPuntos = document.getElementById('ai-lista-puntos');
+      ulPuntos.innerHTML = '';
+      (rep.puntosClave || []).forEach(pt => {
+        const li = document.createElement('li');
+        li.innerText = pt;
+        ulPuntos.appendChild(li);
+      });
+
+      const ulRecs = document.getElementById('ai-lista-recs');
+      ulRecs.innerHTML = '';
+      (rep.recomendaciones || []).forEach(rc => {
+        const li = document.createElement('li');
+        li.innerText = rc;
+        ulRecs.appendChild(li);
+      });
+
+      // Renderizar Dictamen de Warren Buffett si viene en el JSON
+      const boxBuffett = document.getElementById('ai-buffett-box');
+      const txtBuffett = document.getElementById('ai-texto-buffett');
+      if (boxBuffett && txtBuffett) {
+        if (rep.consejoBuffett) {
+          txtBuffett.innerText = rep.consejoBuffett;
+          boxBuffett.style.display = 'block';
+        } else {
+          boxBuffett.style.display = 'none';
+        }
+      }
+
+      // Si la IA sugiere cambiar la vista de entidad
+      if (rep.entidadSugerida && rep.entidadSugerida !== entidadActual && rep.entidadSugerida !== 'Consolidado') {
+        setTimeout(() => {
+          cambiarEntidad(rep.entidadSugerida);
+        }, 800);
+      }
+    }
+  </script>
+</body>
+</html>

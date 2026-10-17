@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Antigravity Finanzas | Canvas Dashboard Pro</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js para visualizaciones financieras -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-base: #060913;
+      --bg-surface: #0b1120;
+      --bg-card: rgba(15, 23, 42, 0.72);
+      --bg-card-hover: rgba(22, 34, 61, 0.88);
+      --bg-glass: rgba(15, 23, 42, 0.6);
+      
+      --border-card: rgba(255, 255, 255, 0.07);
+      --border-accent: rgba(56, 189, 248, 0.28);
+      --border-glow: rgba(56, 189, 248, 0.45);
+      
+      --accent-cyan: #38bdf8;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --accent-violet: #8b5cf6;
+      --accent-gold: #fbbf24;
+      --accent-cyan-glow: rgba(56, 189, 248, 0.25);
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --radius-sm: 10px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 26px;
+      
+      --font-mono: 'JetBrains Mono', monospace;
+      --transition-smooth: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background: radial-gradient(circle at 15% 15%, #0f1c3f 0%, #060913 70%, #03060c 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      line-height: 1.45;
+    }
+
+    /* BARRA SUPERIOR EJECUTIVA (HUD FLOTANTE) */
+    header {
+      background: rgba(11, 17, 32, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-card);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.4);
+      color: #fff;
+      user-select: none;
+    }
+
+    .brand-title h1 {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-title p {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 6px var(--accent-emerald)); }
+      50% { transform: scale(1.3); opacity: 0.6; filter: drop-shadow(0 0 12px var(--accent-emerald)); }
+    }
+
+    /* CONTROLES SUPERIORES */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .entity-switcher {
+      display: flex;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .entity-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .entity-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .entity-btn.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.28));
+      color: var(--accent-cyan);
+      border: 1px solid var(--border-accent);
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.18);
+    }
+
+    .entity-btn.user-tab {
+      border: 1px dashed rgba(168, 85, 247, 0.45);
+      color: #c084fc;
+      background: rgba(168, 85, 247, 0.05);
+    }
+
+    .entity-btn.user-tab.active {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.25));
+      color: #f0abfc;
+      border: 1px solid #c084fc;
+    }
+
+    .badge-fortress {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition-smooth);
+    }
+
+    .btn-refresh {
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--border-card);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      transition: var(--transition-smooth);
+    }
+
+    .btn-refresh:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.15);
+      transform: rotate(90deg);
+    }
+
+    /* CONTENEDOR PRINCIPAL DEL CANVAS */
+    main {
+      flex: 1;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* BANNER DE ERROR DINÁMICO */
+    #dashboard-error-banner {
+      display: none;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      color: #fecdd3;
+      font-size: 12.5px;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* ============================================================== */
+    /* CAPA 2: "THE FINANCIAL VAULT" (BENTO GRID DE LIQUIDEZ Y CAJA)  */
+    /* ============================================================== */
+    .vault-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 18px;
+    }
+
+    /* TARJETA MAESTRA DE LIQUIDEZ Y BANCAS */
+    .vault-hero-card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(11, 18, 38, 0.95));
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .vault-hero-card::after {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .vault-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .vault-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .vault-total-balance {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: #ffffff;
+      font-family: var(--font-mono);
+      margin: 4px 0 16px;
+      text-shadow: 0 0 30px rgba(56, 189, 248, 0.25);
+    }
+
+    /* GRID DE CUENTAS BANCOLOMBIA DENTRO DEL VAULT */
+    .bank-accounts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .bank-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      transition: var(--transition-smooth);
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .bank-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .bank-card.personal {
+      border-left: 3px solid #a855f7;
+    }
+
+    .bank-card.negocios {
+      border-left: 3px solid #0ea5e9;
+    }
+
+    .bank-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .bank-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .bank-badge.personal { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+    .bank-badge.negocios { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+
+    .bank-card h4 {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .bank-balance {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: #fff;
+      margin: 4px 0;
+    }
+
+    .bank-flow {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    /* MINI KPI GRID DENTRO DEL VAULT */
+    .kpi-compact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      transition: var(--transition-smooth);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .kpi-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: var(--bg-card-hover);
+      transform: translateY(-2px);
+    }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .kpi-icon {
+      font-size: 16px;
+    }
+
+    .kpi-value {
+      font-size: 20px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .kpi-subtext {
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-indigo), var(--accent-violet));
+      border-radius: 4px;
+      transition: width 0.8s ease;
+    }
+
+    /* ============================================================== */
+    /* CAPA 3: CAJÓN ESTRATÉGICO IA & CONSEJOS (COLAPSABLE SUAVE)     */
+    /* ============================================================== */
+    .advisory-collapsible-wrapper {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.65));
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+      transition: var(--transition-smooth);
+    }
+
+    .advisory-collapsible-wrapper.expanded {
+      border-color: rgba(56, 189, 248, 0.5);
+      box-shadow: 0 12px 40px rgba(56, 189, 248, 0.15);
+    }
+
+    /* TICKER HEADER PERMANENTE */
+    .advisory-bar-header {
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(15, 23, 42, 0.4);
+      transition: background 0.2s;
+    }
+
+    .advisory-bar-header:hover {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .advisory-ticker-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    .advisory-sparkle-badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.2));
+      border: 1px solid var(--border-accent);
+      color: var(--accent-cyan);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .advisory-ticker-text {
+      font-size: 12.5px;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .advisory-toggle-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border-card);
+      color: var(--accent-cyan);
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-size: 11.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: var(--transition-smooth);
+    }
+
+    .advisory-toggle-btn:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.15);
+    }
+
+    .advisory-arrow {
+      transition: transform 0.3s ease;
+      font-size: 10px;
+    }
+
+    .advisory-collapsible-wrapper.expanded .advisory-arrow {
+      transform: rotate(180deg);
+    }
+
+    /* CONTENEDOR DESPLEGABLE CON CSS GRID TRANSITION */
+    .advisory-drawer-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .advisory-collapsible-wrapper.expanded .advisory-drawer-body {
+      grid-template-rows: 1fr;
+    }
+
+    .advisory-drawer-content {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 0 24px;
+      opacity: 0;
+      transition: opacity 0.25s ease, padding 0.3s ease;
+    }
+
+    .advisory-collapsible-wrapper.expanded .advisory-drawer-content {
+      padding: 16px 24px 24px;
+      opacity: 1;
+    }
+
+    /* ORÁCULO BUFFETT COMPACTO */
+    .buffett-oracle-card {
+      background: rgba(245, 158, 11, 0.05);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+    }
+
+    .buffett-oracle-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .buffett-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #fbbf24;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .buffett-quote-box {
+      font-size: 12px;
+      color: #fef08a;
+      font-style: italic;
+      line-height: 1.4;
+      margin-bottom: 12px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border-left: 2px solid #fbbf24;
+    }
+
+    .buffett-pills-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .buffett-pill {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-card);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .buffett-pill-title {
+      font-size: 9.5px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .buffett-pill-val {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    /* COPILOTO PROMPT FORM */
+    .prompt-form {
+      display: flex;
+      gap: 10px;
+    }
+
+    .prompt-input {
+      flex: 1;
+      background: rgba(11, 17, 32, 0.8);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-md);
+      padding: 12px 18px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      transition: var(--transition-smooth);
+    }
+
+    .prompt-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .btn-submit-prompt {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12.5px;
+      padding: 0 20px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+      white-space: nowrap;
+    }
+
+    .btn-submit-prompt:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+    }
+
+    .prompt-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 11px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      user-select: none;
+    }
+
+    .chip:hover {
+      border-color: var(--accent-cyan);
+      color: var(--text-main);
+      background: rgba(56, 189, 248, 0.1);
+      transform: translateY(-1px);
+    }
+
+    /* VISOR DE RESPUESTA IA */
+    #ai-response-box {
+      display: none;
+      background: rgba(11, 18, 38, 0.95);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .ai-analysis-text {
+      font-size: 13px;
+      color: #e2e8f0;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+
+    .ai-lists-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .ai-subcard {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+    }
+
+    .ai-subcard h4 {
+      font-size: 11.5px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .ai-subcard ul {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ai-subcard li {
+      font-size: 11.5px;
+      color: #cbd5e1;
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.4;
+    }
+
+    .ai-subcard li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--accent-cyan);
+    }
+
+    /* ============================================================== */
+    /* CAPA 4: ANALÍTICA VISUAL CON PESTAÑAS (INTERACTIVE CHARTS HUB)  */
+    /* ============================================================== */
+    .analytics-tabbed-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-xl);
+      padding: 20px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .analytics-tabs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 12px;
+    }
+
+    .analytics-nav {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tab-btn {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+
+    .chart-container-box {
+      height: 320px;
+      position: relative;
+      width: 100%;
+    }
+
+    .tab-content {
+      display: none;
+      height: 100%;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ============================================================== */
+    /* CAPA 5: CENTRO OPERATIVO Y RADAR DE CARTERA (ACCORDIONS)       */
+    /* ============================================================== */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .list-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* RADAR DE ANTIGÜEDAD DE CARTERA (AGING DE BUFFETT) INTERACTIVO */
+    .aging-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .aging-card {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      user-select: none;
+    }
+
+    .aging-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .aging-card.active-filter {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.18);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+
+    .aging-label {
+      font-size: 9.5px;
+      color: var(--text-dim);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .aging-amount {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    /* FILTRO DE BÚSQUEDA Y RESET */
+    .list-filter-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .search-input-mini {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-sm);
+      padding: 6px 12px;
+      color: #fff;
+      font-size: 11.5px;
+      outline: none;
+    }
+
+    .search-input-mini:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .btn-filter-tag {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border-card);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 10.5px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: var(--transition-smooth);
+    }
+
+    .btn-filter-tag.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
+
+    /* LISTA SCROLL CON ACORDEÓN TÁCTIL */
+    .items-scroll {
+      max-height: 380px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+    }
+
+    .items-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .items-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .compromiso-item, .trans-item {
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      transition: var(--transition-smooth);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .compromiso-item:hover, .trans-item:hover {
+      background: rgba(30, 41, 59, 0.65);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .item-main-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .comp-title, .trans-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .comp-sub, .trans-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .comp-monto, .trans-monto {
+      font-size: 13.5px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .trans-monto.ingreso { color: var(--accent-emerald); }
+    .trans-monto.gasto { color: var(--accent-rose); }
+
+    .urgencia-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .urgencia-VENCIDO { background: rgba(244, 63, 94, 0.2); color: #f43f5e; }
+    .urgencia-HOY { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .urgencia-1_3_DIAS { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+    .urgencia-4_7_DIAS { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .urgencia-NORMAL { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+    .trans-badge-entidad {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      margin-right: 6px;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border-card);
+      padding: 16px 24px;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      background: rgba(11, 17, 32, 0.7);
+    }
+
+    /* ANIMACIONES */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 1024px) {
+      .vault-grid { grid-template-columns: 1fr; }
+      .details-grid { grid-template-columns: 1fr; }
+      .buffett-pills-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      header { padding: 10px 14px; }
+      main { padding: 14px; gap: 14px; }
+      .bank-accounts-grid { grid-template-columns: 1fr; }
+      .kpi-compact-grid { grid-template-columns: 1fr; }
+      .aging-grid { grid-template-columns: 1fr 1fr; }
+      .ai-lists-grid { grid-template-columns: 1fr; }
+      .vault-total-balance { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================== -->
+  <!-- CAPA 1: HUD SUPERIOR EJECUTIVO                                 -->
+  <!-- ============================================================== -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">A</div>
+      <div class="brand-title">
+        <h1>Antigravity Canvas Pro</h1>
+        <p><span class="status-pulse"></span> Google Sheets en Vivo • WhatsApp Cloud</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- SELECTOR DE ENTIDADES -->
+      <div class="entity-switcher">
+        <button class="entity-btn active" data-entidad="Consolidado" onclick="cambiarEntidad('Consolidado')">
+          🏛️ Consolidado
+        </button>
+        <button class="entity-btn" data-entidad="More Paper" onclick="cambiarEntidad('More Paper')">
+          📚 More Paper
+        </button>
+        <button class="entity-btn" data-entidad="More Design" onclick="cambiarEntidad('More Design')">
+          🎨 More Design
+        </button>
+        <button class="entity-btn" data-entidad="Personal" onclick="cambiarEntidad('Personal')">
+          👤 Fernando
+        </button>
+        <button class="entity-btn" id="btn-tab-universal" data-entidad="Universal" onclick="cambiarEntidad('Universal')" style="background: rgba(147, 51, 234, 0.12); border-color: rgba(168, 85, 247, 0.35); color: #c084fc;">
+          🌐 Universal
+        </button>
+        <div id="contenedor-usuarios-dinamicos" style="display: inline-flex; gap: 4px;"></div>
+      </div>
+
+      <!-- BADGE FORTRESS & REFRESCO -->
+      <span class="badge-fortress" id="header-fortress-badge">🛡️ Cash Fortress: Calculando...</span>
+      
+      <button class="btn-refresh" title="Sincronizar datos con Google Sheets" onclick="cargarDatosDashboard()">
+        🔄
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main>
+
+    <!-- BANNER DE ERROR -->
+    <div id="dashboard-error-banner">
+      <span id="dashboard-error-text">⚠️ Error al consultar el servidor</span>
+      <button onclick="ocultarErrorDashboard()" style="background:transparent; border:none; color:#fecdd3; cursor:pointer;">✕</button>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- PANEL DE CONTROL MULTISELECCIÓN PARA PESTAÑA UNIVERSAL        -->
+    <!-- ============================================================== -->
+    <div id="panel-control-universal" style="display: none; margin-bottom: 20px; padding: 16px 20px; background: rgba(147, 51, 234, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 16px; backdrop-filter: blur(12px);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">🌐</span>
+          <div>
+            <div style="font-weight: 700; font-size: 13.5px; color: #f3e8ff;">Panel Universal de Usuarios (Consolidado Multi-Usuario)</div>
+            <div style="font-size: 11px; color: var(--text-dim);">Selecciona qué usuarios combinar en el análisis. Los locales comerciales (More Paper & More Design) están estrictamente excluidos.</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="seleccionarTodosUsuariosUniversal(true)" class="chip-btn" style="padding: 5px 12px; font-size: 11px; background: rgba(168,85,247,0.2); border-color: rgba(168,85,247,0.4); color:#e9d5ff;">☑️ Seleccionar Todos</button>
+          <button onclick="seleccionarTodosUsuariosUniversal(false)" class="chip-btn" style="padding: 5px 12px; font-size: 11px;">⬜ Limpiar</button>
+        </div>
+      </div>
+      <div id="chips-usuarios-universal" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;"></div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- CAPA 2: "THE FINANCIAL VAULT" (BENTO DE LIQUIDEZ Y RENTABILIDAD) -->
+    <!-- ============================================================== -->
+    <section class="vault-grid">
+      <!-- TARJETA MAESTRA: BÓVEDA DE LIQUIDEZ REAL -->
+      <div class="vault-hero-card">
+        <div>
+          <div class="vault-top-row">
+            <span class="vault-label">💎 Bóveda de Liquidez Neta • Bancolombia</span>
+            <span id="buffett-fortress-badge" class="badge-fortress" style="background: rgba(56, 189, 248, 0.1); border-color: rgba(56, 189, 248, 0.3); color: #38bdf8;">
+              🛡️ Cash Fortress: Calculando...
+            </span>
+          </div>
+
+          <!-- SALDO CONSOLIDADO TOTAL -->
+          <div class="vault-total-balance" id="kpi-flujo-neto">$0</div>
+          <div style="font-size: 11.5px; color: var(--text-dim); margin-top: -10px; margin-bottom: 14px;" id="kpi-sub-neto">
+            Rentabilidad Real Operativa
+          </div>
+        </div>
+
+        <!-- CUENTAS BANCARIAS OFICIALES DEDICADAS Y DINÁMICAS -->
+        <div class="bank-accounts-grid" id="bank-accounts-container">
+          <!-- Renderizado dinámicamente según la entidad activa para evitar fuga de datos ajenos -->
+        </div>
+      </div>
+
+      <!-- MINI BENTO DE 4 KPIS ESTRATÉGICOS -->
+      <div class="kpi-compact-grid">
+        <!-- INGRESOS -->
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Total Ingresos</span>
+            <span class="kpi-icon">📈</span>
+          </div>
+          <div class="kpi-value" id="kpi-ingresos" style="color: var(--accent-emerald);">$0</div>
+          <div class="kpi-subtext">Entradas registradas</div>
+        </div>
+
+        <!-- GASTOS -->
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Total Gastos</span>
+            <span class="kpi-icon">📉</span>
+          </div>
+          <div class="kpi-value" id="kpi-gastos" style="color: var(--accent-rose);">$0</div>
+          <div class="kpi-subtext">Egresos acumulados</div>
+        </div>
+
+        <!-- CUENTAS POR COBRAR -->
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Por Cobrar</span>
+            <span class="kpi-icon">🤝</span>
+          </div>
+          <div class="kpi-value" id="kpi-cobrar" style="color: var(--accent-cyan);">$0</div>
+          <div class="kpi-subtext">Cartera activa</div>
+        </div>
+
+        <!-- CUENTAS POR PAGAR & WHATSAPP -->
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-title">Por Pagar</span>
+            <span class="kpi-icon">⏳</span>
+          </div>
+          <div class="kpi-value" id="kpi-pagar" style="color: var(--accent-amber);">$0</div>
+          
+          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 10px; color: var(--text-dim);">WhatsApp API:</span>
+            <span id="kpi-wa-consumo" style="font-size: 10.5px; font-weight: 700; color: var(--accent-violet);">0 / 1.000</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="kpi-wa-barra" style="width: 0%;"></div>
+          </div>
+          <span id="kpi-wa-pct" style="display:none;">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- CAPA 3: CAJÓN ESTRATÉGICO IA & CONSEJOS (COLAPSABLE SUAVE)     -->
+    <!-- ============================================================== -->
+    <section class="advisory-collapsible-wrapper" id="advisory-wrapper">
+      <!-- BARRA TICKER EN REPOSO -->
+      <div class="advisory-bar-header" onclick="toggleAdvisoryDrawer()">
+        <div class="advisory-ticker-left">
+          <span class="advisory-sparkle-badge">✨ MESA ESTRATÉGICA</span>
+          <span class="advisory-ticker-text" id="live-advice-ticker">
+            💡 Cargando dictamen del Consejo Global y Oráculo de Capital...
+          </span>
+        </div>
+        <button class="advisory-toggle-btn" id="btn-toggle-advisory">
+          <span>Abrir Mesa de Asesores</span>
+          <span class="advisory-arrow">▼</span>
+        </button>
+      </div>
+
+      <!-- CUERPO DESPLEGABLE EN ACORDEÓN -->
+      <div class="advisory-drawer-body">
+        <div class="advisory-drawer-content">
+
+          <!-- ORÁCULO DE CAPITAL DE WARREN BUFFETT & CONSEJO -->
+          <div class="buffett-oracle-card">
+            <div class="buffett-oracle-header">
+              <span class="buffett-title">🏛️ Oráculo Financiero de Warren Buffett & Gobernanza de Capital</span>
+              <span class="badge-ia" style="background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.4); color: #fbbf24; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700;">
+                Doctrina Big-4 & Berkshire
+              </span>
+            </div>
+
+            <div class="buffett-quote-box" id="buffett-quote-text">
+              Cargando dictamen de asignación de capital y salud de caja...
+            </div>
+
+            <div class="buffett-pills-grid">
+              <div class="buffett-pill">
+                <span class="buffett-pill-title">Owner Earnings (Flujo Dueño)</span>
+                <span class="buffett-pill-val" id="buffett-owner-earnings" style="color: var(--accent-emerald);">$0</span>
+              </div>
+              <div class="buffett-pill">
+                <span class="buffett-pill-title">Margen Real Operativo</span>
+                <span class="buffett-pill-val" id="buffett-owner-margin" style="color: var(--accent-cyan);">0%</span>
+              </div>
+              <div class="buffett-pill">
+                <span class="buffett-pill-title">Autonomía de Caja (Runway)</span>
+                <span class="buffett-pill-val" id="buffett-runway-val" style="color: var(--accent-gold);">0 días</span>
+              </div>
+              <div class="buffett-pill">
+                <span class="buffett-pill-title">Capital en la Calle</span>
+                <span class="buffett-pill-val" id="buffett-capital-calle" style="color: var(--accent-amber);">$0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PROMPT BAR DEL COPILOTO IA -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12px; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 6px;">
+                <span>✨</span> Copiloto IA (Gemini 3.6 Flash & Tríada de Consejos Globales)
+              </span>
+              <span class="badge-ia" id="badge-ia-entidad" style="font-size: 10px; color: var(--text-dim);">Entidad: Consolidado</span>
+            </div>
+
+            <div class="prompt-form">
+              <input type="text" id="prompt-input" class="prompt-input" 
+                     placeholder="Haz una consulta a tu Asesor Senior (ej: 'Evalúa mi margen real', '¿Cómo optimizar mi liquidez?', 'Estrategia de innovación digital')..."
+                     onkeydown="if(event.key === 'Enter') ejecutarPromptIA()">
+              <button class="btn-submit-prompt" id="btn-prompt" onclick="ejecutarPromptIA()">
+                <span>⚡ Analizar</span>
+              </button>
+            </div>
+
+            <div class="prompt-chips" style="margin-top: 10px;">
+              <span class="chip" style="border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;" onclick="usarChip('Dame el dictamen del Consejo Asesor Global sobre mi liquidez, márgenes y cuentas por cobrar')">🏛️ Dictamen Consejo Global</span>
+              <span class="chip" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="usarChip('Dame la visión del Consejo de Tecnología e IA para acelerar la automatización, desarrollo web y productividad digital')">💻 Consejo Tech & IA</span>
+              <span class="chip" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;" onclick="usarChip('Evalúa la ciberseguridad, modelo Zero Trust y privacidad de datos de mi sistema')">🛡️ Ciberseguridad & Privacidad</span>
+              <span class="chip" style="border-color: rgba(16, 185, 129, 0.4); color: #34d399;" onclick="usarChip('¿Cuál es mi colchón de seguridad Cash Fortress y cómo protegerlo?')">🛡️ Cash Fortress</span>
+              <span class="chip" onclick="usarChip('Genera un informe financiero ejecutivo general')">📊 Informe General</span>
+              <span class="chip" onclick="usarChip('¿Cuáles son mis deudas más urgentes y cómo impactan mi liquidez?')">⚡ Deudas Urgentes</span>
+              <span class="chip" onclick="usarChip('Analiza el desempeño y rentabilidad de More Design')">🎨 More Design</span>
+              <span class="chip" onclick="usarChip('Revisa las compras y proveedores de More Paper')">📚 More Paper</span>
+              <span class="chip" onclick="usarChip('¿Cómo están los gastos de Personal y la tasa de ahorro?')">👤 Finanzas Personales</span>
+            </div>
+          </div>
+
+          <!-- VISOR DE RESPUESTA DE IA -->
+          <div id="ai-response-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="font-size: 13px; font-weight: 700; color: var(--accent-cyan);">📋 Diagnóstico Ejecutivo de IA</h3>
+              <span id="ai-fuente-tag" style="font-size: 10px; color: var(--text-dim);"></span>
+            </div>
+            <p class="ai-analysis-text" id="ai-texto-analisis"></p>
+
+            <div class="ai-lists-grid">
+              <div class="ai-subcard">
+                <h4 style="color: #38bdf8;">📌 Puntos Clave Identificados</h4>
+                <ul id="ai-lista-puntos"></ul>
+              </div>
+              <div class="ai-subcard">
+                <h4 style="color: #10b981;">💡 Recomendaciones Estratégicas</h4>
+                <ul id="ai-lista-recs"></ul>
+              </div>
+            </div>
+
+            <!-- DICTAMEN ESPECÍFICO DEL CONSEJO -->
+            <div id="ai-buffett-box" style="display: none; margin-top: 14px; padding: 12px 14px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 10px;">
+              <h4 style="font-size: 11.5px; font-weight: 700; color: #fbbf24; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                <span>🏛️</span> Dictamen del Consejo Asesor Global (13 Líderes Mundiales)
+              </h4>
+              <p id="ai-texto-buffett" style="font-size: 12px; line-height: 1.5; color: #fde68a; font-style: italic;"></p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- CAPA 4: ANALÍTICA VISUAL CON PESTAÑAS (INTERACTIVE CHARTS)     -->
+    <!-- ============================================================== -->
+    <section class="analytics-tabbed-card">
+      <div class="analytics-tabs-header">
+        <div class="card-title">
+          <span>📈</span> Analítica Financiera Visual
+        </div>
+        <div class="analytics-nav">
+          <button class="tab-btn active" id="tab-btn-flujo" onclick="switchChartTab('flujo')">
+            📊 Flujo de Caja Temporal
+          </button>
+          <button class="tab-btn" id="tab-btn-cats" onclick="switchChartTab('cats')">
+            🍕 Gastos por Categoría
+          </button>
+        </div>
+      </div>
+
+      <div class="chart-container-box">
+        <!-- TAB 1: FLUJO DE CAJA -->
+        <div class="tab-content active" id="tab-content-flujo">
+          <canvas id="chartFlujoCaja"></canvas>
+        </div>
+        <!-- TAB 2: CATEGORÍAS -->
+        <div class="tab-content" id="tab-content-cats">
+          <canvas id="chartCategorias"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- CAPA 5: CENTRO OPERATIVO Y RADAR DE CARTERA (ACCORDIONS)       -->
+    <!-- ============================================================== -->
+    <section class="details-grid">
+      <!-- COLUMNA A: COMPROMISOS Y RADAR DE ENVEJECIMIENTO -->
+      <div class="list-card">
+        <div class="card-header-bar">
+          <div class="card-title">
+            <span>📅</span> Compromisos & Vencimientos
+          </div>
+          <span style="font-size: 11px; color: var(--text-dim);" id="comp-count">0 obligaciones</span>
+        </div>
+
+        <!-- RADAR DE ANTIGÜEDAD INTERACTIVO -->
+        <div class="aging-grid" id="buffett-aging-grid">
+          <div class="aging-card" data-tramo="0_15" onclick="filtrarCompromisosPorAging('0_15')">
+            <div class="aging-label">0-15d (Normal)</div>
+            <div class="aging-amount" id="aging-0-15" style="color: var(--accent-emerald);">$0</div>
+          </div>
+          <div class="aging-card" data-tramo="16_30" onclick="filtrarCompromisosPorAging('16_30')">
+            <div class="aging-label">16-30d (Atención)</div>
+            <div class="aging-amount" id="aging-16-30" style="color: var(--accent-cyan);">$0</div>
+          </div>
+          <div class="aging-card" data-tramo="31_60" onclick="filtrarCompromisosPorAging('31_60')">
+            <div class="aging-label">31-60d (Alerta)</div>
+            <div class="aging-amount" id="aging-31-60" style="color: var(--accent-amber);">$0</div>
+          </div>
+          <div class="aging-card" data-tramo="mas60" onclick="filtrarCompromisosPorAging('mas60')">
+            <div class="aging-label">>60d (Crítico)</div>
+            <div class="aging-amount" id="aging-60plus" style="color: var(--accent-rose);">$0</div>
+          </div>
+        </div>
+
+        <!-- FILTRO RESET -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+          <button class="btn-filter-tag active" id="btn-reset-comp-filter" onclick="resetFiltroCompromisos()">
+            Mostrar Todos
+          </button>
+        </div>
+
+        <div class="items-scroll" id="lista-compromisos">
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+
+      <!-- COLUMNA B: ÚLTIMAS TRANSACCIONES REGISTRADAS -->
+      <div class="list-card">
+        <div class="card-header-bar">
+          <div class="card-title">
+            <span>🧾</span> Últimos Movimientos Registrados
+          </div>
+          <span style="font-size: 11px; color: var(--text-dim);" id="trans-count">0 movimientos</span>
+        </div>
+
+        <!-- BUSCADOR Y FILTROS RÁPIDOS DE MOVIMIENTOS -->
+        <div class="list-filter-row">
+          <input type="text" id="input-search-trans" class="search-input-mini" placeholder="Buscar por concepto o categoría..." oninput="filtrarTransaccionesUI()">
+          <button class="btn-filter-tag active" id="filter-all-trans" onclick="filtrarTipoTransaccion('TODOS')">Todos</button>
+          <button class="btn-filter-tag" id="filter-ing-trans" onclick="filtrarTipoTransaccion('INGRESO')">Ingresos</button>
+          <button class="btn-filter-tag" id="filter-gas-trans" onclick="filtrarTipoTransaccion('GASTO')">Gastos</button>
+        </div>
+
+        <div class="items-scroll" id="lista-transacciones">
+          <!-- Renderizado dinámico -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    Antigravity Financial Engine © 2026 • Desarrollado para Fernando (Grupo More) • Sincronización en tiempo real con Google Sheets & WhatsApp Cloud API.
+  </footer>
+
+  <!-- ============================================================== -->
+  <!-- LÓGICA JAVASCRIPT DEL CLIENTE                                  -->
+  <!-- ============================================================== -->
+  <script>
+    // Variables de Seguridad Zero-Trust inyectadas por Google Apps Script
+    const ES_USUARIO_EXTERNO = <?!= (typeof esUsuarioExterno !== "undefined" && esUsuarioExterno) ? "true" : "false" ?>;
+    const ENTIDAD_USUARIO = "<?!= (typeof entidadUsuario !== "undefined" && entidadUsuario) ? entidadUsuario : 'Consolidado' ?>";
+    const AUTH_TOKEN = "<?!= (typeof authToken !== "undefined" && authToken) ? authToken : '' ?>";
+
+    let entidadActual = ES_USUARIO_EXTERNO ? ENTIDAD_USUARIO : 'Consolidado';
+    let chartFlujo = null;
+    let chartCats = null;
+    let cacheCompromisos = [];
+    let cacheTransacciones = [];
+    let filtroAgingActivo = null;
+    let filtroTipoTransActivo = 'TODOS';
+
+    // Formateador de Moneda Colombiana (COP)
+    const fmtCOP = val => '$' + Number(val || 0).toLocaleString('es-CO');
+
+    // Datos pre-inyectados desde el servidor (cero latencia de carga inicial)
+    let datosIniciales = null;
+    <? if (typeof datosInicialesJSON !== "undefined" && datosInicialesJSON && datosInicialesJSON !== "null") { ?>
+      try {
+        datosIniciales = <?!= datosInicialesJSON ?>;
+      } catch(e) {
+        console.warn("Aviso parseando datos pre-inyectados:", e);
+      }
+    <? } ?>
+
+    // Inicialización al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      // PODADO ZERO-TRUST DEL DOM PARA USUARIOS EXTERNOS (Cero exposición de datos ajenos)
+      if (ES_USUARIO_EXTERNO) {
+        // 1. Eliminar selector de entidades (No puede ver otras tiendas ni consolidado)
+        const switcher = document.querySelector('.entity-switcher');
+        if (switcher) switcher.remove();
+
+        // 2. Personalizar branding del encabezado
+        const elH1 = document.querySelector('.brand-title h1');
+        if (elH1) elH1.innerText = `Espacio Personal • ${ENTIDAD_USUARIO}`;
+        const elSub = document.querySelector('.brand-title p');
+        if (elSub) elSub.innerHTML = `<span class="status-pulse"></span> Finanzas Privadas • Google Sheets en Vivo`;
+
+        // 3. Tarjetas bancarias privadas (solo las del usuario externo)
+        // El contenedor dinámico renderizará exclusivamente las cuentas del usuario activo
+
+        // 4. Renombrar la tarjeta de liquidez
+        const elVaultLbl = document.querySelector('.vault-label');
+        if (elVaultLbl) elVaultLbl.innerText = `💎 Bóveda de Liquidez Personal • ${ENTIDAD_USUARIO}`;
+
+        // 5. Ajustar placeholder del Copiloto
+        const promptInp = document.getElementById('prompt-input');
+        if (promptInp) promptInp.placeholder = `Pregúntale a tu asistente sobre tus gastos, ingresos o deudas personales...`;
+
+        // 6. Ocultar chips de preguntas corporativas
+        const chipsCont = document.querySelector('.prompt-chips');
+        if (chipsCont) {
+          chipsCont.innerHTML = `
+            <button class="chip-btn" onclick="usarChip('¿Cuál es mi resumen de gastos de este mes?')">📊 Gastos del mes</button>
+            <button class="chip-btn" onclick="usarChip('¿Qué cuentas tengo pendientes por pagar?')">⏳ Mis deudas</button>
+            <button class="chip-btn" onclick="usarChip('¿Cuánto dinero tengo disponible?')">💰 Mi disponible</button>
+          `;
+        }
+
+        // 7. Footer privado
+        const elFoot = document.querySelector('footer');
+        if (elFoot) elFoot.innerText = `Antigravity Financial Engine © 2026 • Espacio Privado y Seguro de ${ENTIDAD_USUARIO}.`;
+      }
+
+      if (datosIniciales && datosIniciales.ok) {
+        procesarRespuestaDatos(datosIniciales);
+      }
+      cargarDatosDashboard();
+      // Auto-refresco cada 60 segundos
+      setInterval(cargarDatosDashboard, 60000);
+    });
+
+    // Control del cajón desplegable de asesoría
+    function toggleAdvisoryDrawer() {
+      const wrapper = document.getElementById('advisory-wrapper');
+      const isExpanded = wrapper.classList.toggle('expanded');
+      const btn = document.getElementById('btn-toggle-advisory');
+      if (btn) {
+        btn.querySelector('span:first-child').innerText = isExpanded ? 'Cerrar Mesa de Asesores' : 'Abrir Mesa de Asesores';
+      }
+    }
+
+    // Control de pestañas de analítica
+    function switchChartTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      if (tab === 'flujo') {
+        document.getElementById('tab-btn-flujo').classList.add('active');
+        document.getElementById('tab-content-flujo').classList.add('active');
+        if (chartFlujo) chartFlujo.resize();
+      } else {
+        document.getElementById('tab-btn-cats').classList.add('active');
+        document.getElementById('tab-content-cats').classList.add('active');
+        if (chartCats) chartCats.resize();
+      }
+    }
+
+    // Estado y filtros para Modo Universal Multi-Usuario
+    let usuariosSeleccionadosUniversal = new Set(['Personal']);
+
+    function cambiarEntidad(nuevaEntidad) {
+      if (ES_USUARIO_EXTERNO) {
+        console.warn("Acceso denegado: Usuario externo con sesión restringida a su entidad.");
+        return;
+      }
+      entidadActual = nuevaEntidad;
+      document.querySelectorAll('.entity-btn').forEach(btn => {
+        const ent = btn.getAttribute('data-entidad') || btn.innerText;
+        btn.classList.toggle('active', ent.toLowerCase().includes(nuevaEntidad.toLowerCase()));
+      });
+
+      // Panel Universal de control
+      const panelUni = document.getElementById('panel-control-universal');
+      if (panelUni) {
+        panelUni.style.display = (nuevaEntidad === 'Universal') ? 'block' : 'none';
+      }
+
+      document.getElementById('badge-ia-entidad').innerText = (nuevaEntidad === 'Universal')
+        ? 'Entidad: Universal (Multi-Usuario)'
+        : 'Entidad: ' + nuevaEntidad;
+
+      cargarDatosDashboard();
+    }
+
+    function renderizarPestanasUsuarios(usuarios) {
+      if (ES_USUARIO_EXTERNO) return; // Zero-Trust: Usuarios externos nunca ven pestañas de otros usuarios
+
+      const cont = document.getElementById('contenedor-usuarios-dinamicos');
+      if (!cont) return;
+
+      if (!usuarios || !usuarios.length) {
+        cont.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      usuarios.forEach(u => {
+        const esActivo = entidadActual.toLowerCase() === u.entidad.toLowerCase() ? 'active' : '';
+        html += `<button class="entity-btn user-tab ${esActivo}" data-entidad="${u.entidad}" onclick="cambiarEntidad('${u.entidad}')" title="Finanzas individuales de ${u.nombre}">👤 ${u.primerNombre || u.nombre.split(' ')[0]}</button>`;
+      });
+      cont.innerHTML = html;
+    }
+
+    function renderizarPanelUniversal(usuarios) {
+      if (ES_USUARIO_EXTERNO) return;
+      window.ultimosUsuariosParaUniversal = usuarios;
+      const cont = document.getElementById('chips-usuarios-universal');
+      if (!cont || !usuarios || !usuarios.length) return;
+
+      let html = '';
+      usuarios.forEach(u => {
+        const isChecked = usuariosSeleccionadosUniversal.has(u.entidad);
+        const chipBg = isChecked ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.04)';
+        const chipBorder = isChecked ? '#c084fc' : 'rgba(255, 255, 255, 0.12)';
+        const textColor = isChecked ? '#f3e8ff' : 'var(--text-dim)';
+        const checkIcon = isChecked ? '☑️' : '⬜';
+
+        html += `
+          <button onclick="toggleUsuarioUniversal('${u.entidad}')" class="chip-btn" 
+            style="padding: 7px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 7px; background: ${chipBg}; border-color: ${chipBorder}; color: ${textColor}; transition: all 0.2s ease;">
+            <span>${checkIcon}</span>
+            <strong>${u.primerNombre || u.nombre}</strong>
+          </button>
+        `;
+      });
+      cont.innerHTML = html;
+    }
+
+    function toggleUsuarioUniversal(entidad) {
+      if (usuariosSeleccionadosUniversal.has(entidad)) {
+        if (usuariosSeleccionadosUniversal.size > 1) {
+          usuariosSeleccionadosUniversal.delete(entidad);
+        }
+      } else {
+        usuariosSeleccionadosUniversal.add(entidad);
+      }
+      if (window.ultimosUsuariosParaUniversal) {
+        renderizarPanelUniversal(window.ultimosUsuariosParaUniversal);
+      }
+      cargarDatosDashboard();
+    }
+
+    function seleccionarTodosUsuariosUniversal(selectAll) {
+      if (!window.ultimosUsuariosParaUniversal) return;
+      if (selectAll) {
+        window.ultimosUsuariosParaUniversal.forEach(u => usuariosSeleccionadosUniversal.add(u.entidad));
+      } else {
+        usuariosSeleccionadosUniversal.clear();
+        usuariosSeleccionadosUniversal.add('Personal');
+      }
+      renderizarPanelUniversal(window.ultimosUsuariosParaUniversal);
+      cargarDatosDashboard();
+    }
+
+    function renderizarCuentasBancariasDinamicas(b) {
+      const cont = document.getElementById('bank-accounts-container');
+      if (!cont) return;
+
+      if (!b || !b.tarjetas || b.tarjetas.length === 0) {
+        cont.innerHTML = `
+          <div style="grid-column: 1 / -1; padding: 14px; text-align: center; color: var(--text-dim); background: rgba(15, 23, 42, 0.4); border-radius: var(--radius-md); border: 1px dashed var(--border-card);">
+            Sin cuentas bancarias registradas en este espacio.
+          </div>
+        `;
+        return;
+      }
+
+      cont.style.gridTemplateColumns = b.tarjetas.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))';
+
+      let html = '';
+      b.tarjetas.forEach(t => {
+        const claseTipo = t.tipo === 'personal' ? 'personal' : (t.tipo === 'universal' ? 'universal' : 'negocios');
+        const badgeColorStyle = t.tipo === 'universal' ? 'background: rgba(168, 85, 247, 0.18); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.35);' : '';
+        const borderLeftStyle = t.tipo === 'universal' ? 'border-left: 3px solid #c084fc;' : '';
+        const footerText = t.desglose || t.flujo || '';
+
+        html += `
+          <div class="bank-card ${claseTipo}" style="${borderLeftStyle}">
+            <div class="bank-card-header">
+              <span class="bank-badge ${claseTipo}" style="${badgeColorStyle}">${t.badge || 'CUENTA'}</span>
+              <span style="font-size: 14px;">${t.icono || '💳'}</span>
+            </div>
+            <h4>${t.titulo || 'Cuenta'}</h4>
+            <div class="bank-balance">${fmtCOP(t.saldo || 0)}</div>
+            ${footerText ? `<div class="bank-flow">${footerText}</div>` : ''}
+          </div>
+        `;
+      });
+
+      cont.innerHTML = html;
+    }
+
+    function usarChip(texto) {
+      const wrapper = document.getElementById('advisory-wrapper');
+      if (!wrapper.classList.contains('expanded')) {
+        toggleAdvisoryDrawer();
+      }
+      document.getElementById('prompt-input').value = texto;
+      ejecutarPromptIA();
+    }
+
+    function mostrarErrorDashboard(msg) {
+      const banner = document.getElementById('dashboard-error-banner');
+      const text = document.getElementById('dashboard-error-text');
+      if (banner && text) {
+        text.innerText = "⚠️ " + msg;
+        banner.style.display = 'flex';
+      }
+    }
+
+    function ocultarErrorDashboard() {
+      const banner = document.getElementById('dashboard-error-banner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    function cargarDatosDashboard() {
+      const btnRefresh = document.querySelector('.btn-refresh');
+      if (btnRefresh) btnRefresh.style.transform = 'rotate(180deg)';
+      ocultarErrorDashboard();
+
+      const usuariosParam = (entidadActual === 'Universal') ? Array.from(usuariosSeleccionadosUniversal).join(',') : '';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(data => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            procesarRespuestaDatos(data);
+          })
+          .withFailureHandler(err => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            console.error("Error Apps Script:", err);
+            mostrarErrorDashboard("Error al consultar Google Sheets: " + (err.message || err));
+          })
+          .obtenerMetricasCompletasDashboard(entidadActual, usuariosParam);
+      } else {
+        const authParams = ES_USUARIO_EXTERNO ? `&u=${encodeURIComponent(ENTIDAD_USUARIO)}&auth=${encodeURIComponent(AUTH_TOKEN)}` : '';
+        const uniParam = usuariosParam ? `&usuarios=${encodeURIComponent(usuariosParam)}` : '';
+        fetch(`?action=getDashboardData&entidad=${encodeURIComponent(entidadActual)}${uniParam}${authParams}`)
+          .then(res => res.json())
+          .then(data => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            procesarRespuestaDatos(data);
+          })
+          .catch(err => {
+            if (btnRefresh) setTimeout(() => btnRefresh.style.transform = 'none', 300);
+            console.warn("Fetch local/API no disponible:", err);
+          });
+      }
+    }
+
+    function procesarRespuestaDatos(data) {
+      if (!data || !data.ok) return;
+
+      renderizarPestanasUsuarios(data.usuariosDinamicos);
+
+      if (data.usuariosParaUniversal) {
+        renderizarPanelUniversal(data.usuariosParaUniversal);
+      }
+
+      const k = data.kpis;
+      document.getElementById('kpi-flujo-neto').innerText = fmtCOP(k.flujoNeto);
+      document.getElementById('kpi-ingresos').innerText = fmtCOP(k.totalIngresos);
+      document.getElementById('kpi-gastos').innerText = fmtCOP(k.totalGastos);
+      document.getElementById('kpi-cobrar').innerText = fmtCOP(k.cuentasPorCobrar);
+      document.getElementById('kpi-pagar').innerText = fmtCOP(k.cuentasPorPagar);
+
+      const kpiNeto = document.getElementById('kpi-flujo-neto');
+      kpiNeto.style.color = k.flujoNeto >= 0 ? '#38bdf8' : 'var(--accent-rose)';
+      document.getElementById('kpi-sub-neto').innerText = `Rentabilidad Operativa: ${k.tasaAhorroRentabilidad}% • Flujo de Propietario`;
+
+      // Cuentas Bancarias Dinámicas & Bóveda de Liquidez Real (Segregado por Entidad)
+      if (data.cuentasBancarias) {
+        renderizarCuentasBancariasDinamicas(data.cuentasBancarias);
+      }
+
+      // WhatsApp Quota
+      const wa = data.cuotaWhatsApp;
+      document.getElementById('kpi-wa-consumo').innerText = `${wa.consumidas} / ${wa.limite}`;
+      document.getElementById('kpi-wa-pct').innerText = `${wa.porcentaje}% consumido`;
+      document.getElementById('kpi-wa-barra').style.width = Math.min(wa.porcentaje, 100) + '%';
+
+      // Métricas Estratégicas Warren Buffett (Owner Earnings, Cash Fortress & Aging)
+      if (data.metricasBuffett) {
+        const mb = data.metricasBuffett;
+        const elOE = document.getElementById('buffett-owner-earnings');
+        const elOEMargin = document.getElementById('buffett-owner-margin');
+        const elRunway = document.getElementById('buffett-runway-val');
+        const elCalle = document.getElementById('buffett-capital-calle');
+        const elQuote = document.getElementById('buffett-quote-text');
+        const elFortBadge = document.getElementById('buffett-fortress-badge');
+        const elHeadFort = document.getElementById('header-fortress-badge');
+        const elTicker = document.getElementById('live-advice-ticker');
+
+        if (elOE) elOE.innerText = fmtCOP(mb.ownerEarnings);
+        if (elOEMargin) elOEMargin.innerText = `${mb.margenOwnerEarnings}%`;
+        if (elRunway) elRunway.innerText = `${mb.runwayDias} días`;
+        if (elCalle) elCalle.innerText = fmtCOP(mb.capitalAtrapadoCalle);
+        if (elQuote && mb.dictamenBuffett) elQuote.innerText = mb.dictamenBuffett;
+        if (elTicker && mb.dictamenBuffett) elTicker.innerText = `💡 Dictamen Directivo: ${mb.dictamenBuffett}`;
+
+        const fortressText = `🛡️ Fortress: ${mb.runwayDias}d (${mb.labelFortaleza || 'Normal'})`;
+        if (elFortBadge) {
+          elFortBadge.innerText = fortressText;
+          elFortBadge.style.color = mb.colorFortaleza || '#34d399';
+          elFortBadge.style.borderColor = mb.colorFortaleza || '#10b981';
+        }
+        if (elHeadFort) {
+          elHeadFort.innerText = fortressText;
+          elHeadFort.style.color = mb.colorFortaleza || '#34d399';
+          elHeadFort.style.borderColor = mb.colorFortaleza || '#10b981';
+        }
+
+        // Radar de Antigüedad de Cartera (Aging de Buffett)
+        if (mb.carteraAging) {
+          const ca = mb.carteraAging;
+          const a1 = document.getElementById('aging-0-15');
+          const a2 = document.getElementById('aging-16-30');
+          const a3 = document.getElementById('aging-31-60');
+          const a4 = document.getElementById('aging-60plus');
+          if (a1) a1.innerText = fmtCOP(ca.tramo0_15d.monto);
+          if (a2) a2.innerText = fmtCOP(ca.tramo16_30d.monto);
+          if (a3) a3.innerText = fmtCOP(ca.tramo31_60d.monto);
+          if (a4) a4.innerText = fmtCOP(ca.tramoMas60d.monto);
+        }
+      }
+
+      // Actualizar Gráficos
+      actualizarGraficoFlujo(data.flujoMensual);
+      actualizarGraficoCategorias(data.categoriasGastos);
+
+      // Cachear y Renderizar Listas
+      cacheCompromisos = data.compromisos || [];
+      cacheTransacciones = data.ultimasTransacciones || [];
+      aplicarFiltroCompromisosUI();
+      filtrarTransaccionesUI();
+    }
+
+    function actualizarGraficoFlujo(flujoMensual) {
+      const ctx = document.getElementById('chartFlujoCaja').getContext('2d');
+      const labels = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.mes) : ['Mes Actual'];
+      const dataIng = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.ingresos) : [0];
+      const dataGas = (flujoMensual && flujoMensual.length) ? flujoMensual.map(f => f.gastos) : [0];
+
+      if (chartFlujo) chartFlujo.destroy();
+
+      // Gradientes para barras de gráficos
+      const gradIng = ctx.createLinearGradient(0, 0, 0, 300);
+      gradIng.addColorStop(0, 'rgba(16, 185, 129, 0.85)');
+      gradIng.addColorStop(1, 'rgba(16, 185, 129, 0.15)');
+
+      const gradGas = ctx.createLinearGradient(0, 0, 0, 300);
+      gradGas.addColorStop(0, 'rgba(244, 63, 94, 0.85)');
+      gradGas.addColorStop(1, 'rgba(244, 63, 94, 0.15)');
+
+      chartFlujo = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: dataIng,
+              backgroundColor: gradIng,
+              borderColor: '#10b981',
+              borderRadius: 8,
+              borderWidth: 1.5
+            },
+            {
+              label: 'Gastos',
+              data: dataGas,
+              backgroundColor: gradGas,
+              borderColor: '#f43f5e',
+              borderRadius: 8,
+              borderWidth: 1.5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { 
+              labels: { 
+                color: '#cbd5e1', 
+                font: { family: 'Plus Jakarta Sans', size: 12, weight: 600 } 
+              } 
+            },
+            tooltip: {
+              backgroundColor: 'rgba(11, 17, 32, 0.95)',
+              titleColor: '#38bdf8',
+              bodyFont: { family: 'JetBrains Mono' },
+              borderColor: 'rgba(56, 189, 248, 0.3)',
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                label: ctx => ` ${ctx.dataset.label}: ${fmtCOP(ctx.raw)}`
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { color: 'rgba(255,255,255,0.03)' }, 
+              ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans' } } 
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.03)' },
+              ticks: { color: '#94a3b8', callback: v => '$' + (v / 1000) + 'k' }
+            }
+          }
+        }
+      });
+    }
+
+    function actualizarGraficoCategorias(categorias) {
+      const ctx = document.getElementById('chartCategorias').getContext('2d');
+      const labels = (categorias && categorias.length) ? categorias.slice(0, 6).map(c => c.categoria) : ['Sin gastos'];
+      const data = (categorias && categorias.length) ? categorias.slice(0, 6).map(c => c.total) : [1];
+
+      if (chartCats) chartCats.destroy();
+
+      chartCats = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: [
+              '#38bdf8', '#818cf8', '#10b981', '#f59e0b', '#ec4899', '#a855f7'
+            ],
+            borderWidth: 2,
+            borderColor: '#0b1120'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { 
+                color: '#cbd5e1', 
+                font: { family: 'Plus Jakarta Sans', size: 11.5, weight: 500 }, 
+                boxWidth: 14,
+                padding: 12
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(11, 17, 32, 0.95)',
+              titleColor: '#38bdf8',
+              bodyFont: { family: 'JetBrains Mono' },
+              borderColor: 'rgba(56, 189, 248, 0.3)',
+              borderWidth: 1,
+              callbacks: {
+                label: ctx => ` ${ctx.label}: ${fmtCOP(ctx.raw)}`
+              }
+            }
+          },
+          cutout: '72%'
+        }
+      });
+    }
+
+    // Filtros interactivos del Aging Radar
+    function filtrarCompromisosPorAging(tramo) {
+      filtroAgingActivo = tramo;
+      document.querySelectorAll('.aging-card').forEach(c => {
+        c.classList.toggle('active-filter', c.getAttribute('data-tramo') === tramo);
+      });
+      document.getElementById('btn-reset-comp-filter').classList.remove('active');
+      aplicarFiltroCompromisosUI();
+    }
+
+    function resetFiltroCompromisos() {
+      filtroAgingActivo = null;
+      document.querySelectorAll('.aging-card').forEach(c => c.classList.remove('active-filter'));
+      document.getElementById('btn-reset-comp-filter').classList.add('active');
+      aplicarFiltroCompromisosUI();
+    }
+
+    function aplicarFiltroCompromisosUI() {
+      let filtrados = cacheCompromisos;
+      if (filtroAgingActivo) {
+        filtrados = cacheCompromisos.filter(c => {
+          const dias = Number(c.diasVencido || 0);
+          if (filtroAgingActivo === '0_15') return dias <= 15;
+          if (filtroAgingActivo === '16_30') return dias > 15 && dias <= 30;
+          if (filtroAgingActivo === '31_60') return dias > 30 && dias <= 60;
+          if (filtroAgingActivo === 'mas60') return dias > 60;
+          return true;
+        });
+      }
+      renderizarCompromisos(filtrados);
+    }
+
+    function renderizarCompromisos(lista) {
+      const cont = document.getElementById('lista-compromisos');
+      document.getElementById('comp-count').innerText = `${lista ? lista.length : 0} obligaciones`;
+      cont.innerHTML = '';
+
+      if (!lista || lista.length === 0) {
+        cont.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-dim); font-size: 13px;">No hay compromisos en este criterio. ✨</div>';
+        return;
+      }
+
+      lista.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'compromiso-item';
+        item.innerHTML = `
+          <div class="item-main-row">
+            <div>
+              <span class="comp-title">${c.concepto}</span>
+              <div class="comp-sub">${c.tercero} • Vence: ${c.fechaVencimiento || 'Sin fecha'}</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="comp-monto" style="color: ${c.tipo === 'POR_COBRAR' ? 'var(--accent-cyan)' : 'var(--accent-amber)'}">
+                ${fmtCOP(c.saldoPendiente || c.montoOriginal)}
+              </div>
+              <span class="urgencia-badge urgencia-${c.urgencia}">${(c.urgencia || 'NORMAL').replace(/_/g, ' ')}</span>
+            </div>
+          </div>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    // Filtros interactivos de transacciones
+    function filtrarTipoTransaccion(tipo) {
+      filtroTipoTransActivo = tipo;
+      document.getElementById('filter-all-trans').classList.toggle('active', tipo === 'TODOS');
+      document.getElementById('filter-ing-trans').classList.toggle('active', tipo === 'INGRESO');
+      document.getElementById('filter-gas-trans').classList.toggle('active', tipo === 'GASTO');
+      filtrarTransaccionesUI();
+    }
+
+    function filtrarTransaccionesUI() {
+      const query = (document.getElementById('input-search-trans').value || '').toLowerCase().trim();
+      let filtrados = cacheTransacciones;
+
+      if (filtroTipoTransActivo !== 'TODOS') {
+        filtrados = filtrados.filter(t => t.tipo === filtroTipoTransActivo);
+      }
+
+      if (query) {
+        filtrados = filtrados.filter(t => 
+          (t.concepto && t.concepto.toLowerCase().includes(query)) ||
+          (t.categoria && t.categoria.toLowerCase().includes(query)) ||
+          (t.entidad && t.entidad.toLowerCase().includes(query))
+        );
+      }
+
+      renderizarTransacciones(filtrados);
+    }
+
+    function renderizarTransacciones(lista) {
+      const cont = document.getElementById('lista-transacciones');
+      document.getElementById('trans-count').innerText = `${lista ? lista.length : 0} movimientos`;
+      cont.innerHTML = '';
+
+      if (!lista || lista.length === 0) {
+        cont.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-dim); font-size: 13px;">No hay transacciones que coincidan con la búsqueda.</div>';
+        return;
+      }
+
+      lista.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'trans-item';
+        const esIngreso = t.tipo === 'INGRESO';
+        item.innerHTML = `
+          <div class="item-main-row">
+            <div>
+              <span class="trans-badge-entidad">${t.entidad}</span>
+              <span class="trans-title">${t.concepto}</span>
+              <div class="trans-sub">${t.categoria} • ${t.fecha}</div>
+            </div>
+            <span class="trans-monto ${esIngreso ? 'ingreso' : 'gasto'}">
+              ${esIngreso ? '+' : '-'}${fmtCOP(t.monto)}
+            </span>
+          </div>
+        `;
+        cont.appendChild(item);
+      });
+    }
+
+    // Copiloto IA con Gemini 3.6 Flash
+    function ejecutarPromptIA() {
+      const input = document.getElementById('prompt-input');
+      const texto = input.value.trim();
+      if (!texto) return;
+
+      const btn = document.getElementById('btn-prompt');
+      btn.innerHTML = '<span>⏳ Pensando...</span>';
+      btn.disabled = true;
+
+      const cajaRespuesta = document.getElementById('ai-response-box');
+      cajaRespuesta.style.display = 'block';
+      document.getElementById('ai-texto-analisis').innerText = 'Analizando tus métricas en tiempo real con la Tríada de Consejos Globales...';
+      document.getElementById('ai-lista-puntos').innerHTML = '';
+      document.getElementById('ai-lista-recs').innerHTML = '';
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(renderizarRespuestaIA)
+          .withFailureHandler(err => {
+            document.getElementById('ai-texto-analisis').innerText = 'Error al consultar la IA: ' + err.message;
+            btn.innerHTML = '<span>⚡ Analizar</span>';
+            btn.disabled = false;
+          })
+          .procesarPromptDashboard(texto, entidadActual);
+      } else {
+        const authParams = ES_USUARIO_EXTERNO ? `&u=${encodeURIComponent(ENTIDAD_USUARIO)}&auth=${encodeURIComponent(AUTH_TOKEN)}` : '';
+        fetch(`?action=processPrompt&prompt=${encodeURIComponent(texto)}&entidad=${encodeURIComponent(entidadActual)}${authParams}`)
+          .then(res => res.json())
+          .then(renderizarRespuestaIA)
+          .catch(err => {
+            document.getElementById('ai-texto-analisis').innerText = 'No se pudo conectar con el servicio de IA: ' + err.message;
+          })
+          .finally(() => {
+            btn.innerHTML = '<span>⚡ Analizar</span>';
+            btn.disabled = false;
+          });
+      }
+    }
+
+    function renderizarRespuestaIA(rep) {
+      const btn = document.getElementById('btn-prompt');
+      btn.innerHTML = '<span>⚡ Analizar</span>';
+      btn.disabled = false;
+
+      if (!rep || !rep.ok) {
+        document.getElementById('ai-texto-analisis').innerText = rep.error || 'No se pudo generar el análisis.';
+        return;
+      }
+
+      document.getElementById('ai-fuente-tag').innerText = rep.fuente || 'Gemini 3.6 Flash';
+      document.getElementById('ai-texto-analisis').innerText = rep.analisis;
+
+      const ulPuntos = document.getElementById('ai-lista-puntos');
+      ulPuntos.innerHTML = '';
+      (rep.puntosClave || []).forEach(pt => {
+        const li = document.createElement('li');
+        li.innerText = pt;
+        ulPuntos.appendChild(li);
+      });
+
+      const ulRecs = document.getElementById('ai-lista-recs');
+      ulRecs.innerHTML = '';
+      (rep.recomendaciones || []).forEach(rc => {
+        const li = document.createElement('li');
+        li.innerText = rc;
+        ulRecs.appendChild(li);
+      });
+
+      const boxBuffett = document.getElementById('ai-buffett-box');
+      const txtBuffett = document.getElementById('ai-texto-buffett');
+      if (boxBuffett && txtBuffett) {
+        if (rep.consejoBuffett) {
+          txtBuffett.innerText = rep.consejoBuffett;
+          boxBuffett.style.display = 'block';
+        } else {
+          boxBuffett.style.display = 'none';
+        }
+      }
+
+      if (rep.entidadSugerida && rep.entidadSugerida !== entidadActual && rep.entidadSugerida !== 'Consolidado') {
+        setTimeout(() => {
+          cambiarEntidad(rep.entidadSugerida);
+        }, 800);
+      }
+    }
+  </script>
+</body>
+</html>
