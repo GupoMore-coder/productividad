@@ -2231,7 +2231,13 @@
       const baseUrl = (typeof window.CANONICAL_APP_URL !== 'undefined' && window.CANONICAL_APP_URL)
         ? window.CANONICAL_APP_URL
         : DEFAULT_WEB_APP;
-      return baseUrl.split('?')[0] + '?mode=buzon';
+      const currentParams = new URLSearchParams(window.location.search);
+      const token = currentParams.get('token');
+      let target = baseUrl.split('?')[0] + '?mode=buzon';
+      if (token) {
+        target += '&token=' + encodeURIComponent(token);
+      }
+      return target;
     }
 
     document.querySelectorAll('.buzon-direct-link, a[href*="mode=buzon"]').forEach(function(el) {

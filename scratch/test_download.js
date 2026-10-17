@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { buildAnonymousDownloadUrl } from './bibliotecario_engine/anonymous_proxy.cjs';
+import { buildAnonymousDownloadUrl } from '../bibliotecario_engine/anonymous_proxy.cjs';
 
 async function test() {
   const url = buildAnonymousDownloadUrl({ driveId: 'MANUAL_DE_USO_BIBLIOTECA_PDF', userPhone: '+573001234567' });

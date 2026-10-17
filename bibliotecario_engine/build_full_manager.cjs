@@ -1797,15 +1797,14 @@ function doGet(e) {
   // 1.5 Buzón Digital Seguro Anónimo (?mode=buzon)
   const modeParam = String(params.mode || (e && e.parameters && e.parameters.mode && e.parameters.mode[0]) || '').toLowerCase();
   const queryStr = String((e && e.queryString) || '').toLowerCase();
+  const token = params.token || (e && e.parameters && e.parameters.token && e.parameters.token[0]) || '';
   if (modeParam === 'buzon' || queryStr.indexOf('mode=buzon') !== -1) {
-    return serveBuzonDropzone();
+    return serveBuzonDropzone(token);
   }
 
   // 2. Acceso o descarga mediante token efímero
-  const token = params.token;
-
   if (!token) {
-    return renderRichInteractiveManual(EMBEDDED_MANUAL_B64);
+    return renderRichInteractiveManual(EMBEDDED_MANUAL_B64, '');
   }
 
   try {
@@ -1874,7 +1873,7 @@ function doGet(e) {
       } catch (e) {
         Logger.log('Aviso lectura Drive manual: ' + e.message);
       }
-      return renderRichInteractiveManual(b64Manual);
+      return renderRichInteractiveManual(b64Manual, token);
     }
 
     // Caso C: Documento clínico cloud por Drive File ID
@@ -1895,13 +1894,14 @@ function doGet(e) {
 /**
  * Renderiza el Manual Interactivo de Alto Impacto
  */
-function renderRichInteractiveManual(b64Pdf) {
+function renderRichInteractiveManual(b64Pdf, token) {
   const webAppUrl = getWebAppBaseUrl();
-  const buzonUrl = webAppUrl + '?mode=buzon';
+  const buzonUrl = webAppUrl + '?mode=buzon' + (token ? '&token=' + encodeURIComponent(token) : '');
 
   let baseHtml = ` + cleanHtmlEscaped + `;
   baseHtml = baseHtml.replace(/href="\\?mode=buzon"/g, 'href="' + buzonUrl + '"');
   baseHtml = baseHtml.replace(/href='\\?mode=buzon'/g, 'href="' + buzonUrl + '"');
+  baseHtml = baseHtml.replace(/href="[^"]*\\?mode=buzon"/g, 'href="' + buzonUrl + '"');
 
   const scriptInjection = '<script>window.CANONICAL_APP_URL = "' + webAppUrl + '";</script>';
   baseHtml = baseHtml.replace('</head>', scriptInjection + '</head>');
@@ -1959,9 +1959,96 @@ function renderRichInteractiveManual(b64Pdf) {
 /**
  * Sirve el Buzón Digital Seguro Anónimo embebido (?mode=buzon)
  * Compatible con archivos grandes (> 45 MB hasta 2 GB) vía Chunked Upload
+ * Identificación automática por Token/Teléfono y Datos Obligatorios si es dispositivo externo
  */
-function serveBuzonDropzone() {
+function serveBuzonDropzone(token) {
   const webAppUrl = getWebAppBaseUrl();
+  let identifiedUser = null;
+
+  if (token) {
+    try {
+      let rawPayload = token;
+      let receivedSignature = '';
+      if (token.indexOf('.') !== -1) {
+        const parts = token.split('.');
+        rawPayload = parts[0];
+        receivedSignature = parts[1];
+      }
+      const salt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+      const expectedSigRaw = Utilities.computeHmacSha256Signature(rawPayload, salt);
+      const expectedSignature = Utilities.base64Encode(expectedSigRaw)
+        .replace(/\\+/g, '-')
+        .replace(/\\//g, '_')
+        .replace(/=+$/, '');
+      if (constantTimeEquals(receivedSignature, expectedSignature)) {
+        let b64 = rawPayload.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4 !== 0) b64 += '=';
+        const payloadJson = Utilities.newBlob(Utilities.base64Decode(b64)).getDataAsString();
+        const payload = JSON.parse(payloadJson);
+        const userPhone = String(payload.uPhone || payload.phn || '').replace(/[^\\d+]/g, '');
+        if (userPhone) {
+          const ss = SpreadsheetApp.getActiveSpreadsheet();
+          const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+          if (sheetUsr) {
+            const data = sheetUsr.getDataRange().getValues();
+            const cleanTarget = userPhone.replace(/[^\\d]/g, '');
+            for (let r = 1; r < data.length; r++) {
+              const rowPhone = String(data[r][0] || '').replace(/[^\\d]/g, '');
+              if (rowPhone && (rowPhone === cleanTarget || rowPhone.endsWith(cleanTarget) || cleanTarget.endsWith(rowPhone))) {
+                identifiedUser = {
+                  nombre: String(data[r][1] || '').trim(),
+                  hospital: String(data[r][2] || '').trim(),
+                  nivel: String(data[r][3] || '').trim(),
+                  telefono: String(data[r][0] || '').trim()
+                };
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      Logger.log('Aviso validación token buzón: ' + e.message);
+    }
+  }
+
+  const isIdentified = (identifiedUser !== null && identifiedUser.nombre !== '');
+  let donorHtml = '';
+
+  if (isIdentified) {
+    donorHtml = 
+      '<div class="donor-card verified-card">' +
+      '  <div class="donor-badge-verified">✅ APORTANTE INSTITUCIONAL VERIFICADO</div>' +
+      '  <div class="donor-name-verified">👤 Dr(a). ' + sanitizeSheetValue(identifiedUser.nombre) + '</div>' +
+      '  <div class="donor-meta-verified">' +
+      '    🏥 <strong>Hospital / Institución:</strong> ' + sanitizeSheetValue(identifiedUser.hospital) + '<br>' +
+      '    🎓 <strong>Nivel:</strong> ' + sanitizeSheetValue(identifiedUser.nivel) +
+      '  </div>' +
+      '  <div class="donor-lock-note">🔒 Identificación clínica asociada automáticamente a su número de WhatsApp autorizado. Registro confidencial exclusivo de la Dirección.</div>' +
+      '  <input type="hidden" id="donorName" value="' + sanitizeSheetValue(identifiedUser.nombre) + '">' +
+      '  <input type="hidden" id="donorHospital" value="' + sanitizeSheetValue(identifiedUser.hospital) + '">' +
+      '  <input type="hidden" id="isIdentified" value="true">' +
+      '</div>';
+  } else {
+    donorHtml = 
+      '<div class="donor-card unverified-card">' +
+      '  <div class="donor-badge-unverified">⚠️ DISPOSITIVO EXTERNO / NO IDENTIFICADO</div>' +
+      '  <p class="donor-unverified-desc">' +
+      '    No se detectó una sesión autorizada de WhatsApp en este dispositivo. Para resguardar la trazabilidad médica institucional del acervo, los siguientes datos son de <strong>CARÁCTER ESTRICTAMENTE OBLIGATORIO</strong>:' +
+      '  </p>' +
+      '  <div class="field-row">' +
+      '    <label class="donor-label" for="donorName">Nombre Completo del Aportante: <span class="req-star">* OBLIGATORIO</span></label>' +
+      '    <input type="text" id="donorName" class="donor-input" placeholder="Ej: Dr(a). Nombre y Apellido">' +
+      '  </div>' +
+      '  <div class="field-row" style="margin-top:10px;">' +
+      '    <label class="donor-label" for="donorHospital">Hospital / Institución / Universidad: <span class="req-star">* OBLIGATORIO</span></label>' +
+      '    <input type="text" id="donorHospital" class="donor-input" placeholder="Ej: Hospital Universitario Fundación Santa Fe">' +
+      '  </div>' +
+      '  <span class="donor-note">🔒 Registro estrictamente privado para control interno de la Dirección. Nunca se publicará externamente.</span>' +
+      '  <input type="hidden" id="isIdentified" value="false">' +
+      '</div>';
+  }
+
   const buzonHtml = '<!DOCTYPE html>' +
     '<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
     '<title>Buzón Digital Seguro — Biblioteca Médica Especializada</title>' +
@@ -1980,17 +2067,29 @@ function serveBuzonDropzone() {
     'p.desc { font-size: 9pt; color: #94a3b8; line-height: 1.5; margin-bottom: 18px; }' +
     '.large-file-banner { background: rgba(2, 132, 199, 0.08); border: 1px solid #0284c7; border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; font-size: 8.5pt; color: #bae6fd; line-height: 1.45; }' +
     '.large-file-banner strong { color: #38bdf8; }' +
-    '.dropzone { border: 2px dashed #0d9488; background: rgba(13, 148, 136, 0.05); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; position: relative; }' +
+    '.dropzone { border: 2px dashed #0d9488; background: rgba(13, 148, 136, 0.05); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; position: relative; display: block; }' +
     '.dropzone:hover, .dropzone.dragover { background: rgba(13, 148, 136, 0.12); border-color: #5eead4; transform: scale(1.01); }' +
     '.drop-icon { font-size: 40px; margin-bottom: 8px; display: block; }' +
     '.drop-title { font-size: 10pt; font-weight: 700; color: #ffffff; margin-bottom: 4px; }' +
     '.drop-sub { font-size: 8.5pt; color: #64748b; }' +
-    'input[type="file"] { display: none; }' +
-    '.donor-box { margin-top: 14px; text-align: left; }' +
+    'input[type="file"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }' +
+    '.donor-card { margin-top: 16px; border-radius: 12px; padding: 16px 18px; text-align: left; }' +
+    '.verified-card { background: rgba(13, 148, 136, 0.12); border: 1px solid #0d9488; border-left: 4px solid #10b981; }' +
+    '.donor-badge-verified { font-family: "JetBrains Mono", monospace; font-size: 7.5pt; font-weight: 700; color: #5eead4; letter-spacing: 1px; margin-bottom: 6px; }' +
+    '.donor-name-verified { font-size: 11pt; font-weight: 700; color: #ffffff; margin-bottom: 4px; }' +
+    '.donor-meta-verified { font-size: 8.5pt; color: #cbd5e1; line-height: 1.5; }' +
+    '.donor-lock-note { font-size: 7.5pt; color: #5eead4; margin-top: 8px; border-top: 1px solid rgba(13, 148, 136, 0.25); padding-top: 6px; }' +
+    '.unverified-card { background: rgba(217, 119, 6, 0.08); border: 1px solid #d97706; border-left: 4px solid #f59e0b; }' +
+    '.donor-badge-unverified { font-family: "JetBrains Mono", monospace; font-size: 7.5pt; font-weight: 700; color: #fbbf24; letter-spacing: 1px; margin-bottom: 6px; }' +
+    '.donor-unverified-desc { font-size: 8.5pt; color: #fde68a; line-height: 1.45; margin-bottom: 12px; }' +
+    '.req-star { color: #ef4444; font-weight: 800; font-family: "JetBrains Mono", monospace; font-size: 7.5pt; margin-left: 4px; }' +
+    '.field-row { margin-bottom: 4px; }' +
     '.donor-label { font-size: 8.5pt; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px; }' +
-    '.donor-input { width: 100%; padding: 10px 14px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; color: #f8fafc; font-size: 9pt; font-family: inherit; }' +
+    '.donor-input { width: 100%; padding: 10px 14px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; color: #f8fafc; font-size: 9pt; font-family: inherit; transition: all 0.2s; }' +
+    '.donor-input:focus { border-color: #0d9488; outline: none; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.25); }' +
+    '.donor-input.input-error { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3) !important; background: #2a151b !important; }' +
     '.donor-note { font-size: 7.5pt; color: #64748b; margin-top: 4px; display: block; }' +
-    '.opt-label { display: flex; align-items: center; gap: 8px; font-size: 8.5pt; color: #94a3b8; margin-top: 12px; cursor: pointer; }' +
+    '.opt-label { display: flex; align-items: center; gap: 8px; font-size: 8.5pt; color: #94a3b8; margin-top: 14px; cursor: pointer; }' +
     '.file-preview { display: none; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px 16px; margin-top: 16px; align-items: center; justify-content: space-between; gap: 12px; }' +
     '.file-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }' +
     '.file-name { font-size: 9pt; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
@@ -2018,12 +2117,12 @@ function serveBuzonDropzone() {
     '    • <strong>WhatsApp Directo:</strong> Puede adjuntar como documento (hasta 2 GB) en el chat con la palabra <code>APORTE</code>.<br>' +
     '    • <strong>Subida Fraccionada:</strong> Este buzón segmenta automáticamente en bloques seguros de 10 MB con sesión reanudable efímera.' +
     '  </div>' +
-    '  <div class="dropzone" id="dropArea">' +
+    '  <label class="dropzone" id="dropArea" for="fileInput">' +
     '    <span class="drop-icon">📑</span>' +
     '    <div class="drop-title">Arrastra tu archivo PDF aquí</div>' +
     '    <div class="drop-sub">o haz clic para examinar desde tu dispositivo (Soporta archivos grandes)</div>' +
     '    <input type="file" id="fileInput" accept="application/pdf">' +
-    '  </div>' +
+    '  </label>' +
     '  <div class="file-preview" id="filePreview">' +
     '    <div class="file-info">' +
     '      <span style="font-size: 20px;">📄</span>' +
@@ -2031,11 +2130,7 @@ function serveBuzonDropzone() {
     '    </div>' +
     '    <span style="color:#ef4444; cursor:pointer; font-weight:bold;" id="btnClearFile">✕</span>' +
     '  </div>' +
-    '  <div class="donor-box">' +
-    '    <label class="donor-label" for="donorInput">Datos del Aportante (Opcional):</label>' +
-    '    <input type="text" id="donorInput" class="donor-input" placeholder="Nombre / Institución / Hospital">' +
-    '    <span class="donor-note">🔒 Registro estrictamente privado para control interno de la Dirección. Nunca se expondrá ni publicará externamente.</span>' +
-    '  </div>' +
+    donorHtml +
     '  <label class="opt-label">' +
     '    <input type="checkbox" id="chkOptimize" checked>' +
     '    <span>Habilitar optimización clínica y fragmentación por bloques (Chunked Upload)</span>' +
@@ -2054,7 +2149,6 @@ function serveBuzonDropzone() {
     '  const fileInput = document.getElementById("fileInput");' +
     '  const filePreview = document.getElementById("filePreview");' +
     '  const fileNameDisp = document.getElementById("fileNameDisp");' +
-    '  const donorInput = document.getElementById("donorInput");' +
     '  const chkOptimize = document.getElementById("chkOptimize");' +
     '  const progressBox = document.getElementById("progressBox");' +
     '  const progressBar = document.getElementById("progressBar");' +
@@ -2062,7 +2156,6 @@ function serveBuzonDropzone() {
     '  const btnUpload = document.getElementById("btnUpload");' +
     '  const statusBox = document.getElementById("statusBox");' +
     '  const btnClearFile = document.getElementById("btnClearFile");' +
-    '  dropArea.addEventListener("click", function() { fileInput.click(); });' +
     '  btnClearFile.addEventListener("click", clearFile);' +
     '  btnUpload.addEventListener("click", uploadSelectedFile);' +
     '  ["dragenter", "dragover"].forEach(eventName => {' +
@@ -2072,12 +2165,13 @@ function serveBuzonDropzone() {
     '    dropArea.addEventListener(eventName, (e) => { e.preventDefault(); dropArea.classList.remove("dragover"); }, false);' +
     '  });' +
     '  dropArea.addEventListener("drop", (e) => {' +
+    '    e.preventDefault();' +
     '    const dt = e.dataTransfer;' +
     '    const files = dt.files;' +
-    '    if (files.length) handleFile(files[0]);' +
+    '    if (files && files.length) handleFile(files[0]);' +
     '  });' +
     '  fileInput.addEventListener("change", (e) => {' +
-    '    if (e.target.files.length) handleFile(e.target.files[0]);' +
+    '    if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);' +
     '  });' +
     '  function handleFile(file) {' +
     '    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {' +
@@ -2110,12 +2204,54 @@ function serveBuzonDropzone() {
     '    progressBar.style.width = pct + "%";' +
     '    progressText.innerText = msg || (pct + "%");' +
     '  }' +
+    '  function handleUploadSuccess(res) {' +
+    '    updateProgress(100, "Completado");' +
+    '    if (res && res.success) {' +
+    '      showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>ID de Registro: <code>" + (res.indexingId || "MED-2026") + "</code><br>El documento ha sido resguardado en el acervo institucional bajo estricta confidencialidad.");' +
+    '      clearFile();' +
+    '    } else {' +
+    '      showStatus("error", "⚠️ " + (res.error || "Ocurrió un error al procesar el archivo."));' +
+    '    }' +
+    '    btnUpload.disabled = false;' +
+    '    btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '  }' +
+    '  function handleUploadFailure(err) {' +
+    '    showStatus("error", "⚠️ Error de conexión: " + err.message);' +
+    '    btnUpload.disabled = false;' +
+    '    btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '  }' +
     '  async function uploadSelectedFile() {' +
     '    if (!selectedFile) return;' +
+    '    statusBox.style.display = "none";' +
+    '    const isId = document.getElementById("isIdentified").value === "true";' +
+    '    let donorRecord = "";' +
+    '    if (isId) {' +
+    '      const nameVal = (document.getElementById("donorName").value || "").trim();' +
+    '      const hospVal = (document.getElementById("donorHospital").value || "").trim();' +
+    '      donorRecord = nameVal + " | " + hospVal + " (Verificado por WhatsApp)";' +
+    '    } else {' +
+    '      const nameEl = document.getElementById("donorName");' +
+    '      const hospEl = document.getElementById("donorHospital");' +
+    '      const nameVal = (nameEl.value || "").trim();' +
+    '      const hospVal = (hospEl.value || "").trim();' +
+    '      nameEl.classList.remove("input-error");' +
+    '      hospEl.classList.remove("input-error");' +
+    '      if (!nameVal || nameVal.length < 3) {' +
+    '        showStatus("error", "⚠️ <b>Dato Obligatorio Faltante:</b> Ingrese su Nombre Completo antes de subir el documento.");' +
+    '        nameEl.classList.add("input-error");' +
+    '        nameEl.focus();' +
+    '        return;' +
+    '      }' +
+    '      if (!hospVal || hospVal.length < 3) {' +
+    '        showStatus("error", "⚠️ <b>Dato Obligatorio Faltante:</b> Ingrese su Institución u Hospital antes de subir el documento.");' +
+    '        hospEl.classList.add("input-error");' +
+    '        hospEl.focus();' +
+    '        return;' +
+    '      }' +
+    '      donorRecord = nameVal + " | " + hospVal + " (Aporte Externo No Vinculado)";' +
+    '    }' +
     '    btnUpload.disabled = true;' +
     '    btnUpload.innerText = "⏳ Procesando y subiendo archivo...";' +
-    '    statusBox.style.display = "none";' +
-    '    const donor = (donorInput.value || "").trim();' +
     '    const CHUNK_SIZE = 10 * 1024 * 1024;' +
     '    if (selectedFile.size > 20 * 1024 * 1024 && chkOptimize.checked) {' +
     '      const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);' +
@@ -2128,7 +2264,7 @@ function serveBuzonDropzone() {
     '          const chunkB64 = await readBlobAsBase64(chunkBlob);' +
     '          const pct = Math.round(((i + 1) / totalChunks) * 100);' +
     '          updateProgress(pct, "Transmitiendo bloque " + (i + 1) + " de " + totalChunks + " (" + pct + "%)...");' +
-    '          await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donor);' +
+    '          await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donorRecord);' +
     '        }' +
     '        updateProgress(100, "✅ Archivo ensamblado y catalogado.");' +
     '        showStatus("success", "✅ <b>¡Documento de Gran Volumen Depositado con Éxito!</b><br>Todos los bloques fueron ensamblados y catalogados con éxito bajo estricta confidencialidad.");' +
@@ -2142,36 +2278,32 @@ function serveBuzonDropzone() {
     '    } else {' +
     '      updateProgress(40, "Leyendo archivo...");' +
     '      const reader = new FileReader();' +
-    '      reader.onload = function(e) {' +
+    '      reader.onload = async function(e) {' +
     '        const base64Data = e.target.result.split(",")[1];' +
     '        updateProgress(75, "Registrando en el acervo...");' +
     '        if (typeof google !== "undefined" && google.script && google.script.run) {' +
     '          google.script.run' +
-    '            .withSuccessHandler(function(res) {' +
-    '              updateProgress(100, "Completado");' +
-    '              if (res && res.success) {' +
-    '                showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>ID de Registro: <code>" + (res.indexingId || "MED-2026") + "</code><br>El documento ha sido resguardado en el acervo institucional bajo estricta confidencialidad.");' +
-    '                clearFile();' +
-    '              } else {' +
-    '                showStatus("error", "⚠️ " + (res.error || "Ocurrió un error al procesar el archivo."));' +
-    '              }' +
-    '              btnUpload.disabled = false;' +
-    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
-    '            })' +
-    '            .withFailureHandler(function(err) {' +
-    '              showStatus("error", "⚠️ Error de conexión: " + err.message);' +
-    '              btnUpload.disabled = false;' +
-    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
-    '            })' +
-    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donor);' +
+    '            .withSuccessHandler(handleUploadSuccess)' +
+    '            .withFailureHandler(handleUploadFailure)' +
+    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donorRecord);' +
     '        } else {' +
-    '          setTimeout(() => {' +
-    '            updateProgress(100, "Completado");' +
-    '            showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>El documento ha sido resguardado con éxito.");' +
-    '            clearFile();' +
-    '            btnUpload.disabled = false;' +
-    '            btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
-    '          }, 1000);' +
+    '          try {' +
+    '            const resp = await fetch(window.location.href, {' +
+    '              method: "POST",' +
+    '              headers: { "Content-Type": "application/json" },' +
+    '              body: JSON.stringify({' +
+    '                action: "upload_buzon",' +
+    '                base64Data: base64Data,' +
+    '                fileName: selectedFile.name,' +
+    '                mimeType: selectedFile.type,' +
+    '                donorInfo: donorRecord' +
+    '              })' +
+    '            });' +
+    '            const res = await resp.json();' +
+    '            handleUploadSuccess(res);' +
+    '          } catch (err) {' +
+    '            handleUploadFailure(err);' +
+    '          }' +
     '        }' +
     '      };' +
     '      reader.readAsDataURL(selectedFile);' +
@@ -2186,14 +2318,32 @@ function serveBuzonDropzone() {
     '    });' +
     '  }' +
     '  function uploadChunkPromise(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor) {' +
-    '    return new Promise((resolve, reject) => {' +
+    '    return new Promise(async (resolve, reject) => {' +
     '      if (typeof google !== "undefined" && google.script && google.script.run) {' +
     '        google.script.run' +
     '          .withSuccessHandler(res => { if (res && res.success) resolve(res); else reject(new Error(res.error || "Error")); })' +
     '          .withFailureHandler(reject)' +
     '          .uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor);' +
     '      } else {' +
-    '        setTimeout(() => resolve({ success: true }), 400);' +
+    '        try {' +
+    '          const resp = await fetch(window.location.href, {' +
+    '            method: "POST",' +
+    '            headers: { "Content-Type": "application/json" },' +
+    '            body: JSON.stringify({' +
+    '              action: "upload_chunk",' +
+    '              sessionId: sessionId,' +
+    '              chunkIndex: chunkIndex,' +
+    '              totalChunks: totalChunks,' +
+    '              chunkB64: chunkB64,' +
+    '              fileName: fileName,' +
+    '              mimeType: mimeType,' +
+    '              donorInfo: donor' +
+    '            })' +
+    '          });' +
+    '          const res = await resp.json();' +
+    '          if (res && res.success) resolve(res);' +
+    '          else reject(new Error(res.error || "Error en bloque"));' +
+    '        } catch (err) { reject(err); }' +
     '      }' +
     '    });' +
     '  }' +
