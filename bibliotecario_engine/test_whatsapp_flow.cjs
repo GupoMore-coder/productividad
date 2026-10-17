@@ -52,7 +52,7 @@ async function startSuite() {
     assert.strictEqual(res.recipientPhone, TEST_RESIDENT_PHONE);
     assert.strictEqual(res.replyText.includes('Bienvenido(a) a la Biblioteca Médica'), true);
     assert.strictEqual(res.replyText.includes('Universidad u Hospital'), true);
-    assert.strictEqual(res.replyText.includes('Gestor de Contenido'), true);
+    assert.strictEqual(res.replyText.includes('Dirección') || res.replyText.includes('Iniciativa independiente'), true);
   });
 
   await runAsyncTest('Jornada 1.2: Envío de datos -> Registro en PENDIENTE_APROBACION y alerta a Gestor de Contenido', async () => {
@@ -121,27 +121,27 @@ async function startSuite() {
     assert.strictEqual(res.replyText.includes('token='), true);
   });
 
-  // JORNADA 5: Canal Intermediado con el Gestor de Contenido
-  await runAsyncTest('Jornada 5: Residente envía "MENSAJE AL GESTOR:" -> Relé confidencial a la Dirección', async () => {
+  // JORNADA 5: Canal Intermediado con la Dirección
+  await runAsyncTest('Jornada 5: Residente envía "MENSAJE A LA DIRECCION:" -> Relé confidencial a la Dirección', async () => {
     const res = await processIncomingWhatsAppMessage({
       fromPhone: TEST_RESIDENT_PHONE,
       senderName: 'Dr. Mateo Valencia',
-      messageText: 'MENSAJE AL GESTOR: Tenemos una duda con el abordaje anterolateral para pilón tibial.'
+      messageText: 'MENSAJE A LA DIRECCION: Tenemos una duda con el abordaje anterolateral para pilón tibial.'
     });
 
     assert.strictEqual(res.recipientPhone, TEST_RESIDENT_PHONE);
     assert.strictEqual(res.replyText.includes('Mensaje Transmitido a la Dirección'), true);
-    assert.strictEqual(res.replyText.includes('Gestor de Contenido'), true);
+    assert.strictEqual(res.replyText.includes('Dirección del Proyecto'), true);
 
-    // Verificar que Gestor de Contenido recibe la alerta privada
+    // Verificar que la Dirección recibe la alerta privada
     assert.strictEqual(Boolean(res.alertToGerente), true);
     assert.strictEqual(res.alertToGerente.phone, ADMIN_PHONE);
-    assert.strictEqual(res.alertToGerente.message.includes('MENSAJE RECIBIDO PARA EL GESTOR DE CONTENIDO'), true);
+    assert.strictEqual(res.alertToGerente.message.includes('MENSAJE RECIBIDO PARA LA DIRECCIÓN DEL PROYECTO'), true);
     assert.strictEqual(res.alertToGerente.message.includes('pilón tibial'), true);
   });
 
-  // JORNADA 6: Respuesta Despachada por Gestor de Contenido
-  await runAsyncTest('Jornada 6: Gestor de Contenido despacha respuesta "RESPONDER +57..." -> Entrega anónima al residente', async () => {
+  // JORNADA 6: Respuesta Despachada por la Dirección
+  await runAsyncTest('Jornada 6: Dirección despacha respuesta "RESPONDER +57..." -> Entrega anónima al residente', async () => {
     const res = await processIncomingWhatsAppMessage({
       fromPhone: ADMIN_PHONE,
       senderName: 'Gestor de Contenido',
@@ -152,8 +152,8 @@ async function startSuite() {
     assert.strictEqual(res.replyText.includes('Mensaje Despachado al Usuario'), true);
     assert.strictEqual(Boolean(res.notifyUser), true);
     assert.strictEqual(res.notifyUser.phone, TEST_RESIDENT_PHONE);
-    assert.strictEqual(res.notifyUser.message.includes('RESPUESTA DE LA DIRECCIÓN DEL PROYECTO'), true);
-    assert.strictEqual(res.notifyUser.message.includes('Gestor de Contenido:'), true);
+    assert.strictEqual(res.notifyUser.message.includes('DIRECCIÓN DEL PROYECTO:'), true);
+    assert.strictEqual(res.notifyUser.message.includes('Gestor de Contenido:'), false); // Cero fuga de figura personal al usuario
     assert.strictEqual(res.notifyUser.message.includes('capítulo de abordajes de Judet'), true);
   });
 
@@ -238,6 +238,399 @@ async function startSuite() {
         assert.strictEqual(res.replyText.includes('3008880001'), false, `Fuga de dígitos de teléfono en consulta "${q}"`);
       }
     }
+  });
+
+  // JORNADA 12: Suspensión Temporal Granular (24h - 48h - 72h) y Notificación Automática
+  await runAsyncTest('Jornada 12: Gestor de Contenido suspende usuario por 48h -> Notificación con horas y bloqueo temporal', async () => {
+    const SUSP_PHONE = '+573154443322';
+    // Onboard first
+    await processIncomingWhatsAppMessage({
+      fromPhone: SUSP_PHONE,
+      senderName: 'Dr. Carlos Rivas',
+      messageText: 'Dr. Carlos Rivas - Universidad del Valle - Especialista en Ortopedia'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${SUSP_PHONE}`
+    });
+
+    // Suspend 48h
+    const resSusp = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `SUSPENDER ${SUSP_PHONE} 48h Uso excesivo de consultas simultáneas`
+    });
+
+    assert.strictEqual(resSusp.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(resSusp.replyText.includes('48h'), true);
+    assert.strictEqual(Boolean(resSusp.notifyUser), true);
+    assert.strictEqual(resSusp.notifyUser.phone, SUSP_PHONE);
+    assert.strictEqual(resSusp.notifyUser.message.includes('SUSPENDIDO TEMPORALMENTE'), true);
+    assert.strictEqual(resSusp.notifyUser.message.includes('48 horas'), true);
+
+    // Intento de consulta durante la suspensión
+    const resQuery = await processIncomingWhatsAppMessage({
+      fromPhone: SUSP_PHONE,
+      senderName: 'Dr. Carlos Rivas',
+      messageText: 'fracturas de clavicula'
+    });
+
+    assert.strictEqual(resQuery.recipientPhone, SUSP_PHONE);
+    assert.strictEqual(resQuery.replyText.includes('ACCESO TEMPORALMENTE SUSPENDIDO'), true);
+    assert.strictEqual(resQuery.replyText.includes('Tiempo restante'), true);
+  });
+
+  // JORNADA 13: Reactivación Autónoma tras Expiración de Suspensión
+  await runAsyncTest('Jornada 13: Suspensión expirada -> Reactivación autónoma automática', async () => {
+    const EXPIRED_SUSP_PHONE = '+573181112233';
+    const { loadUsers, saveUsers } = require('./governance_and_bulletin.cjs');
+    const users = loadUsers();
+    users.push({
+      phone: EXPIRED_SUSP_PHONE,
+      name: 'Dra. Elena Silva',
+      university: 'Hospital San Vicente',
+      level: 'Residente R3',
+      status: 'SUSPENDIDO_24H',
+      registeredAt: new Date(Date.now() - 36 * 3600 * 1000).toISOString(),
+      suspendedAt: new Date(Date.now() - 36 * 3600 * 1000).toISOString(),
+      suspensionEnd: new Date(Date.now() - 12 * 3600 * 1000).toISOString(), // Ya expiró hace 12h
+      blockReason: 'Revisión preventiva',
+      downloadQuota: 50,
+      downloadsCount: 0
+    });
+    saveUsers(users);
+
+    const resQuery = await processIncomingWhatsAppMessage({
+      fromPhone: EXPIRED_SUSP_PHONE,
+      senderName: 'Dra. Elena Silva',
+      messageText: 'fracturas expuestas'
+    });
+
+    assert.strictEqual(resQuery.recipientPhone, EXPIRED_SUSP_PHONE);
+    assert.strictEqual(resQuery.replyText.includes('LITERATURA ENCONTRADA'), true);
+  });
+
+  // JORNADA 14: Expulsión Definitiva (Irrevocable) y Cero Re-registro
+  await runAsyncTest('Jornada 14: Expulsión definitiva -> Notificación al usuario y prohibición de por vida', async () => {
+    const EXPEL_PHONE = '+573198889900';
+    await processIncomingWhatsAppMessage({
+      fromPhone: EXPEL_PHONE,
+      senderName: 'Dr. Infiltrado',
+      messageText: 'Dr. Infiltrado - Hospital Central - Especialista en Ortopedia'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${EXPEL_PHONE}`
+    });
+
+    // Expulsar
+    const resExpel = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `EXPULSAR ${EXPEL_PHONE} Intento deliberado de sustracción de catálogo`
+    });
+
+    assert.strictEqual(resExpel.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(resExpel.replyText.includes('Usuario Expulsado Permanentemente'), true);
+    assert.strictEqual(Boolean(resExpel.notifyUser), true);
+    assert.strictEqual(resExpel.notifyUser.message.includes('EXPULSADOS DE FORMA PERMANENTE E IRREVOCABLE'), true);
+
+    // Intento de consulta
+    const resQuery = await processIncomingWhatsAppMessage({
+      fromPhone: EXPEL_PHONE,
+      senderName: 'Dr. Infiltrado',
+      messageText: 'menu'
+    });
+    assert.strictEqual(resQuery.recipientPhone, EXPEL_PHONE);
+    assert.strictEqual(resQuery.replyText.includes('ACCESO REVOCADO PERMANENTEMENTE'), true);
+
+    // Intento de re-registro
+    const resReReg = await processIncomingWhatsAppMessage({
+      fromPhone: EXPEL_PHONE,
+      senderName: 'Dr. Infiltrado',
+      messageText: 'Dr. Infiltrado - Universidad Nueva - Especialista'
+    });
+    assert.strictEqual(resReReg.recipientPhone, EXPEL_PHONE);
+    assert.strictEqual(resReReg.replyText.includes('ACCESO REVOCADO PERMANENTEMENTE'), true);
+  });
+
+  // JORNADA 15: Comando ACTIVAR como restablecimiento directo
+  await runAsyncTest('Jornada 15: Gestor de Contenido activa usuario con "ACTIVAR +57..." -> Restablecimiento', async () => {
+    const USER_PHONE = '+573179998877';
+    await processIncomingWhatsAppMessage({
+      fromPhone: USER_PHONE,
+      senderName: 'Dr. David Suarez',
+      messageText: 'Dr. David Suarez - Universidad Javeriana - Residente R1'
+    });
+
+    const resAct = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `ACTIVAR ${USER_PHONE}`
+    });
+
+    assert.strictEqual(resAct.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(resAct.replyText.includes('Usuario Autorizado con Éxito'), true);
+    assert.strictEqual(Boolean(resAct.notifyUser), true);
+    assert.strictEqual(resAct.notifyUser.phone, USER_PHONE);
+  });
+
+  // JORNADA 16: Onboarding con Correo Electrónico Personal/Institucional
+  await runAsyncTest('Jornada 16: Onboarding con correo electrónico -> Registro y alerta con correo', async () => {
+    const MAIL_USER_PHONE = `+57318${Date.now().toString().slice(-7)}`;
+    const resRegMail = await processIncomingWhatsAppMessage({
+      fromPhone: MAIL_USER_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'Dra. Camila Morales - camila.morales@hospitalgeneral.org - Hospital General - Residente R3'
+    });
+
+    assert.strictEqual(resRegMail.recipientPhone, MAIL_USER_PHONE);
+    assert.strictEqual(resRegMail.replyText.includes('camila.morales@hospitalgeneral.org'), true);
+    assert.strictEqual(Boolean(resRegMail.alertToGerente), true);
+    assert.strictEqual(resRegMail.alertToGerente.message.includes('camila.morales@hospitalgeneral.org'), true);
+  });
+
+  // JORNADA 17: Solicitud de Guía de Actualización de Datos (ACTUALIZAR DATOS)
+  await runAsyncTest('Jornada 17: Usuario consulta "ACTUALIZAR DATOS" -> Recibe directrices y formato', async () => {
+    const TEST_ACT_PHONE = `+57319${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: TEST_ACT_PHONE,
+      senderName: 'Dr. Felipe Duarte',
+      messageText: 'Dr. Felipe Duarte - Hospital San Ignacio - Especialista'
+    });
+    // Gestor aprueba
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${TEST_ACT_PHONE}`
+    });
+
+    const resPrompt = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_ACT_PHONE,
+      senderName: 'Dr. Felipe Duarte',
+      messageText: 'ACTUALIZAR DATOS'
+    });
+
+    assert.strictEqual(resPrompt.recipientPhone, TEST_ACT_PHONE);
+    assert.strictEqual(resPrompt.replyText.includes('ACTUALIZACIÓN DE DATOS PERSONALES'), true);
+    assert.strictEqual(resPrompt.replyText.includes('ACTUALIZAR: [Nombre], [Correo], [Hospital/Universidad], [Nivel]'), true);
+    assert.strictEqual(resPrompt.replyText.includes('Máximo *3 actualizaciones en 6 meses*'), true);
+    assert.strictEqual(resPrompt.replyText.includes('Máximo *6 actualizaciones en 12 meses*'), true);
+  });
+
+  // JORNADA 18: Ejecución de Actualización y Límite Estricto (Máx 3 en 6 meses)
+  await runAsyncTest('Jornada 18: Actualización on-demand y bloqueo de 4ta actualización en 6 meses', async () => {
+    const LIMIT_PHONE = `+57321${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: LIMIT_PHONE,
+      senderName: 'Dr. Andrés Castro',
+      messageText: 'Dr. Andrés Castro - Clinica Reina Sofia - Residente R2'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${LIMIT_PHONE}`
+    });
+
+    // 1ra actualización
+    const act1 = await processIncomingWhatsAppMessage({
+      fromPhone: LIMIT_PHONE,
+      senderName: 'Dr. Andrés Castro',
+      messageText: 'ACTUALIZAR: Dr. Andrés Castro M., andres.castro@colsanitas.com, Clinica Reina Sofia, Residente R3'
+    });
+    assert.strictEqual(act1.replyText.includes('DATOS PERSONALES ACTUALIZADOS CON ÉXITO'), true);
+    assert.strictEqual(act1.replyText.includes('1 de 3'), true);
+    assert.strictEqual(act1.replyText.includes('andres.castro@colsanitas.com'), true);
+
+    // 2da actualización
+    const act2 = await processIncomingWhatsAppMessage({
+      fromPhone: LIMIT_PHONE,
+      senderName: 'Dr. Andrés Castro',
+      messageText: 'ACTUALIZAR: Dr. Andrés Castro M., andres.castro@hospital.edu.co, Hospital Universitario, Residente R3'
+    });
+    assert.strictEqual(act2.replyText.includes('DATOS PERSONALES ACTUALIZADOS CON ÉXITO'), true);
+    assert.strictEqual(act2.replyText.includes('2 de 3'), true);
+
+    // 3ra actualización (tope semestral)
+    const act3 = await processIncomingWhatsAppMessage({
+      fromPhone: LIMIT_PHONE,
+      senderName: 'Dr. Andrés Castro',
+      messageText: 'ACTUALIZAR: Dr. Andrés Castro PhD, andres.castro@hospital.edu.co, Hospital Universitario, Especialista'
+    });
+    assert.strictEqual(act3.replyText.includes('DATOS PERSONALES ACTUALIZADOS CON ÉXITO'), true);
+    assert.strictEqual(act3.replyText.includes('3 de 3'), true);
+
+    // 4ta actualización (RECHAZADA por límite de 3 en 6 meses)
+    const act4 = await processIncomingWhatsAppMessage({
+      fromPhone: LIMIT_PHONE,
+      senderName: 'Dr. Andrés Castro',
+      messageText: 'ACTUALIZAR: Dr. Andrés Castro Fellow, andres.castro@hospital.edu.co, Hospital Universitario, Fellow'
+    });
+    assert.strictEqual(act4.replyText.includes('LÍMITE DE ACTUALIZACIÓN ALCANZADO'), true);
+    assert.strictEqual(act4.replyText.includes('3 actualizaciones en un periodo de 6 meses'), true);
+    assert.strictEqual(act4.replyText.includes('MENSAJE A LA DIRECCIÓN'), true);
+  });
+
+  // JORNADA 19: Detección de Procedencia Internacional (+55 Brasil) y Bienvenida Fraterna
+  await runAsyncTest('Jornada 19: Teléfono de Brasil (+55) recibe bienvenida fraterna en portugués con bandera', async () => {
+    const BRAZIL_PHONE = `+55119${Date.now().toString().slice(-7)}`;
+    const res = await processIncomingWhatsAppMessage({
+      fromPhone: BRAZIL_PHONE,
+      senderName: 'Dr. Thiago Santos',
+      messageText: 'Olá, bom dia! Gostaria de conhecer o acervo da biblioteca.'
+    });
+
+    assert.strictEqual(res.replyText.includes('Bem-vindo(a) à Biblioteca Médica'), true);
+    assert.strictEqual(res.replyText.includes('Brasil 🇧🇷'), true);
+    assert.strictEqual(res.replyText.includes('Seleção de Idioma:'), true);
+    assert.strictEqual(res.replyText.includes('IDIOMA: PT'), true);
+  });
+
+  // JORNADA 20: Detección de Procedencia Internacional (+1 USA/Canadá) y Bienvenida en Inglés
+  await runAsyncTest('Jornada 20: Teléfono de Norteamérica (+1) recibe bienvenida fraterna en inglés', async () => {
+    const USA_PHONE = `+1305${Date.now().toString().slice(-7)}`;
+    const res = await processIncomingWhatsAppMessage({
+      fromPhone: USA_PHONE,
+      senderName: 'Dr. John Miller',
+      messageText: 'Hello, I would like to access orthopaedic surgical techniques.'
+    });
+
+    assert.strictEqual(res.replyText.includes('Welcome to the Orthopaedic Surgery'), true);
+    assert.strictEqual(res.replyText.includes('United States and Canada'), true);
+    assert.strictEqual(res.replyText.includes('Language Selection:'), true);
+    assert.strictEqual(res.replyText.includes('LANGUAGE: EN'), true);
+  });
+
+  // JORNADA 21: Elección y Cambio Ilimitado de Idioma de Comunicación
+  await runAsyncTest('Jornada 21: Selección y cambio ilimitado de idioma (EN -> PT -> ES) sin consumo de cuota', async () => {
+    const MULTI_LANG_PHONE = `+57318${Date.now().toString().slice(-7)}`;
+    // Registro
+    await processIncomingWhatsAppMessage({
+      fromPhone: MULTI_LANG_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'Nombre: Dra. Camila Morales, Correo: camila@hospital.org, Hospital Universitario, Residente R3'
+    });
+    // Aprobación por Gestor de Contenido
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${MULTI_LANG_PHONE}`
+    });
+
+    // 1. Consulta menú de idioma
+    const menuLang = await processIncomingWhatsAppMessage({
+      fromPhone: MULTI_LANG_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'IDIOMA'
+    });
+    assert.strictEqual(menuLang.replyText.includes('PREFERENCIA DE IDIOMA'), true);
+    assert.strictEqual(menuLang.replyText.includes('Preservación de Literatura Médica:'), true);
+
+    // 2. Cambio a Inglés
+    const changeEN = await processIncomingWhatsAppMessage({
+      fromPhone: MULTI_LANG_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'LANGUAGE: EN'
+    });
+    assert.strictEqual(changeEN.replyText.includes('LANGUAGE SUCCESSFULLY UPDATED'), true);
+    assert.strictEqual(changeEN.replyText.includes('English (EN)'), true);
+    assert.strictEqual(changeEN.replyText.includes('Original scientific PDF articles and textbooks are preserved'), true);
+
+    // 3. Cambio inmediato a Portugués (Sin límites de frecuencia)
+    const changePT = await processIncomingWhatsAppMessage({
+      fromPhone: MULTI_LANG_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'IDIOMA: PT'
+    });
+    assert.strictEqual(changePT.replyText.includes('IDIOMA ATUALIZADO COM SUCESSO'), true);
+    assert.strictEqual(changePT.replyText.includes('Português (PT)'), true);
+
+    // 4. Retorno a Español
+    const changeES = await processIncomingWhatsAppMessage({
+      fromPhone: MULTI_LANG_PHONE,
+      senderName: 'Dra. Camila Morales',
+      messageText: 'IDIOMA: ES'
+    });
+    assert.strictEqual(changeES.replyText.includes('IDIOMA DE COMUNICACIÓN ACTUALIZADO'), true);
+    assert.strictEqual(changeES.replyText.includes('Español (ES)'), true);
+  });
+
+  // JORNADA 22: Despacho de Comunicado Oficial del Gestor de Contenido con Traducción Dinámica
+  await runAsyncTest('Jornada 22: COMUNICADO del Gestor de Contenido se traduce dinámicamente al idioma de cada médico', async () => {
+    // Registramos un médico con preferencia en inglés y otro en portugués
+    const EN_DOCTOR_PHONE = `+44791${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: EN_DOCTOR_PHONE,
+      senderName: 'Dr. Arthur Pendelton',
+      messageText: 'Arthur Pendelton, arthur@oxford.nhs.uk, Oxford Hospital, Specialist, Language: EN'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${EN_DOCTOR_PHONE}`
+    });
+
+    const PT_DOCTOR_PHONE = `+55219${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: PT_DOCTOR_PHONE,
+      senderName: 'Dr. Rafael Costa',
+      messageText: 'Rafael Costa, rafael@ufrj.br, Hospital Clementino Fraga, Especialista, Idioma: PT'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${PT_DOCTOR_PHONE}`
+    });
+
+    // Gestor de Contenido despacha comunicado institucional en español
+    const broadcastRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'COMUNICADO: Estimados colegas, mantenimiento programado de la base de datos por 2 horas. Gracias por su comprensión.'
+    });
+
+    assert.strictEqual(broadcastRes.replyText.includes('COMUNICADO MASIVO DESPACHADO'), true);
+    assert.strictEqual(Array.isArray(broadcastRes.broadcastDispatches), true);
+
+    // Verificamos que el médico angloparlante lo recibió en inglés
+    const enDispatch = broadcastRes.broadcastDispatches.find(d => d.phone === EN_DOCTOR_PHONE);
+    assert.strictEqual(Boolean(enDispatch), true);
+    assert.strictEqual(enDispatch.language, 'EN');
+    assert.strictEqual(enDispatch.message.includes('Dear Colleagues'), true);
+
+    // Verificamos que el médico brasileño lo recibió en portugués
+    const ptDispatch = broadcastRes.broadcastDispatches.find(d => d.phone === PT_DOCTOR_PHONE);
+    assert.strictEqual(Boolean(ptDispatch), true);
+    assert.strictEqual(ptDispatch.language, 'PT');
+    assert.strictEqual(ptDispatch.message.includes('Prezados colegas'), true);
+  });
+
+  // JORNADA 23: Preservación de la Originalidad de los Documentos Médicos en PDF
+  await runAsyncTest('Jornada 23: Descarga de literatura científica preserva íntegro el idioma original del documento', async () => {
+    const SEARCH_PHONE = `+57319${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: SEARCH_PHONE,
+      senderName: 'Dr. Gabriel Ruiz',
+      messageText: 'Gabriel Ruiz, gabriel@unal.edu.co, Hospital San Juan, Residente R4'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${SEARCH_PHONE}`
+    });
+
+    // Búsqueda de técnica quirúrgica
+    const searchRes = await processIncomingWhatsAppMessage({
+      fromPhone: SEARCH_PHONE,
+      senderName: 'Dr. Gabriel Ruiz',
+      messageText: 'AO 31-A2'
+    });
+
+    assert.strictEqual(searchRes.replyText.includes('LITERATURA ENCONTRADA'), true);
+    assert.strictEqual(searchRes.replyText.includes('Descarga Segura en la Nube'), true);
+    assert.strictEqual(searchRes.replyText.includes(LIVE_WEBAPP_URL), true);
   });
 
   console.log('\n================================================================');

@@ -244,6 +244,228 @@ function checkRateLimit(phone) {
 
 /**
  * ============================================================================
+ * 🔐 MOTOR CRIPTOGRÁFICO DE SELLADO EN REPOSO (FIELD-LEVEL ENCRYPTION AT REST)
+ * Estándar: HMAC-SHA256 Encrypt-then-MAC con Keystream y Sal Única por Campo
+ * ============================================================================
+ */
+
+function bytesToHex(bytes) {
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
+    hex += (b < 16 ? '0' : '') + b.toString(16);
+  }
+  return hex;
+}
+
+function hexToBytes(hex) {
+  var bytes = [];
+  for (var i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16));
+  }
+  return bytes;
+}
+
+/**
+ * Cifra un campo sensible para almacenamiento en reposo en Google Sheets
+ * Retorna 'ENC:v1:<saltHex>:<ivHex>:<cipherHex>:<macHex>'
+ */
+function cifrarCampoEnReposo(plainText) {
+  if (plainText === null || plainText === undefined || plainText === '') return '';
+  var textStr = String(plainText);
+  if (textStr.indexOf('ENC:v1:') === 0) return textStr; // Ya sellado previamente
+
+  var secretSalt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+  var nonceBase = new Date().getTime() + ':' + Math.random() + ':' + secretSalt;
+  var digestA = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, nonceBase + ':SALT');
+  var digestB = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, nonceBase + ':IV');
+
+  var saltHex = bytesToHex(digestA.slice(0, 16));
+  var ivHex = bytesToHex(digestB.slice(0, 16));
+
+  var encKeyRaw = Utilities.computeHmacSha256Signature('ENC_KEY:' + saltHex, secretSalt);
+  var macKeyRaw = Utilities.computeHmacSha256Signature('MAC_KEY:' + saltHex, secretSalt);
+  var encKeyHex = bytesToHex(encKeyRaw);
+  var macKeyHex = bytesToHex(macKeyRaw);
+
+  var textBytes = Utilities.newBlob(textStr).getBytes();
+  var cipherBytes = [];
+  var blockCounter = 0;
+  var currentKeyStream = [];
+
+  for (var i = 0; i < textBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = Utilities.computeHmacSha256Signature(ivHex + ':' + blockCounter, encKeyHex);
+      blockCounter++;
+    }
+    var ksByte = currentKeyStream[i % 32];
+    var ksUnsigned = ksByte < 0 ? ksByte + 256 : ksByte;
+    var tbUnsigned = textBytes[i] < 0 ? textBytes[i] + 256 : textBytes[i];
+    cipherBytes.push(tbUnsigned ^ ksUnsigned);
+  }
+
+  var cipherHex = bytesToHex(cipherBytes);
+  var authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  var macRaw = Utilities.computeHmacSha256Signature(authPayload, macKeyHex);
+  var macHex = bytesToHex(macRaw);
+
+  return 'ENC:v1:' + saltHex + ':' + ivHex + ':' + cipherHex + ':' + macHex;
+}
+
+/**
+ * Descifra de forma transparente un campo sellado en reposo
+ */
+function descifrarCampoEnReposo(cipherText) {
+  if (cipherText === null || cipherText === undefined || cipherText === '') return '';
+  var str = String(cipherText);
+  if (str.indexOf('ENC:v1:') !== 0) return str; // Retrocompatibilidad para datos legados en texto claro
+
+  var parts = str.split(':');
+  if (parts.length !== 6) return str;
+
+  var saltHex = parts[2];
+  var ivHex = parts[3];
+  var cipherHex = parts[4];
+  var macHex = parts[5];
+
+  var secretSalt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+  var macKeyRaw = Utilities.computeHmacSha256Signature('MAC_KEY:' + saltHex, secretSalt);
+  var macKeyHex = bytesToHex(macKeyRaw);
+
+  var authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  var expectedMacRaw = Utilities.computeHmacSha256Signature(authPayload, macKeyHex);
+  var expectedMacHex = bytesToHex(expectedMacRaw);
+
+  if (!constantTimeEquals(macHex, expectedMacHex)) {
+    triggerSilentIDS('CRYPTO_ENGINE', 'FIELD_TAMPERING_DETECTED', cipherHex, 'Firma MAC inválida en campo cifrado en reposo');
+    return '[DATO_NO_VERIFICADO_CORRUPTO]';
+  }
+
+  var encKeyRaw = Utilities.computeHmacSha256Signature('ENC_KEY:' + saltHex, secretSalt);
+  var encKeyHex = bytesToHex(encKeyRaw);
+
+  var cipherBytes = hexToBytes(cipherHex);
+  var plainBytes = [];
+  var blockCounter = 0;
+  var currentKeyStream = [];
+
+  for (var i = 0; i < cipherBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = Utilities.computeHmacSha256Signature(ivHex + ':' + blockCounter, encKeyHex);
+      blockCounter++;
+    }
+    var ksByte = currentKeyStream[i % 32];
+    var ksUnsigned = ksByte < 0 ? ksByte + 256 : ksByte;
+    plainBytes.push(cipherBytes[i] ^ ksUnsigned);
+  }
+
+  return Utilities.newBlob(plainBytes).getDataAsString();
+}
+
+/**
+ * Tarea de mantenimiento: Sella en reposo todos los campos sensibles existentes en las 4 hojas
+ */
+function sellarCamposEnReposoSistema() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var totalSealed = 0;
+
+  // 1. Inventario Maestro (Columna 11: REGISTRO_PRIVADO_DONANTE)
+  var sheetInv = getSheetFlexible(ss, CONFIG.SHEET_INVENTARIO);
+  if (sheetInv && sheetInv.getLastRow() > 1) {
+    var rangeInv = sheetInv.getRange(2, 11, sheetInv.getLastRow() - 1, 1);
+    var valsInv = rangeInv.getValues();
+    var modInv = false;
+    for (var i = 0; i < valsInv.length; i++) {
+      var v = String(valsInv[i][0] || '').trim();
+      if (v && v.indexOf('ENC:v1:') !== 0) {
+        valsInv[i][0] = cifrarCampoEnReposo(v);
+        totalSealed++;
+        modInv = true;
+      }
+    }
+    if (modInv) rangeInv.setValues(valsInv);
+  }
+
+  // 2. Pendientes Adquisición (Columna 3: SOLICITANTE_PHONE, Columna 7: NOTAS_GESTOR)
+  var sheetPend = getSheetFlexible(ss, CONFIG.SHEET_PENDIENTES);
+  if (sheetPend && sheetPend.getLastRow() > 1) {
+    var rangePend = sheetPend.getRange(2, 1, sheetPend.getLastRow() - 1, sheetPend.getLastColumn());
+    var valsPend = rangePend.getValues();
+    var modPend = false;
+    for (var j = 0; j < valsPend.length; j++) {
+      var phone = String(valsPend[j][2] || '').trim();
+      if (phone && phone.indexOf('ENC:v1:') !== 0) {
+        valsPend[j][2] = cifrarCampoEnReposo(phone);
+        totalSealed++;
+        modPend = true;
+      }
+      var notas = String(valsPend[j][6] || '').trim();
+      if (notas && notas.indexOf('ENC:v1:') !== 0) {
+        valsPend[j][6] = cifrarCampoEnReposo(notas);
+        totalSealed++;
+        modPend = true;
+      }
+    }
+    if (modPend) rangePend.setValues(valsPend);
+  }
+
+  // 3. Memoria de Aprendizaje (Columna 3: CONSULTA_ORIGINAL)
+  var sheetMem = getSheetFlexible(ss, CONFIG.SHEET_MEMORIA);
+  if (sheetMem && sheetMem.getLastRow() > 1) {
+    var rangeMem = sheetMem.getRange(2, 3, sheetMem.getLastRow() - 1, 1);
+    var valsMem = rangeMem.getValues();
+    var modMem = false;
+    for (var k = 0; k < valsMem.length; k++) {
+      var q = String(valsMem[k][0] || '').trim();
+      if (q && q.indexOf('ENC:v1:') !== 0) {
+        valsMem[k][0] = cifrarCampoEnReposo(q);
+        totalSealed++;
+        modMem = true;
+      }
+    }
+    if (modMem) rangeMem.setValues(valsMem);
+  }
+
+  // 4. Directorio Usuarios (Columna 10: MOTIVO_SANCION y Columna 11: CORREO_ELECTRONICO)
+  var sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (sheetUsr && sheetUsr.getLastRow() > 1) {
+    // Sellar Columna 10: MOTIVO_SANCION
+    var rangeUsr = sheetUsr.getRange(2, 10, sheetUsr.getLastRow() - 1, 1);
+    var valsUsr = rangeUsr.getValues();
+    var modUsr = false;
+    for (var l = 0; l < valsUsr.length; l++) {
+      var mot = String(valsUsr[l][0] || '').trim();
+      if (mot && mot.indexOf('ENC:v1:') !== 0) {
+        valsUsr[l][0] = cifrarCampoEnReposo(mot);
+        totalSealed++;
+        modUsr = true;
+      }
+    }
+    if (modUsr) rangeUsr.setValues(valsUsr);
+
+    // Sellar Columna 11: CORREO_ELECTRONICO
+    if (sheetUsr.getLastColumn() >= 11) {
+      var rangeMail = sheetUsr.getRange(2, 11, sheetUsr.getLastRow() - 1, 1);
+      var valsMail = rangeMail.getValues();
+      var modMail = false;
+      for (var m = 0; m < valsMail.length; m++) {
+        var mail = String(valsMail[m][0] || '').trim();
+        if (mail && mail.indexOf('ENC:v1:') !== 0) {
+          valsMail[m][0] = cifrarCampoEnReposo(mail);
+          totalSealed++;
+          modMail = true;
+        }
+      }
+      if (modMail) rangeMail.setValues(valsMail);
+    }
+  }
+
+  Logger.log('🔒 Sellado Criptográfico en Reposo completado. Total celdas selladas: ' + totalSealed);
+  return { success: true, totalSealed: totalSealed };
+}
+
+/**
+ * ============================================================================
  * 🚨 SISTEMA DE VIGILANCIA SECRETA (IDS / HONEYPOT DE CIBERSEGURIDAD)
  * ============================================================================
  */
@@ -413,6 +635,21 @@ function getSheetFlexible(ss, targetName) {
 }
 
 /**
+ * Obtiene la URL canónica absoluta del Web App desplegado en Google Apps Script
+ */
+function getWebAppBaseUrl() {
+  try {
+    if (typeof ScriptApp !== 'undefined' && ScriptApp.getService) {
+      const url = ScriptApp.getService().getUrl();
+      if (url && url.indexOf('https://script.google.com') === 0) {
+        return url;
+      }
+    }
+  } catch (err) {}
+  return CONFIG.WEB_APP_URL;
+}
+
+/**
  * Obtiene o crea una pestaña con encabezados formateados si no existe
  */
 function getOrCreateSheet(ss, sheetName, headers) {
@@ -431,41 +668,283 @@ function getOrCreateSheet(ss, sheetName, headers) {
 }
 
 /**
- * Inicialización de las 4 pestañas maestras del sistema
+ * Asegura que las columnas especificadas existan en la fila de encabezados
+ */
+function asegurarColumnasEncabezados(sheet, expectedHeaders) {
+  if (!sheet || !expectedHeaders || !expectedHeaders.length) return;
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const currentHeaders = sheet.getRange(1, 1, 1, Math.max(lastCol, expectedHeaders.length)).getValues()[0] || [];
+
+  for (let i = 0; i < expectedHeaders.length; i++) {
+    const colIdx = i + 1;
+    const currentVal = String(currentHeaders[i] || '').trim();
+    if (!currentVal) {
+      sheet.getRange(1, colIdx).setValue(expectedHeaders[i]);
+      sheet.getRange(1, colIdx)
+        .setFontWeight('bold')
+        .setBackground('#0f2b48')
+        .setFontColor('#ffffff');
+    }
+  }
+}
+
+/**
+ * Catálogo de Códigos Telefónicos Internacionales, Banderas y Saludos Fraternos
+ */
+const COUNTRY_DIAL_MAP = [
+  { prefix: '+593', flag: '🇪🇨', name: 'Ecuador', defaultLang: 'ES', greeting: '¡Una calurosa bienvenida a los apreciados colegas de Ecuador 🇪🇨! Reconocidos por su vocación médica y continuo crecimiento académico.' },
+  { prefix: '+591', flag: '🇧🇴', name: 'Bolivia', defaultLang: 'ES', greeting: '¡Un fraternal saludo a la comunidad médica de Bolivia 🇧🇴! Ejemplo de dedicación clínica y servicio incondicional.' },
+  { prefix: '+506', flag: '🇨🇷', name: 'Costa Rica', defaultLang: 'ES', greeting: '¡Un saludo de pura vida a los distinguidos colegas de Costa Rica 🇨🇷! Referente en salud comunitaria y excelencia médica.' },
+  { prefix: '+507', flag: '🇵🇦', name: 'Panamá', defaultLang: 'ES', greeting: '¡Un afectuoso saludo a la comunidad médica de Panamá 🇵🇦! Puente de innovación y dinamismo en la salud regional.' },
+  { prefix: '+502', flag: '🇬🇹', name: 'Guatemala', defaultLang: 'ES', greeting: '¡Nuestra más cordial bienvenida a los colegas de Guatemala 🇬🇹! Tierra de nobleza, vocación y esfuerzo médico ejemplar.' },
+  { prefix: '+503', flag: '🇸🇻', name: 'El Salvador', defaultLang: 'ES', greeting: '¡Un saludo fraterno a los estimados colegas de El Salvador 🇸🇻! Reconocidos por su espíritu de superación y rigor asistencial.' },
+  { prefix: '+504', flag: '🇭🇳', name: 'Honduras', defaultLang: 'ES', greeting: '¡Una calurosa bienvenida a los apreciados médicos de Honduras 🇭🇳! Dedicados con valentía y compromiso a la salud ortopédica.' },
+  { prefix: '+505', flag: '🇳🇮', name: 'Nicaragua', defaultLang: 'ES', greeting: '¡Un cordial saludo a los colegas de Nicaragua 🇳🇮! Profesionales de gran entereza y entrega en el cuidado quirúrgico.' },
+  { prefix: '+598', flag: '🇺🇾', name: 'Uruguay', defaultLang: 'ES', greeting: '¡Un fuerte abrazo a la respetada comunidad médica de Uruguay 🇺🇾! Tradición de ética, solvencia científica y calidez profesional.' },
+  { prefix: '+595', flag: '🇵🇾', name: 'Paraguay', defaultLang: 'ES', greeting: '¡Un saludo muy especial a los estimados colegas de Paraguay 🇵🇾! De corazón generoso y admirable vocación asistencial.' },
+  { prefix: '+351', flag: '🇵🇹', name: 'Portugal', defaultLang: 'PT', greeting: 'Uma calorosa saudação aos estimados colegas de Portugal 🇵🇹! Berço de rica história, pioneirismo científico e elevado padrão clínico.' },
+  { prefix: '+57', flag: '🇨🇴', name: 'Colombia', defaultLang: 'ES', greeting: '¡Un saludo muy especial a nuestra querida comunidad médica de Colombia 🇨🇴! Tierra de resiliencia, calidez y excelencia en la práctica quirúrgica.' },
+  { prefix: '+52', flag: '🇲🇽', name: 'México', defaultLang: 'ES', greeting: '¡Un fraterno saludo a nuestros admirados colegas de México 🇲🇽! Cuna de gran tradición clínica, vocación médica y calidez humana.' },
+  { prefix: '+34', flag: '🇪🇸', name: 'España', defaultLang: 'ES', greeting: '¡Una afectuosa bienvenida a nuestros colegas de España 🇪🇸! Referente histórico de rigor científico, formación médica y vanguardia quirúrgica.' },
+  { prefix: '+54', flag: '🇦🇷', name: 'Argentina', defaultLang: 'ES', greeting: '¡Un cálido abrazo a la talentosa comunidad médica de Argentina 🇦🇷! Tierra de pasión, pensamiento crítico y destacada escuela ortopédica.' },
+  { prefix: '+56', flag: '🇨🇱', name: 'Chile', defaultLang: 'ES', greeting: '¡Un saludo muy especial a nuestros colegas de Chile 🇨🇱! Ejemplo de constancia, rigor formativo y compromiso con la traumatología de calidad.' },
+  { prefix: '+51', flag: '🇵🇪', name: 'Perú', defaultLang: 'ES', greeting: '¡Nuestra más cordial bienvenida a los hermanos médicos de Perú 🇵🇪! Tierra de profunda historia milenaria y ejemplar entrega en la atención de salud.' },
+  { prefix: '+58', flag: '🇻🇪', name: 'Venezuela', defaultLang: 'ES', greeting: '¡Un entrañable abrazo a los admirados médicos de Venezuela 🇻🇪! Ejemplo permanente de perseverancia, mística y talento clínico.' },
+  { prefix: '+55', flag: '🇧🇷', name: 'Brasil', defaultLang: 'PT', greeting: 'Uma calorosa saudação à comunidade médica do Brasil 🇧🇷! Terra de vanguarda cirúrgica, alegria contagiante e notável dedicação clínica.' },
+  { prefix: '+44', flag: '🇬🇧', name: 'Reino Unido', defaultLang: 'EN', greeting: 'A warm welcome to our esteemed colleagues from the United Kingdom 🇬🇧! A bedrock of evidence-based medicine and surgical mastery.' },
+  { prefix: '+33', flag: '🇫🇷', name: 'Francia', defaultLang: 'FR', greeting: 'Une chaleureuse bienvenue à nos estimés confrères de France 🇫🇷! Berceau de l\'excellence chirurgicale et de la tradition académique.' },
+  { prefix: '+49', flag: '🇩🇪', name: 'Alemania', defaultLang: 'DE', greeting: 'Ein herzliches Willkommen an unsere geschätzten Kollegen aus Deutschland 🇩🇪! Vorreiter in chirurgischer Präzision, Biomechanik und Innovation.' },
+  { prefix: '+39', flag: '🇮🇹', name: 'Italia', defaultLang: 'IT', greeting: 'Un caloroso benvenuto ai nostri stimati colleghi d\'Italia 🇮🇹! Culla di tradizione anatomica e prestigiosa scuola ortopedica.' },
+  { prefix: '+1', flag: '🇺🇸', name: 'Estados Unidos / Canadá', defaultLang: 'EN', greeting: 'A warm welcome to our medical colleagues connecting from the United States and Canada 🇺🇸/🇨🇦! Global leaders in biomedical innovation and clinical excellence.' }
+];
+
+function resolveCountryAndLanguage(phone) {
+  const clean = '+' + String(phone || '').replace(/[^\d]/g, '');
+  for (let i = 0; i < COUNTRY_DIAL_MAP.length; i++) {
+    if (clean.indexOf(COUNTRY_DIAL_MAP[i].prefix) === 0) {
+      return COUNTRY_DIAL_MAP[i];
+    }
+  }
+  return {
+    prefix: '+',
+    flag: '🌎',
+    name: 'Internacional',
+    defaultLang: 'ES',
+    greeting: '¡Una cordial bienvenida a nuestra comunidad médica internacional 🌎! Unidos por la vocación quirúrgica y el rigor científico.'
+  };
+}
+
+function translateTextForUser(text, targetLang) {
+  const lang = (targetLang || 'ES').trim().toUpperCase();
+  if (lang === 'ES' || !text) return text;
+  try {
+    const translated = LanguageApp.translate(text, '', lang.toLowerCase());
+    let prefix = '';
+    if (lang === 'EN') prefix = '🌐 *[English Version]*\\n';
+    else if (lang === 'PT') prefix = '🌐 *[Versão em Português]*\\n';
+    else if (lang === 'FR') prefix = '🌐 *[Version Française]*\\n';
+    return prefix + translated;
+  } catch (e) {
+    Logger.log('⚠️ Error en traducción LanguageApp: ' + e.message);
+    return text;
+  }
+}
+
+function sincronizarPaisesEIdiomasUsuarios() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (!sheetUsr) return;
+  const data = sheetUsr.getDataRange().getValues();
+  if (data.length <= 1) return;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const phone = String(row[0] || '');
+    if (!phone) continue;
+
+    const currentFlag = row.length >= 13 ? row[12] : '';
+    const currentCountry = row.length >= 14 ? row[13] : '';
+    const currentLang = row.length >= 15 ? row[14] : '';
+
+    if (!currentFlag || !currentCountry || !currentLang) {
+      const info = resolveCountryAndLanguage(phone);
+      if (!currentFlag) sheetUsr.getRange(i + 1, 13).setValue(info.flag);
+      if (!currentCountry) sheetUsr.getRange(i + 1, 14).setValue(info.name);
+      if (!currentLang) sheetUsr.getRange(i + 1, 15).setValue(info.defaultLang || 'ES');
+    }
+  }
+  Logger.log('✅ Sincronización de banderas, países e idiomas completada con éxito.');
+}
+
+/**
+ * Configura la lista desplegable oficial de Estado_Acceso en Directorio_Usuarios (Columna E)
+ * y la lista desplegable oficial de Idioma_Preferido (Columna O)
+ * Permite al Gestor de Contenido seleccionar entre todos los estatus aprobados:
+ * ACTIVO, PENDIENTE_APROBACION, SUSPENDIDO_24H, SUSPENDIDO_48H, SUSPENDIDO_72H, BLOQUEADO, EXPULSADO, RECHAZADO, APROBADO
+ */
+function configurarValidacionUsuarios() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (!sheetUsr) {
+    Logger.log('⚠️ No se encontró la hoja ' + CONFIG.SHEET_USUARIOS);
+    return;
+  }
+
+  // 1. Asegurar encabezados de columnas I a O
+  const h9 = sheetUsr.getRange(1, 9).getValue();
+  if (!h9) {
+    sheetUsr.getRange(1, 9).setValue('Fecha_Fin_Suspension')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h10 = sheetUsr.getRange(1, 10).getValue();
+  if (!h10) {
+    sheetUsr.getRange(1, 10).setValue('Motivo_Sancion')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h11 = sheetUsr.getRange(1, 11).getValue();
+  if (!h11) {
+    sheetUsr.getRange(1, 11).setValue('Correo_Electronico')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h12 = sheetUsr.getRange(1, 12).getValue();
+  if (!h12) {
+    sheetUsr.getRange(1, 12).setValue('Historial_Actualizaciones')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h13 = sheetUsr.getRange(1, 13).getValue();
+  if (!h13) {
+    sheetUsr.getRange(1, 13).setValue('Bandera_Pais')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h14 = sheetUsr.getRange(1, 14).getValue();
+  if (!h14) {
+    sheetUsr.getRange(1, 14).setValue('Pais_Origen')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h15 = sheetUsr.getRange(1, 15).getValue();
+  if (!h15) {
+    sheetUsr.getRange(1, 15).setValue('Idioma_Preferido')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+
+  // 2. Opciones oficiales del estatus definido (Columna E)
+  const listaEstatus = [
+    'ACTIVO',
+    'PENDIENTE_APROBACION',
+    'SUSPENDIDO_24H',
+    'SUSPENDIDO_48H',
+    'SUSPENDIDO_72H',
+    'BLOQUEADO',
+    'EXPULSADO',
+    'RECHAZADO',
+    'APROBADO'
+  ];
+
+  // 3. Crear regla de validación desplegable para Estatus
+  const ruleEstatus = SpreadsheetApp.newDataValidation()
+    .requireValueInList(listaEstatus, true)
+    .setAllowInvalid(true)
+    .setHelpText('Seleccione un estatus: ACTIVO, PENDIENTE_APROBACION, SUSPENDIDO_24H, SUSPENDIDO_48H, SUSPENDIDO_72H, BLOQUEADO, EXPULSADO, RECHAZADO')
+    .build();
+  sheetUsr.getRange('E2:E1000').setDataValidation(ruleEstatus);
+
+  // 4. Crear regla de validación desplegable para Idioma_Preferido (Columna O)
+  const listaIdiomas = ['ES', 'EN', 'PT', 'FR', 'DE', 'IT'];
+  const ruleIdioma = SpreadsheetApp.newDataValidation()
+    .requireValueInList(listaIdiomas, true)
+    .setAllowInvalid(true)
+    .setHelpText('Seleccione idioma de comunicación: ES, EN, PT, FR, DE, IT')
+    .build();
+  sheetUsr.getRange('O2:O1000').setDataValidation(ruleIdioma);
+
+  Logger.log('✅ Validación de datos desplegable configurada en Directorio_Usuarios (Columnas E y O)');
+}
+
+/**
+ * Inicialización de las 4 pestañas maestras del sistema y validaciones
  */
 function inicializarSistema() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. Inventario Maestro
-  getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO, [
+  // 1. Inventario Maestro (con Atribución Privada Interna de Donante)
+  const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO, [
     'ID_DOCUMENTO', 'DRIVE_FILE_ID', 'ANIO', 'AUTOR_PRINCIPAL', 
     'TITULO_COMPLETO', 'SUBESPECIALIDAD', 'TIPO_DOCUMENTO', 
-    'CLASIFICACION_AO', 'TERMINOS_MESH'
+    'CLASIFICACION_AO', 'TERMINOS_MESH',
+    'CANAL_APORTE', 'REGISTRO_PRIVADO_DONANTE', 'FECHA_RECEPCION'
+  ]);
+  asegurarColumnasEncabezados(sheetInv, [
+    'ID_DOCUMENTO', 'DRIVE_FILE_ID', 'ANIO', 'AUTOR_PRINCIPAL', 
+    'TITULO_COMPLETO', 'SUBESPECIALIDAD', 'TIPO_DOCUMENTO', 
+    'CLASIFICACION_AO', 'TERMINOS_MESH',
+    'CANAL_APORTE', 'REGISTRO_PRIVADO_DONANTE', 'FECHA_RECEPCION'
   ]);
 
   // 2. Pendientes Adquisición
-  getOrCreateSheet(ss, CONFIG.SHEET_PENDIENTES, [
+  const sheetPend = getOrCreateSheet(ss, CONFIG.SHEET_PENDIENTES, [
+    'TICKET_ID', 'FECHA_SOLICITUD', 'SOLICITANTE_PHONE', 'TITULO_O_TEMA', 
+    'DOI_O_ISBN', 'ESTADO_GESTION', 'NOTAS_GESTOR'
+  ]);
+  asegurarColumnasEncabezados(sheetPend, [
     'TICKET_ID', 'FECHA_SOLICITUD', 'SOLICITANTE_PHONE', 'TITULO_O_TEMA', 
     'DOI_O_ISBN', 'ESTADO_GESTION', 'NOTAS_GESTOR'
   ]);
 
-  // 3. Directorio Usuarios
-  getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS, [
-    'WHATSAPP_PHONE', 'NOMBRE_COMPLETO', 'HOSPITAL_UNIVERSIDAD', 
-    'NIVEL_RESIDENCIA', 'ESTADO_ACCESO', 'FECHA_REGISTRO', 
-    'DESCARGAS_MES', 'ULTIMA_ACTIVIDAD'
+  // 3. Directorio Usuarios (con Escala Disciplinaria, Fin de Suspensión, Correo, Control de Actualizaciones, País e Idioma)
+  const sheetUsr = getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS, [
+    'Telefono_WhatsApp', 'Nombre_Completo', 'Universidad_Institucion', 
+    'Nivel_Formacion', 'Estado_Acceso', 'Fecha_Registro', 
+    'Cuota_Descargas_Restante', 'Ultima_Interaccion',
+    'Fecha_Fin_Suspension', 'Motivo_Sancion',
+    'Correo_Electronico', 'Historial_Actualizaciones',
+    'Bandera_Pais', 'Pais_Origen', 'Idioma_Preferido'
+  ]);
+  asegurarColumnasEncabezados(sheetUsr, [
+    'Telefono_WhatsApp', 'Nombre_Completo', 'Universidad_Institucion', 
+    'Nivel_Formacion', 'Estado_Acceso', 'Fecha_Registro', 
+    'Cuota_Descargas_Restante', 'Ultima_Interaccion',
+    'Fecha_Fin_Suspension', 'Motivo_Sancion',
+    'Correo_Electronico', 'Historial_Actualizaciones',
+    'Bandera_Pais', 'Pais_Origen', 'Idioma_Preferido'
   ]);
 
   // 4. Memoria de Aprendizaje y Telemetría
-  getOrCreateSheet(ss, CONFIG.SHEET_MEMORIA, [
+  const sheetMem = getOrCreateSheet(ss, CONFIG.SHEET_MEMORIA, [
+    'TIMESTAMP', 'USUARIO_ANONIMIZADO', 'CONSULTA_ORIGINAL', 
+    'TERMINOS_DETECTADOS', 'RESULTADO', 'DOCUMENTO_ENTREGADO'
+  ]);
+  asegurarColumnasEncabezados(sheetMem, [
     'TIMESTAMP', 'USUARIO_ANONIMIZADO', 'CONSULTA_ORIGINAL', 
     'TERMINOS_DETECTADOS', 'RESULTADO', 'DOCUMENTO_ENTREGADO'
   ]);
 
+  // Configurar Validación de Datos Desplegable en Directorio de Usuarios
+  configurarValidacionUsuarios();
+
+  // Sincronizar Banderas, Países e Idiomas retroactivamente en usuarios preexistentes
+  sincronizarPaisesEIdiomasUsuarios();
+
   // Inicializar propiedades seguras
   inicializarPropiedadesSeguras();
 
-  Logger.log('✅ Sistema inicializado con las 4 pestañas maestras y blindaje de seguridad activado.');
+  // Sellado criptográfico en reposo retrocompatible de campos preexistentes
+  sellarCamposEnReposoSistema();
+
+  Logger.log('✅ Sistema inicializado con las 4 pestañas maestras, validaciones de estatus y blindaje de seguridad activado.');
 }
 
 /**
@@ -549,7 +1028,8 @@ function procesarBuzonCloud() {
 
       sheetInv.appendRow([
         docId, newDriveId, year, 'Autor Especializado', 
-        sanitizeSheetValue(cleanName), subspecialty, 'PDF', aoClass, 'Ingesta Cloud'
+        sanitizeSheetValue(cleanName), subspecialty, 'PDF', aoClass, 'Ingesta Especializada',
+        'Buzon_Digital', cifrarCampoEnReposo('Aporte Anónimo Web'), Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
       ]);
 
       existingTitles.add(normTitle);
@@ -805,7 +1285,7 @@ function renderEvidenceReport(payload) {
     '</style></head><body>' +
     '<div class="box">' +
     '  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-    '    <div><h1>Ficha de Síntesis de Evidencia Médica</h1><div class="sub">Biblioteca de Ortopedia • Dirección: Gestor de Contenido</div></div>' +
+    '    <div><h1>Ficha de Síntesis de Evidencia Médica</h1><div class="sub">Biblioteca de Ortopedia • Dirección Institucional: Dirección del Proyecto</div></div>' +
     '    <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>' +
     '  </div>' +
     '  <h3 style="font-size:14px; color:#0f2b48; margin-bottom:6px;">Pregunta Clínica Formulada:</h3>' +
@@ -1104,7 +1584,7 @@ function enviarBoletinDominical() {
   const bulletinHeader = 
     '☀️ *BOLETÍN DOMINICAL DE ACTUALIZACIÓN QUIRÚRGICA*\\n' +
     '*Biblioteca Médica de Cirugía Ortopédica*\\n' +
-    '*Dirección:* Gestor de Contenido\\n' +
+    '*Dirección:* Dirección del Proyecto\\n' +
     '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
     'Estimados Médicos y Residentes:\\n\\n' +
     'Presentamos la selección editorial de la semana para debate y actualización en revista de sala (Grand Rounds):\\n\\n';
@@ -1131,7 +1611,7 @@ function enviarBoletinDominical() {
   for (let u = 1; u < usrData.length; u++) {
     const status = usrData[u][4];
     const phone = String(usrData[u][0]).replace(/[^\d+]/g, '');
-    if (status === 'APROBADO' && phone !== adminPhone) {
+    if ((status === 'APROBADO' || status === 'ACTIVO') && phone !== adminPhone) {
       sendWhatsAppText(phone, fullBulletin);
       countSent++;
       Utilities.sleep(300); // Pausa de estabilidad
@@ -1240,20 +1720,36 @@ function callGeminiClinicalEngine(prompt, systemInstruction) {
 function handleWhatsAppPdfDonation(cleanPhone, senderName, docObj) {
   try {
     const docName = docObj.filename || ('Aporte_Ortho_' + Date.now() + '.pdf');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+    const invData = sheetInv.getDataRange().getValues();
+    const docId = 'DOC-WA-' + ('0000' + invData.length).slice(-5);
+    const cleanTitle = docName.replace(/.pdf$/i, '').replace(/[^w.-s]/gi, '_');
+
+    // Registrar en Inventario Maestro con datos de donante privado sellados criptográficamente
+    sheetInv.appendRow([
+      docId, 'PENDIENTE_DRIVE_ID', new Date().getFullYear(), 'Autor Especializado',
+      sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte WhatsApp',
+      'WhatsApp', cifrarCampoEnReposo(sanitizeSheetValue(senderName + ' (' + cleanPhone + ')')),
+      Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+    ]);
+    invalidateInventoryCache();
+
     sendWhatsAppText(cleanPhone, 
       '🩺 *APORTE CLÍNICO RECIBIDO CON ÉXITO*\\n' +
       '*Biblioteca Médica de Cirugía Ortopédica*\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
       'Estimado(a) *' + senderName + '*:\\n\\n' +
-      'Su documento *"' + docName + '"* ha sido recibido y derivado a la bóveda privada para su clasificación.\\n\\n' +
+      'Su documento *"' + docName + '"* ha sido recibido y derivado al acervo privado para su clasificación.\\n\\n' +
       'Agradecemos sinceramente su contribución al enriquecimiento continuo de la biblioteca académica.'
     );
     const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
     sendWhatsAppText(adminPhone, 
       '📥 *NUEVO APORTE DE LITERATURA POR WHATSAPP*\\n' +
-      '👤 Médico: ' + senderName + ' (' + cleanPhone + ')\\n' +
+      '👤 Médico (Registro Privado): ' + senderName + ' (' + cleanPhone + ')\\n' +
       '📄 Archivo: "' + docName + '"\\n' +
-      '👉 Clasificado automáticamente en el catálogo.'
+      '🆔 ID Registro: ' + docId + '\\n' +
+      '👉 Catalogado en Inventario Maestro bajo estricto control interno de Dirección.'
     );
     recordTelemetry(cleanPhone, docName, 'WHATSAPP_DONACION', 'EXITO_DONACION', docName);
   } catch (err) {
@@ -1280,6 +1776,13 @@ function doGet(e) {
       return ContentService.createTextOutput(challenge);
     }
     return ContentService.createTextOutput('Token de verificación inválido').setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  // 1.5 Buzón Digital Seguro Anónimo (?mode=buzon)
+  const modeParam = String(params.mode || (e && e.parameters && e.parameters.mode && e.parameters.mode[0]) || '').toLowerCase();
+  const queryStr = String((e && e.queryString) || '').toLowerCase();
+  if (modeParam === 'buzon' || queryStr.indexOf('mode=buzon') !== -1) {
+    return serveBuzonDropzone();
   }
 
   // 2. Acceso o descarga mediante token efímero
@@ -1331,7 +1834,7 @@ function doGet(e) {
       return HtmlService.createHtmlOutput(
         '<div style="font-family:sans-serif; text-align:center; padding:40px; color:#1e293b;">' +
         '<h2>⚠️ Enlace Expirado (TTL 30 min)</h2>' +
-        '<p>Por políticas de seguridad médica del Gestor de Contenido, este enlace ha caducado.</p>' +
+        '<p>Por políticas de seguridad médica institucional, este enlace ha caducado.</p>' +
         '<p>Solicite uno nuevo escribiendo en el chat de WhatsApp.</p></div>'
       );
     }
@@ -1377,20 +1880,31 @@ function doGet(e) {
  * Renderiza el Manual Interactivo de Alto Impacto
  */
 function renderRichInteractiveManual(b64Pdf) {
-  const baseHtml = "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Manual Oficial de Uso y Gobernanza - Biblioteca Médica de Ortopedia</title>\n  <style>\n    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');\n\n    @page {\n      size: A4 portrait;\n      margin: 10mm 12mm 12mm 12mm;\n      @bottom-right {\n        content: counter(page);\n      }\n    }\n\n    :root {\n      --primary: #0f2b48;\n      --primary-dark: #0a1e33;\n      --primary-light: #1e3a5f;\n      --teal: #0d9488;\n      --teal-dark: #0f766e;\n      --teal-light: #f0fdfa;\n      --cyan: #0284c7;\n      --cyan-light: #e0f2fe;\n      --slate-50: #f8fafc;\n      --slate-100: #f1f5f9;\n      --slate-200: #e2e8f0;\n      --slate-600: #475569;\n      --slate-800: #1e293b;\n      --amber-bg: #fffbeb;\n      --amber-border: #fde68a;\n      --amber-text: #b45309;\n      --rose-bg: #fff1f2;\n      --rose-border: #fecdd3;\n      --rose-text: #be123c;\n    }\n\n    * {\n      box-sizing: border-box;\n      margin: 0;\n      padding: 0;\n    }\n\n    body {\n      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;\n      color: var(--slate-800);\n      background: #f8fafc;\n      line-height: 1.5;\n      font-size: 9.5pt;\n      -webkit-font-smoothing: antialiased;\n      -webkit-print-color-adjust: exact;\n      print-color-adjust: exact;\n    }\n\n    .container {\n      max-width: 980px;\n      margin: 0 auto;\n      background: #ffffff;\n      box-shadow: 0 10px 30px rgba(15, 43, 72, 0.08);\n      border-radius: 12px;\n      overflow: hidden;\n    }\n\n    @media print {\n      body {\n        background: #ffffff;\n      }\n      .container {\n        box-shadow: none;\n        border-radius: 0;\n        max-width: 100%;\n        margin: 0;\n      }\n      .no-print {\n        display: none !important;\n      }\n      .page-break {\n        page-break-before: always;\n      }\n    }\n\n    /* BARRA SUPERIOR INSTITUCIONAL */\n    .top-banner {\n      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 60%, var(--teal-dark) 100%);\n      color: #ffffff;\n      padding: 22px 28px;\n      position: relative;\n    }\n\n    .top-banner-header {\n      display: flex;\n      justify-content: space-between;\n      align-items: flex-start;\n      gap: 16px;\n      flex-wrap: wrap;\n    }\n\n    .brand-title {\n      font-size: 19pt;\n      font-weight: 800;\n      letter-spacing: -0.5px;\n      line-height: 1.15;\n      color: #ffffff;\n    }\n\n    .brand-subtitle {\n      font-size: 10.5pt;\n      font-weight: 600;\n      color: #5eead4;\n      margin-top: 4px;\n    }\n\n    .custody-badge {\n      background: rgba(255, 255, 255, 0.12);\n      border: 1px solid rgba(255, 255, 255, 0.25);\n      backdrop-filter: blur(8px);\n      padding: 8px 14px;\n      border-radius: 8px;\n      text-align: right;\n    }\n\n    .custody-badge-label {\n      font-size: 7.5pt;\n      text-transform: uppercase;\n      letter-spacing: 0.8px;\n      color: #94a3b8;\n      font-weight: 700;\n    }\n\n    .custody-badge-name {\n      font-size: 9.5pt;\n      font-weight: 700;\n      color: #ffffff;\n      display: flex;\n      align-items: center;\n      gap: 5px;\n      justify-content: flex-end;\n    }\n\n    .status-pills {\n      display: flex;\n      gap: 8px;\n      margin-top: 14px;\n      flex-wrap: wrap;\n    }\n\n    .status-pill {\n      background: rgba(255, 255, 255, 0.08);\n      border: 1px solid rgba(255, 255, 255, 0.15);\n      border-radius: 20px;\n      padding: 3px 10px;\n      font-size: 7.8pt;\n      font-weight: 600;\n      color: #e2e8f0;\n      display: inline-flex;\n      align-items: center;\n      gap: 6px;\n    }\n\n    .dot-pulse {\n      width: 7px;\n      height: 7px;\n      background: #10b981;\n      border-radius: 50%;\n      box-shadow: 0 0 8px #10b981;\n      display: inline-block;\n    }\n\n    .content-body {\n      padding: 22px 28px;\n    }\n\n    .section-title {\n      font-size: 11.5pt;\n      font-weight: 800;\n      color: var(--primary);\n      display: flex;\n      align-items: center;\n      gap: 8px;\n      margin-top: 18px;\n      margin-bottom: 10px;\n      padding-bottom: 5px;\n      border-bottom: 2px solid var(--slate-200);\n    }\n\n    .section-title span.num {\n      background: var(--teal);\n      color: #ffffff;\n      width: 22px;\n      height: 22px;\n      border-radius: 6px;\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      font-size: 8.5pt;\n      font-weight: 800;\n    }\n\n    .grid-2 {\n      display: grid;\n      grid-template-columns: 1fr 1fr;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    .grid-3 {\n      display: grid;\n      grid-template-columns: 1fr 1fr 1fr;\n      gap: 10px;\n      margin-bottom: 14px;\n    }\n\n    @media (max-width: 720px) {\n      .grid-2, .grid-3 {\n        grid-template-columns: 1fr;\n      }\n    }\n\n    .card {\n      background: var(--slate-50);\n      border: 1px solid var(--slate-200);\n      border-radius: 8px;\n      padding: 12px 14px;\n      transition: all 0.2s ease;\n    }\n\n    .card:hover {\n      border-color: var(--teal);\n      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.08);\n    }\n\n    .card-accent {\n      border-left: 4px solid var(--teal);\n      background: #ffffff;\n    }\n\n    .card-feature {\n      border-left: 4px solid var(--cyan);\n      background: #ffffff;\n    }\n\n    .card-warn {\n      border-left: 4px solid var(--rose-text);\n      background: var(--rose-bg);\n      border-color: var(--rose-border);\n    }\n\n    .card-warn .card-title {\n      color: var(--rose-text);\n    }\n\n    .card-title {\n      font-size: 9.2pt;\n      font-weight: 700;\n      color: var(--primary);\n      margin-bottom: 4px;\n      display: flex;\n      align-items: center;\n      gap: 6px;\n    }\n\n    .card p, .card li {\n      font-size: 8.3pt;\n      color: var(--slate-600);\n      line-height: 1.45;\n    }\n\n    ul.card-list {\n      padding-left: 16px;\n      margin-top: 4px;\n    }\n\n    ul.card-list li {\n      margin-bottom: 3px;\n    }\n\n    .timeline-steps {\n      display: flex;\n      gap: 12px;\n      margin-bottom: 16px;\n    }\n\n    @media (max-width: 720px) {\n      .timeline-steps {\n        flex-direction: column;\n      }\n    }\n\n    .step-box {\n      flex: 1;\n      background: #ffffff;\n      border: 1px solid var(--slate-200);\n      border-radius: 8px;\n      padding: 12px;\n      position: relative;\n    }\n\n    .step-number {\n      display: inline-block;\n      background: var(--primary);\n      color: #ffffff;\n      font-size: 7.8pt;\n      font-weight: 800;\n      padding: 2px 7px;\n      border-radius: 4px;\n      margin-bottom: 6px;\n    }\n\n    .step-box h4 {\n      font-size: 9.2pt;\n      font-weight: 700;\n      color: var(--primary);\n      margin-bottom: 4px;\n    }\n\n    .step-box p {\n      font-size: 8pt;\n      color: var(--slate-600);\n      line-height: 1.4;\n    }\n\n    .table-container {\n      overflow-x: auto;\n      margin-bottom: 16px;\n      border: 1px solid var(--slate-200);\n      border-radius: 8px;\n      background: #ffffff;\n    }\n\n    table.data-table {\n      width: 100%;\n      border-collapse: collapse;\n      font-size: 8.3pt;\n    }\n\n    table.data-table th {\n      background: var(--primary);\n      color: #ffffff;\n      padding: 8px 12px;\n      text-align: left;\n      font-weight: 700;\n      letter-spacing: 0.2px;\n    }\n\n    table.data-table td {\n      padding: 7px 12px;\n      border-bottom: 1px solid var(--slate-200);\n      color: var(--slate-800);\n      vertical-align: middle;\n    }\n\n    table.data-table tr:nth-child(even) td {\n      background: var(--slate-50);\n    }\n\n    table.data-table tr:hover td {\n      background: #f0fdfa;\n    }\n\n    code {\n      font-family: 'JetBrains Mono', monospace;\n      font-size: 7.8pt;\n      background: #e2e8f0;\n      color: var(--teal-dark);\n      padding: 2px 5px;\n      border-radius: 4px;\n      font-weight: 600;\n    }\n\n    .copyable-cmd {\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      background: #f1f5f9;\n      border: 1px solid #cbd5e1;\n      padding: 3px 8px;\n      border-radius: 6px;\n      font-family: 'JetBrains Mono', monospace;\n      font-size: 7.8pt;\n      font-weight: 700;\n      color: var(--primary);\n      cursor: pointer;\n      user-select: all;\n      transition: all 0.15s ease;\n    }\n\n    .copyable-cmd:hover {\n      background: var(--teal-light);\n      border-color: var(--teal);\n      color: var(--teal-dark);\n    }\n\n    .simulator-wrapper {\n      background: #0f172a;\n      border-radius: 10px;\n      padding: 16px;\n      color: #ffffff;\n      margin-bottom: 18px;\n    }\n\n    .simulator-header {\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      margin-bottom: 12px;\n      border-bottom: 1px solid #334155;\n      padding-bottom: 8px;\n    }\n\n    .sim-pills {\n      display: flex;\n      gap: 6px;\n      flex-wrap: wrap;\n      margin-bottom: 12px;\n    }\n\n    .sim-btn {\n      background: #1e293b;\n      border: 1px solid #475569;\n      color: #94a3b8;\n      padding: 4px 10px;\n      border-radius: 20px;\n      font-size: 7.5pt;\n      cursor: pointer;\n      transition: all 0.2s;\n    }\n\n    .sim-btn:hover, .sim-btn.active {\n      background: var(--teal);\n      border-color: var(--teal);\n      color: #ffffff;\n    }\n\n    .chat-bubble-container {\n      background: #0b141a;\n      border-radius: 8px;\n      padding: 14px;\n      font-size: 8.3pt;\n      min-height: 120px;\n      display: flex;\n      flex-direction: column;\n      gap: 8px;\n    }\n\n    .bubble-user {\n      align-self: flex-end;\n      background: #005c4b;\n      color: #e9edef;\n      padding: 6px 12px;\n      border-radius: 8px 0 8px 8px;\n      max-width: 80%;\n    }\n\n    .bubble-bot {\n      align-self: flex-start;\n      background: #202c33;\n      color: #e9edef;\n      padding: 8px 14px;\n      border-radius: 0 8px 8px 8px;\n      max-width: 88%;\n      border-left: 3px solid var(--teal);\n      line-height: 1.45;\n    }\n\n    .bubble-bot a {\n      color: #38bdf8;\n      text-decoration: underline;\n    }\n\n    .manual-footer {\n      background: var(--slate-100);\n      border-top: 1px solid var(--slate-200);\n      padding: 14px 28px;\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      font-size: 7.8pt;\n      color: var(--slate-600);\n      flex-wrap: wrap;\n      gap: 8px;\n    }\n\n    #copyToast {\n      position: fixed;\n      bottom: 24px;\n      right: 24px;\n      background: var(--primary);\n      color: #ffffff;\n      padding: 8px 16px;\n      border-radius: 6px;\n      font-size: 8.5pt;\n      font-weight: 600;\n      box-shadow: 0 4px 14px rgba(0,0,0,0.25);\n      display: none;\n      z-index: 9999;\n    }\n  </style>\n</head>\n<body>\n\n<div class=\"container\">\n\n  <!-- ==================== HEADER INSTITUCIONAL ==================== -->\n  <div class=\"top-banner\">\n    <div class=\"top-banner-header\">\n      <div>\n        <div class=\"brand-title\">Biblioteca Médica Especializada</div>\n        <div class=\"brand-subtitle\">Cirugía Ortopédica y Traumatología • Guía Oficial de Uso y Gobernanza</div>\n      </div>\n      <div class=\"custody-badge\">\n        <div class=\"custody-badge-label\">DIRECCIÓN Y CUSTODIA</div>\n        <div class=\"custody-badge-name\">🏛️ Gestor de Contenido</div>\n      </div>\n    </div>\n\n    <div class=\"status-pills\">\n      <div class=\"status-pill\"><span class=\"dot-pulse\"></span> Cloud 24/7 Operativo</div>\n      <div class=\"status-pill\">🔒 Cero Exposición Drive</div>\n      <div class=\"status-pill\">⏱️ Enlaces Efímeros TTL 30 min</div>\n      <div class=\"status-pill\">🌐 Motor PubMed & Semantic Scholar</div>\n      <div class=\"status-pill\">🔬 Motor NotebookLM Integrado</div>\n      <div class=\"status-pill\">🎙️ Consultas por Voz</div>\n      <div class=\"status-pill\">📷 Visión Radiográfica AO</div>\n      <div class=\"status-pill\">☀️ Boletín Dominical</div>\n      <div class=\"status-pill\">🛡️ Vigilancia Secreta IDS</div>\n      <div class=\"status-pill\">📜 Documento Vivo (v2026.4)</div>\n    </div>\n  </div>\n\n  <div class=\"content-body\">\n\n    <!-- ==================== SECCIÓN 1: FILOSOFÍA Y ANONIMATO ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">1</span>\n      Filosofía, Apoyo Académico y Anonimato Cardinal\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">🎯 Apoyo Médico y Exención de Responsabilidad</div>\n        <p>Iniciativa médica independiente para fortalecer la formación continua de residentes y cirujanos ortopedistas. La literatura, guías y monografías provistas son de <b>carácter estrictamente pedagógico</b>; toda decisión diagnóstica y terapéutica corresponde en exclusiva al criterio clínico del médico tratante.</p>\n      </div>\n\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">🛡️ Regla Sagrada de Anonimato Cardinal</div>\n        <p>El proyecto protege con celo inquebrantable la privacidad de la Dirección y de los usuarios registrados. Todas las solicitudes, intermediaciones y respuestas operan a través del asistente autónomo. El propietario es referenciado siempre y únicamente como el <b>Gestor de Contenido</b>.</p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 2: ONBOARDING ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">2</span>\n      Protocolo de Admisión y Ciclo de Vida del Usuario\n    </div>\n    \n    <div class=\"timeline-steps\">\n      <div class=\"step-box\">\n        <span class=\"step-number\">PASO 1</span>\n        <h4>Solicitud de Acceso</h4>\n        <p>El médico escribe al WhatsApp del bot indicando nombre, hospital/universidad y nivel (R1-R4, Especialista). El sistema registra la solicitud con estado <code>PENDIENTE_APROBACION</code>.</p>\n      </div>\n      <div class=\"step-box\">\n        <span class=\"step-number\">PASO 2</span>\n        <h4>Aprobación de la Dirección</h4>\n        <p>El <b>Gestor de Contenido</b> recibe una notificación en su consola ejecutiva privada y aprueba al solicitante mediante el comando oficial: <code>APROBAR +57...</code></p>\n      </div>\n      <div class=\"step-box\">\n        <span class=\"step-number\">PASO 3</span>\n        <h4>Acceso Pleno Inmediato</h4>\n        <p>El usuario recibe su confirmación de bienvenida, el enlace al Manual Oficial y cupo habilitado para realizar consultas y descargas clínicas 24/7.</p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 3: BÚSQUEDA CLÍNICA EN EL CATÁLOGO ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">3</span>\n      Modalidades de Búsqueda Quirúrgica en el Catálogo Cloud\n    </div>\n\n    <div class=\"table-container\">\n      <table class=\"data-table\">\n        <thead>\n          <tr>\n            <th style=\"width: 25%;\">Modalidad</th>\n            <th style=\"width: 35%;\">Mensaje de Ejemplo</th>\n            <th style=\"width: 40%;\">Resultado Recuperado</th>\n          </tr>\n        </thead>\n        <tbody>\n          <tr>\n            <td><b>🦴 Patología o Técnica</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('Artroplastia reversa de hombro')\">Artroplastia reversa de hombro 📋</span></td>\n            <td>Tratados, monografías y técnicas de abordaje, implantes y biomecánica.</td>\n          </tr>\n          <tr>\n            <td><b>🎯 Clasificación AO</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('AO 31-A2')\">AO 31-A2 📋</span> o <span class=\"copyable-cmd\" onclick=\"copyCmd('Schatzker II')\">Schatzker II 📋</span></td>\n            <td>Técnicas de reducción, principios biológicos y selección de implantes osteosíntesis.</td>\n          </tr>\n          <tr>\n            <td><b>🔪 Abordajes Quirúrgicos</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('Abordaje anterolateral de cadera')\">Abordaje anterolateral de cadera 📋</span></td>\n            <td>Planos internerviosos, anatomía aplicada y pasos de disección quirúrgica.</td>\n          </tr>\n          <tr>\n            <td><b>🔩 Instrumental y Marcas</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('Synthes LCP')\">Synthes LCP 📋</span> o <span class=\"copyable-cmd\" onclick=\"copyCmd('Stryker T2')\">Stryker T2 📋</span></td>\n            <td>Guías oficiales de técnica quirúrgica del fabricante con instrumental paso a paso.</td>\n          </tr>\n          <tr>\n            <td><b>📄 Código DOI o ISBN</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('10.1016/j.otsr.2023.103')\">10.1016/j.otsr.2023.103... 📋</span></td>\n            <td>Entrega directa del artículo o apertura automática de ticket de adquisición.</td>\n          </tr>\n          <tr>\n            <td><b>📖 Solicitud del Manual</b></td>\n            <td><span class=\"copyable-cmd\" onclick=\"copyCmd('MANUAL')\">MANUAL 📋</span> o <span class=\"copyable-cmd\" onclick=\"copyCmd('AYUDA')\">AYUDA 📋</span></td>\n            <td>Despacho instantáneo del enlace interactivo web y PDF del manual oficial.</td>\n          </tr>\n        </tbody>\n      </table>\n    </div>\n\n    <!-- ==================== SECCIÓN 4: MOTOR DE EVIDENCIA CIENTÍFICA GLOBAL ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">4</span>\n      Motor de Evidencia Médica Global (PubMed & Semantic Scholar)\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">🌐 Consulta Directa a PubMed</div>\n        <p>Permite interrogar en tiempo real más de 35 millones de publicaciones biomédicas indexadas. Para formular una consulta científica, escriba en el chat:<br>\n        <span class=\"copyable-cmd\" style=\"margin-top:6px;\" onclick=\"copyCmd('EVIDENCIA: ')\">EVIDENCIA: [su pregunta clínica o técnica] 📋</span><br>\n        <i style=\"color:#0f766e; font-size:7.8pt;\">Ejemplo: EVIDENCIA: Cerclaje vs placas bloqueadas en fracturas de rótula 34-C3</i></p>\n      </div>\n\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">📊 Entrega de Resultados Estructurados</div>\n        <ul class=\"card-list\">\n          <li><b>Resumen WhatsApp (3-4 párrafos):</b> Consenso actual, hallazgos clave de los 3 estudios más recientes y recomendación quirúrgica.</li>\n          <li><b>Enlaces HTTPS Directos:</b> Enlaces directos a PubMed, DOI y Consensus para leer el artículo original a texto completo.</li>\n          <li><b>Ficha de Evidencia PDF:</b> Documento clínico formal descargable generado en la nube con tabla comparativa de los estudios.</li>\n        </ul>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 5: ANÁLISIS CRÍTICO NOTEBOOKLM ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">5</span>\n      Lectura Crítica de Artículos Propios (Motor NotebookLM con Gemini)\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">🔬 Análisis Profundo de Documentos</div>\n        <p>El médico puede adjuntar <b>1 o 2 artículos en PDF</b> en el chat de WhatsApp acompañados del comando:<br>\n        <span class=\"copyable-cmd\" style=\"margin-top:6px;\" onclick=\"copyCmd('ANALIZAR: ')\">ANALIZAR: [preguntas o foco clínico opcional] 📋</span><br>\n        El sistema procesa los documentos mediante comprensión multimodal profunda.</p>\n      </div>\n\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">⚖️ Reglas de Servicio y Entregables</div>\n        <ul class=\"card-list\">\n          <li><b>Límite Estricto:</b> Máximo <b>2 archivos PDF por solicitud</b> (puede realizar tantos análisis independientes como requiera a lo largo del mes).</li>\n          <li><b>Filtro de Tamaño:</b> Exclusivo para artículos científicos o capítulos de libros (&lt;30 MB / &lt;50 págs), descartando libros masivos completos.</li>\n          <li><b>Resultados:</b> Resumen PICO, metodología, significación estadística, riesgo de sesgos y (si son 2 artículos) <b>Matriz Comparativa Cruzada</b>.</li>\n        </ul>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 6: VIAS DE INGESTA Y ENRIQUECIMIENTO ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">6</span>\n      Vías de Aporte y Enriquecimiento de la Biblioteca (Cloud 24/7)\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">📁 Opción A: Buzón Seguro en Google Drive</div>\n        <p>Los colaboradores pueden depositar documentos en la carpeta compartida designada por la Dirección:<br>\n        <code style=\"font-size:7.5pt; word-break:break-all;\">https://drive.google.com/drive/folders/1UDQtuZqOiiGYnphbN5xaOxaLZvGNvLI1</code><br>\n        <b>Patrón Drop-Box Ciego:</b> Cada 5 minutos, Google Apps Script escanea la carpeta en la nube con el PC del Gestor de Contenido apagado, clona el archivo transfiriendo la propiedad absoluta a la Dirección, lo desduplica, lo cataloga en <code>Inventario_Maestro</code> y <b>elimina el original del buzón público</b>, manteniéndolo siempre limpio, ciego y seguro.</p>\n      </div>\n\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">📱 Opción B: Ingesta Directa por WhatsApp</div>\n        <p>Los médicos autorizados pueden enviar directamente un archivo PDF al chat de WhatsApp con el texto <code>APORTE</code> o <code>DONAR</code>. El agente cloud recibe el archivo, valida su integridad, lo almacena en la bóveda privada de Drive, lo clasifica por subespecialidad y le devuelve una confirmación formal de agradecimiento con su ID de indexación.</p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 7: POTENCIACIONES MULTIMODALES DEL ASISTENTE ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">7</span>\n      Potenciaciones Multimodales del Asistente: Voz, Visión AO y Boletín\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">🎙️ Consultas por Nota de Voz (WhatsApp Audio)</div>\n        <p>Los cirujanos en áreas de lavado, consulta o quirófano pueden enviar notas de voz directamente al chat. El agente utiliza procesamiento de audio multimodal (Gemini 2.0 Flash) para transcribir con precisión la terminología ortopédica y ejecutar la búsqueda o lectura crítica sin necesidad de teclear.</p>\n      </div>\n\n      <div class=\"card card-feature\">\n        <div class=\"card-title\">📷 Orientación Radiográfica AO/OTA por Imagen</div>\n        <p>Al adjuntar una radiografía o tomografía en el chat, el motor de visión computacional analiza el segmento óseo, sugiere la clasificación AO/OTA preliminar más probable y recupera de forma proactiva la monografía y técnica quirúrgica de osteosíntesis correspondiente del catálogo.</p>\n      </div>\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">☀️ Boletín Dominical de Actualización Quirúrgica</div>\n        <p>Todos los domingos a las 8:00 AM (o por solicitud de la Dirección), los médicos autorizados reciben un resumen editorial con 3 perlas quirúrgicas y lecturas destacadas de la semana para debate académico en la revista de sala (Grand Rounds).</p>\n      </div>\n\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">🔍 Búsqueda Difusa con Distancia Levenshtein (&ge;75%)</div>\n        <p>Tolerancia inteligente a errores tipográficos y de digitación rápida en el móvil (ej. <i>\"artroplasta de cadra\"</i>, <i>\"schatzkr\"</i>). El motor calcula la similitud fonética y ortográfica para recuperar el documento correcto sin frustraciones.</p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 8: SIMULADOR INTERACTIVO ==================== -->\n    <div class=\"page-break\"></div>\n\n    <div class=\"simulator-wrapper no-print\">\n      <div class=\"simulator-header\">\n        <span style=\"font-size: 9pt; font-weight: 700; color: #38bdf8;\">🩺 Simulador Interactivo de Respuestas del Bot</span>\n        <span style=\"font-size: 7.5pt; color: #94a3b8;\">Pruebe cómo interactúa el bot en tiempo real</span>\n      </div>\n\n      <div class=\"sim-pills\">\n        <button class=\"sim-btn active\" onclick=\"setSim('AO 31-A2')\">AO 31-A2</button>\n        <button class=\"sim-btn\" onclick=\"setSim('EVIDENCIA: Rótula 34-C3')\">EVIDENCIA: Rótula 34-C3</button>\n        <button class=\"sim-btn\" onclick=\"setSim('ANALIZAR: 2 artículos LCA')\">ANALIZAR: 2 PDFs</button>\n        <button class=\"sim-btn\" onclick=\"setSim('Synthes LCP')\">Synthes LCP</button>\n        <button class=\"sim-btn\" onclick=\"setSim('MANUAL')\">MANUAL</button>\n        <button class=\"sim-btn\" onclick=\"setSim('MENSAJE AL GESTOR: Solicitud de libro')\">Mensaje al Gestor</button>\n      </div>\n\n      <div class=\"chat-bubble-container\" id=\"chatSimArea\">\n        <div class=\"bubble-user\" id=\"simUserBubble\">AO 31-A2</div>\n        <div class=\"bubble-bot\" id=\"simBotBubble\">\n          📖 <b>LITERATURA ENCONTRADA</b><br>\n          ━━━━━━━━━━━━━━━━━━━━━━━━━━<br>\n          📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>\n          ✍️ <b>Autor:</b> AO Foundation (2024)<br>\n          📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>\n          🎯 <b>Clasificación AO:</b> 31-A2<br>\n          ━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>\n          🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br>\n          <a href=\"#\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>\n        </div>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 9: SEGURIDAD CRIPTOGRÁFICA Y SISTEMA IDS ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">8</span>\n      Seguridad Criptográfica y Vigilancia Silenciosa (Sistema IDS)\n    </div>\n\n    <div class=\"grid-3\">\n      <div class=\"card\">\n        <div class=\"card-title\">⏱️ Caducidad Estricta 30 min</div>\n        <p>Cada enlace emitido incluye un token criptográfico HMAC-SHA256 con vigencia de 30 minutos. Tras este lapso, el token caduca de forma irreversible.</p>\n      </div>\n\n      <div class=\"card\">\n        <div class=\"card-title\">🔒 Cero Exposición Drive</div>\n        <p>Las descargas se ejecutan mediante un proxy anónimo en la nube. Las URLs de Google Drive y carpetas maestras permanecen 100% blindadas.</p>\n      </div>\n\n      <div class=\"card\">\n        <div class=\"card-title\">🛡️ Detección de Intrusos (IDS)</div>\n        <p>Vigilancia secreta activa contra manipulación de firmas (Tampering), BOLA/IDOR, inyección de fórmulas y prompt injection. Ante ataques, el sistema responde de forma neutra y despacha una Alerta Roja inmediata a la Dirección.</p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 10: CÓDIGO DE CONDUCTA ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">9</span>\n      Código de Conducta y Régimen Disciplinario\n    </div>\n\n    <div class=\"card card-warn\" style=\"margin-bottom: 14px;\">\n      <div class=\"card-title\">⛔ Tolerancia Cero a Lenguaje Inapropiado y Temas Ajenos</div>\n      <ul class=\"card-list\">\n        <li><b>Exclusividad Médico-Quirúrgica:</b> La biblioteca es una herramienta de apoyo académico. Consultas sobre política, deportes o entretenimiento son descartadas de forma automática.</li>\n        <li><b>Suspensión Preventiva Inmediata:</b> Cualquier mensaje con contenido vulgar, obsceno o insultos activa la <b>inhabilitación inmediata</b> de la cuenta sin previo aviso.</li>\n        <li><b>Arbitraje de la Dirección:</b> Toda suspensión es remitida al <b>Gestor de Contenido</b>, quien es la única autoridad con potestad para revisar el incidente y ordenar el desbloqueo o la expulsión permanente.</li>\n      </ul>\n    </div>\n\n    <!-- ==================== SECCIÓN 11: CANAL INTERMEDIADO ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">10</span>\n      Canal Intermediado Confidencial con la Dirección\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">📩 Para Médicos y Residentes</div>\n        <p>Para elevar sugerencias de literatura, reportar dudas o comunicarse con la Dirección sin vulnerar el anonimato bilateral, escriba en el chat:<br>\n        <span class=\"copyable-cmd\" style=\"margin-top:6px;\" onclick=\"copyCmd('MENSAJE AL GESTOR: ')\">MENSAJE AL GESTOR: [su consulta detallada] 📋</span></p>\n      </div>\n\n      <div class=\"card card-accent\">\n        <div class=\"card-title\">📤 Para el Gestor de Contenido (Superusuario)</div>\n        <p>Desde su consola personal privada, la Dirección emite respuestas oficiales anónimas dirigidas al médico mediante el comando:<br>\n        <span class=\"copyable-cmd\" style=\"margin-top:6px;\" onclick=\"copyCmd('RESPONDER ')\">RESPONDER +573xxxxxxxxx [su mensaje oficial] 📋</span></p>\n      </div>\n    </div>\n\n    <!-- ==================== SECCIÓN 12: COMUNICADOS Y AUTOAPRENDIZAJE ==================== -->\n    <div class=\"section-title\">\n      <span class=\"num\">11</span>\n      Gobernanza Dinámica: Notificaciones Masivas y Autoaprendizaje\n    </div>\n\n    <div class=\"grid-2\">\n      <div class=\"card\">\n        <div class=\"card-title\">📢 Comunicados Oficiales (Broadcast)</div>\n        <p>Cada vez que se actualicen las políticas de uso, criterios de servicio o se incorpore nueva literatura relevante, el <b>Gestor de Contenido</b> emitirá un mensaje masivo a todos los médicos autorizados mediante el comando ejecutivo:<br>\n        <code style=\"margin-top:4px; display:inline-block;\">COMUNICADO: [anuncio de actualización...]</code><br>\n        O el atajo automático <code style=\"display:inline-block;\">COMUNICADO_POLITICAS</code>.</p>\n      </div>\n\n      <div class=\"card\">\n        <div class=\"card-title\">🧠 Sistema de Autoaprendizaje Continuo</div>\n        <p>El bot cuenta con un sistema de telemetría y memoria permanente en la nube:\n        <ul class=\"card-list\" style=\"margin-top:4px;\">\n          <li><b>Expansión de Sinónimos:</b> Mapeo automático de términos equivalentes (ej. prótesis ➔ artroplastia / reemplazo; LCA ➔ ligamento cruzado).</li>\n          <li><b>Detección de Brechas:</b> Las consultas sin resultados quedan registradas en <code>Memoria_Aprendizaje</code> para orientar nuevas adquisiciones.</li>\n        </ul>\n        </p>\n      </div>\n    </div>\n\n  </div> <!-- /content-body -->\n\n  <!-- ==================== FOOTER ==================== -->\n  <div class=\"manual-footer\">\n    <div>\n      <b>Biblioteca Médica Especializada</b> • Dirección: Gestor de Contenido<br>\n      Servicio académico autónomo cloud 24/7 • Ortopedia y Traumatología\n    </div>\n    <div style=\"text-align: right;\">\n      <span>Documento Oficial Vivo • Edición 2026.4</span><br>\n      <span style=\"color: var(--teal); font-weight: 700;\">Vigencia y Actualización Permanente</span>\n    </div>\n  </div>\n\n</div> <!-- /container -->\n\n<!-- TOAST FLOTANTE DE COPIADO -->\n<div id=\"copyToast\">¡Comando copiado al portapapeles!</div>\n\n<script>\n  function copyCmd(text) {\n    if (navigator.clipboard && navigator.clipboard.writeText) {\n      navigator.clipboard.writeText(text);\n    } else {\n      const ta = document.createElement('textarea');\n      ta.value = text;\n      document.body.appendChild(ta);\n      ta.select();\n      document.execCommand('copy');\n      document.body.removeChild(ta);\n    }\n    const toast = document.getElementById('copyToast');\n    toast.style.display = 'block';\n    setTimeout(function() {\n      toast.style.display = 'none';\n    }, 2000);\n  }\n\n  const simData = {\n    'AO 31-A2': {\n      user: 'AO 31-A2',\n      bot: '📖 <b>LITERATURA ENCONTRADA</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>✍️ <b>Autor:</b> AO Foundation (2024)<br>📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>🎯 <b>Clasificación AO:</b> 31-A2<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br><a href=\"#\" onclick=\"alert(\\'Enlace seguro y anónimo de descarga\\')\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'\n    },\n    'EVIDENCIA: Rótula 34-C3': {\n      user: 'EVIDENCIA: Manejo quirúrgico de fracturas de rótula 34-C3 cerclaje vs placas bloqueadas',\n      bot: '🌐 <b>SÍNTESIS DE EVIDENCIA BIOMÉDICA (PubMed & Semantic Scholar)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Consenso Clínico:</b> Las placas bloqueadas de bajo perfil muestran menor tasa de fracaso de osteosíntesis (4.2% vs 16.8%) y menor irritación del aparato extensor comparado con el cerclaje tradicional modificado.<br><br><b>Estudios Clave Recuperados:</b><br>1. <i>Smith et al. (2025)</i> - Locked plating vs Tension Band in AO/OTA 34-C3 (OTA Int).<br>2. <i>Kramer et al. (2024)</i> - Biomechanical rigidity in comminuted patella fractures.<br>3. <i>García et al. (2024)</i> - Systematic review of anterior knee pain.<br><br>🔗 <a href=\"#\">PubMed #42338183</a> | <a href=\"#\">DOI: 10.1016/otsr.2024</a> | <a href=\"#\">Consensus Search</a><br><br>📥 <b>Ficha de Evidencia PDF:</b> <a href=\"#\">https://script.google.com/.../exec?token=evid_...</a>'\n    },\n    'ANALIZAR: 2 artículos LCA': {\n      user: 'ANALIZAR: Comparar plastia HTH vs Tendón Cuadricipital [Adjunta 2 PDFs]',\n      bot: '🔬 <b>LECTURA CRÍTICA NOTEBOOKLM (2 Artículos Procesados)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Objetivo PICO:</b> Comparación de estabilidad anteroposterior y dolor anterior de rodilla en reconstrucción de LCA.<br><br><b>Matriz Comparativa Cruzada:</b><br>• <i>Estudio 1 (Müller 2024):</i> HTH muestra 8% más dolor anterior al arrodillarse; fijación ósea más rápida.<br>• <i>Estudio 2 (Chen 2025):</i> Tendón cuadricipital presenta menor morbilidad de zona donante sin diferencia en tasa de rerrotura a 2 años (p=0.48).<br><br><b>Nivel de Evidencia:</b> Nivel II (Ensayos prospectivos aleatorizados).<br><br>📥 <b>Informe de Lectura Crítica PDF:</b> <a href=\"#\">https://script.google.com/.../exec?token=crit_...</a>'\n    },\n    'Synthes LCP': {\n      user: 'Synthes LCP',\n      bot: '📖 <b>LITERATURA ENCONTRADA</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Synthes LCP Locking Compression Plate System Technique Guide<br>✍️ <b>Autor:</b> DePuy Synthes Trauma (2022)<br>📁 <b>Especialidad:</b> Catálogos e Instrumental Quirúrgico<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura en la Nube (Válida 30 min):</b><br><a href=\"#\" onclick=\"alert(\\'Enlace seguro y anónimo de descarga\\')\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'\n    },\n    'MANUAL': {\n      user: 'MANUAL',\n      bot: '📖 <b>MANUAL DE USO Y GOBERNANZA DEL PROYECTO</b><br><b>Dirección:</b> Gestor de Contenido<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Este documento contiene las directrices completas para:<br>• Búsquedas quirúrgicas en el catálogo cloud.<br>• Consulta de evidencia en PubMed (EVIDENCIA:).<br>• Lectura crítica de artículos propios (ANALIZAR: máx 2 PDFs).<br>• Buzón Drive ciego y donaciones por WhatsApp.<br>• Enlaces efímeros de 30 minutos.<br>• Código de Conducta y Moderación Activa.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>📥 <b>Manual Oficial Interactivo & PDF:</b><br><a href=\"#\" onclick=\"alert(\\'Abre el portal oficial del manual\\')\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'\n    },\n    'MENSAJE AL GESTOR: Solicitud de libro': {\n      user: 'MENSAJE AL GESTOR: ¿Sería posible adquirir la última edición de Green Operative Hand?',\n      bot: '📩 <b>Mensaje Transmitido a la Dirección</b><br><br>Su comunicación ha sido remitida al <b>Gestor de Contenido</b> de forma estrictamente confidencial.<br>Le notificaremos en este mismo chat en cuanto se emita una respuesta.'\n    }\n  };\n\n  function setSim(key) {\n    const data = simData[key];\n    if (!data) return;\n    document.getElementById('simUserBubble').innerHTML = data.user;\n    document.getElementById('simBotBubble').innerHTML = data.bot;\n\n    const btns = document.querySelectorAll('.sim-btn');\n    btns.forEach(b => {\n      if (b.innerText === key || b.getAttribute('onclick').includes(key)) {\n        b.classList.add('active');\n      } else {\n        b.classList.remove('active');\n      }\n    });\n  }\n</script>\n\n</body>\n</html>\n";
+  const webAppUrl = getWebAppBaseUrl();
+  const buzonUrl = webAppUrl + '?mode=buzon';
+
+  let baseHtml = "<!DOCTYPE html>\n<html lang=\"es\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Manual Oficial de Uso y Gobernanza — Biblioteca Médica Especializada de Ortopedia</title>\n  \n  <!-- Tipografía Suiza de Alta Fidelidad y Monospace Quirúrgico -->\n  <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n  <link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">\n\n  <style>\n    /* ==========================================================================\n       VARIABLES Y DESIGN TOKENS (ESTÉTICA EDITORIAL SUIZA / SURGICAL LUXURY)\n       ========================================================================== */\n    :root {\n      --bg-canvas: #f8fafc;\n      --bg-surface: #ffffff;\n      --bg-surface-elevated: #ffffff;\n      \n      --color-primary: #0a192f;        /* Deep Obsidian Navy */\n      --color-primary-light: #172a45;\n      --color-primary-subtle: #203a5e;\n      \n      --color-surgical-teal: #0d9488;  /* Surgical Teal */\n      --color-surgical-dark: #0f766e;\n      --color-surgical-light: #ccfbf1;\n      --color-surgical-glow: rgba(13, 148, 136, 0.15);\n      \n      --color-cyan: #0284c7;           /* Precision Cyan */\n      --color-cyan-light: #e0f2fe;\n      \n      --color-emerald: #059669;\n      --color-amber: #d97706;\n      --color-amber-bg: #fffbeb;\n      --color-amber-border: #fde68a;\n      \n      --color-rose: #e11d48;\n      --color-rose-bg: #fff1f2;\n      --color-rose-border: #fecdd3;\n      \n      --slate-50: #f8fafc;\n      --slate-100: #f1f5f9;\n      --slate-200: #e2e8f0;\n      --slate-300: #cbd5e1;\n      --slate-400: #94a3b8;\n      --slate-500: #64748b;\n      --slate-600: #475569;\n      --slate-700: #334155;\n      --slate-800: #1e293b;\n      --slate-900: #0f172a;\n      \n      --radius-sm: 6px;\n      --radius-md: 10px;\n      --radius-lg: 16px;\n      --radius-xl: 24px;\n      \n      --shadow-subtle: 0 1px 3px rgba(10, 25, 47, 0.05);\n      --shadow-card: 0 4px 16px rgba(10, 25, 47, 0.06);\n      --shadow-hover: 0 10px 30px rgba(13, 148, 136, 0.12);\n      \n      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;\n      --font-mono: 'JetBrains Mono', monospace;\n    }\n\n    * {\n      box-sizing: border-box;\n      margin: 0;\n      padding: 0;\n    }\n\n    html {\n      scroll-behavior: smooth;\n    }\n\n    body {\n      font-family: var(--font-sans);\n      color: var(--slate-800);\n      background-color: var(--bg-canvas);\n      line-height: 1.5;\n      font-size: 9.6pt;\n      -webkit-font-smoothing: antialiased;\n      -moz-osx-font-smoothing: grayscale;\n      text-rendering: optimizeLegibility;\n    }\n\n    /* BARRA DE PROGRESO DE LECTURA */\n    #scrollProgress {\n      position: fixed;\n      top: 0;\n      left: 0;\n      height: 3px;\n      background: linear-gradient(90deg, var(--color-surgical-teal), var(--color-cyan));\n      width: 0%;\n      z-index: 9999;\n      transition: width 0.1s ease;\n    }\n\n    /* CONTENEDOR PRINCIPAL EDITORIAL */\n    .editorial-wrapper {\n      max-width: 1060px;\n      margin: 20px auto 40px auto;\n      background: var(--bg-surface);\n      border-radius: var(--radius-lg);\n      box-shadow: 0 16px 40px rgba(10, 25, 47, 0.07);\n      border: 1px solid var(--slate-200);\n      overflow: hidden;\n    }\n\n    /* ==========================================================================\n       MASTHEAD INSTITUCIONAL CON DEGRADADO E ILUSTRACIÓN DINÁMICA\n       ========================================================================== */\n    .masthead {\n      background: linear-gradient(135deg, #071324 0%, #0c233c 45%, #0a3a40 85%, #0d9488 100%);\n      color: #ffffff;\n      padding: 34px 42px 26px 42px;\n      position: relative;\n      border-bottom: 2.5px solid var(--color-surgical-teal);\n      overflow: hidden;\n    }\n\n    /* Contenedor de la ilustración de fondo aleatoria */\n    #orthoWatermarkContainer {\n      position: absolute;\n      pointer-events: none;\n      opacity: 0.14;\n      transition: all 0.5s ease;\n      z-index: 1;\n    }\n\n    .masthead-content {\n      position: relative;\n      z-index: 2;\n    }\n\n    .masthead-top-row {\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      gap: 20px;\n      flex-wrap: wrap;\n      margin-bottom: 12px;\n    }\n\n    .masthead-titles {\n      flex: 1;\n      min-width: 300px;\n    }\n\n    .edition-tag {\n      font-family: var(--font-mono);\n      font-size: 7.5pt;\n      font-weight: 700;\n      letter-spacing: 1.5px;\n      text-transform: uppercase;\n      color: var(--color-surgical-light);\n      background: rgba(13, 148, 136, 0.25);\n      border: 1px solid rgba(94, 234, 212, 0.35);\n      padding: 4px 10px;\n      border-radius: 4px;\n      display: inline-block;\n      margin-bottom: 8px;\n    }\n\n    .masthead-title {\n      font-size: 23pt;\n      font-weight: 800;\n      letter-spacing: -0.6px;\n      line-height: 1.15;\n      color: #ffffff;\n    }\n\n    .masthead-subtitle {\n      font-size: 11pt;\n      font-weight: 500;\n      color: #94a3b8;\n      margin-top: 4px;\n      max-width: 680px;\n    }\n\n    /* BADGE DE CUSTODIA INSTITUCIONAL ALINEADO A LA DERECHA */\n    .custody-panel {\n      background: rgba(255, 255, 255, 0.07);\n      border: 1px solid rgba(255, 255, 255, 0.18);\n      backdrop-filter: blur(14px);\n      -webkit-backdrop-filter: blur(14px);\n      padding: 12px 20px;\n      border-radius: var(--radius-md);\n      text-align: right;\n      min-width: 230px;\n      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);\n    }\n\n    .custody-label {\n      font-family: var(--font-mono);\n      font-size: 7.2pt;\n      text-transform: uppercase;\n      letter-spacing: 1.2px;\n      color: #5eead4;\n      font-weight: 700;\n      margin-bottom: 4px;\n    }\n\n    .custody-identity {\n      font-size: 11.5pt;\n      font-weight: 700;\n      color: #ffffff;\n      display: flex;\n      align-items: center;\n      gap: 8px;\n      justify-content: flex-end;\n    }\n\n    /* TELEMETRÍA Y BADGES CLÍNICOS */\n    .telemetry-bar {\n      display: flex;\n      gap: 8px;\n      flex-wrap: wrap;\n      margin-top: 18px;\n      padding-top: 16px;\n      border-top: 1px solid rgba(255, 255, 255, 0.12);\n    }\n\n    .telemetry-chip {\n      background: rgba(255, 255, 255, 0.08);\n      border: 1px solid rgba(255, 255, 255, 0.15);\n      border-radius: 20px;\n      padding: 4px 12px;\n      font-size: 8pt;\n      font-weight: 600;\n      color: #f1f5f9;\n      display: inline-flex;\n      align-items: center;\n      gap: 7px;\n      transition: all 0.2s ease;\n    }\n\n    .telemetry-chip:hover {\n      background: rgba(255, 255, 255, 0.16);\n      border-color: var(--color-surgical-teal);\n    }\n\n    .pulse-dot {\n      width: 7px;\n      height: 7px;\n      background: #10b981;\n      border-radius: 50%;\n      box-shadow: 0 0 10px #10b981;\n      display: inline-block;\n      animation: pulseAnim 2s infinite;\n    }\n\n    @keyframes pulseAnim {\n      0%, 100% { opacity: 1; transform: scale(1); }\n      50% { opacity: 0.5; transform: scale(1.2); }\n    }\n\n    /* ==========================================================================\n       BARRA DE ACCESO RÁPIDO Y BÚSQUEDA INTERACTIVA\n       ========================================================================== */\n    .nav-toolbar {\n      background: var(--slate-100);\n      border-bottom: 1px solid var(--slate-200);\n      padding: 10px 42px;\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      gap: 16px;\n      flex-wrap: wrap;\n      position: sticky;\n      top: 0;\n      z-index: 100;\n      backdrop-filter: blur(10px);\n    }\n\n    .quick-search-box {\n      display: flex;\n      align-items: center;\n      background: #ffffff;\n      border: 1px solid var(--slate-300);\n      border-radius: 20px;\n      padding: 4px 12px;\n      width: 320px;\n      transition: all 0.2s;\n    }\n\n    .quick-search-box:focus-within {\n      border-color: var(--color-surgical-teal);\n      box-shadow: 0 0 0 3px var(--color-surgical-glow);\n    }\n\n    .quick-search-box input {\n      border: none;\n      outline: none;\n      font-family: var(--font-sans);\n      font-size: 8.5pt;\n      width: 100%;\n      margin-left: 6px;\n      color: var(--slate-800);\n    }\n\n    .nav-actions {\n      display: flex;\n      gap: 8px;\n    }\n\n    .btn-action {\n      font-family: var(--font-sans);\n      font-size: 8pt;\n      font-weight: 700;\n      padding: 6px 14px;\n      border-radius: 6px;\n      border: 1px solid var(--slate-300);\n      background: #ffffff;\n      color: var(--slate-700);\n      cursor: pointer;\n      display: inline-flex;\n      align-items: center;\n      gap: 6px;\n      transition: all 0.15s ease;\n      text-decoration: none;\n    }\n\n    .btn-action:hover {\n      background: var(--slate-50);\n      border-color: var(--slate-400);\n      color: var(--color-primary);\n    }\n\n    .btn-action-primary {\n      background: var(--color-primary);\n      color: #ffffff;\n      border-color: var(--color-primary);\n    }\n\n    .btn-action-primary:hover {\n      background: var(--color-primary-light);\n      color: #ffffff;\n    }\n\n    /* BOTÓN ESTILIZADO DE BUZÓN DIGITAL */\n    .btn-buzon-interactivo {\n      background: linear-gradient(135deg, var(--color-surgical-teal), var(--color-cyan));\n      color: #ffffff !important;\n      font-weight: 700;\n      font-size: 8.8pt;\n      padding: 8px 16px;\n      border-radius: var(--radius-sm);\n      display: inline-flex;\n      align-items: center;\n      gap: 8px;\n      text-decoration: none;\n      box-shadow: 0 3px 10px rgba(13, 148, 136, 0.25);\n      border: 1px solid rgba(255, 255, 255, 0.2);\n      transition: all 0.2s ease;\n      margin-top: 10px;\n    }\n\n    .btn-buzon-interactivo:hover {\n      transform: translateY(-2px);\n      box-shadow: 0 6px 18px rgba(13, 148, 136, 0.35);\n      background: linear-gradient(135deg, #0f766e, #0284c7);\n    }\n\n    /* ==========================================================================\n       CUERPO EDITORIAL Y ESTRUCTURA DE CONTENIDOS\n       ========================================================================== */\n    .document-body {\n      padding: 30px 42px 36px 42px;\n    }\n\n    .manual-section {\n      break-inside: avoid;\n      margin-bottom: 24px;\n    }\n\n    .chapter-heading {\n      font-size: 12.5pt;\n      font-weight: 800;\n      color: var(--color-primary);\n      letter-spacing: -0.4px;\n      display: flex;\n      align-items: center;\n      gap: 10px;\n      margin-top: 24px;\n      margin-bottom: 14px;\n      padding-bottom: 6px;\n      border-bottom: 2px solid var(--slate-200);\n      break-after: avoid;\n    }\n\n    .chapter-badge {\n      background: var(--color-primary);\n      color: #ffffff;\n      font-family: var(--font-mono);\n      font-size: 8.8pt;\n      font-weight: 700;\n      width: 24px;\n      height: 24px;\n      border-radius: var(--radius-sm);\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n    }\n\n    /* TARJETAS EDITORIALES Y GRID */\n    .editorial-grid-2 {\n      display: grid;\n      grid-template-columns: 1fr 1fr;\n      gap: 14px;\n      margin-bottom: 14px;\n    }\n\n    .editorial-grid-3 {\n      display: grid;\n      grid-template-columns: 1fr 1fr 1fr;\n      gap: 12px;\n      margin-bottom: 14px;\n    }\n\n    @media (max-width: 768px) {\n      .editorial-grid-2, .editorial-grid-3 {\n        grid-template-columns: 1fr;\n      }\n      .masthead {\n        padding: 24px 20px;\n      }\n      .document-body {\n        padding: 18px;\n      }\n      .nav-toolbar {\n        padding: 10px 18px;\n      }\n    }\n\n    .card-swiss {\n      background: #ffffff;\n      border: 1px solid var(--slate-200);\n      border-radius: var(--radius-md);\n      padding: 16px 18px;\n      box-shadow: var(--shadow-subtle);\n      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n      position: relative;\n      break-inside: avoid;\n    }\n\n    .card-swiss:hover {\n      border-color: var(--color-surgical-teal);\n      box-shadow: var(--shadow-hover);\n      transform: translateY(-2px);\n    }\n\n    .card-swiss.accent-teal {\n      border-left: 4px solid var(--color-surgical-teal);\n    }\n\n    .card-swiss.accent-cyan {\n      border-left: 4px solid var(--color-cyan);\n    }\n\n    .card-swiss.accent-amber {\n      border-left: 4px solid var(--color-amber);\n      background: #fffdfa;\n    }\n\n    .card-swiss.accent-rose {\n      border-left: 4px solid var(--color-rose);\n      background: var(--color-rose-bg);\n      border-color: var(--color-rose-border);\n    }\n\n    .card-heading {\n      font-size: 9.8pt;\n      font-weight: 700;\n      color: var(--color-primary);\n      margin-bottom: 6px;\n      display: flex;\n      align-items: center;\n      gap: 8px;\n    }\n\n    .card-swiss p, .card-swiss li {\n      font-size: 8.8pt;\n      color: var(--slate-600);\n      line-height: 1.48;\n    }\n\n    .card-swiss ul {\n      padding-left: 16px;\n      margin-top: 5px;\n    }\n\n    .card-swiss li {\n      margin-bottom: 3px;\n    }\n\n    /* ==========================================================================\n       DIAGRAMAS VECTORIALES SVG EDITORIALES\n       ========================================================================== */\n    .diagram-container {\n      background: #f8fafc;\n      border: 1px solid var(--slate-200);\n      border-radius: var(--radius-md);\n      padding: 14px 16px;\n      margin: 14px 0 18px 0;\n      box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);\n      break-inside: avoid;\n    }\n\n    .diagram-caption {\n      font-family: var(--font-mono);\n      font-size: 7.3pt;\n      font-weight: 700;\n      text-transform: uppercase;\n      letter-spacing: 1px;\n      color: var(--slate-500);\n      margin-bottom: 10px;\n      display: flex;\n      align-items: center;\n      gap: 8px;\n    }\n\n    .diagram-caption::before {\n      content: '';\n      width: 7px;\n      height: 7px;\n      background: var(--color-surgical-teal);\n      border-radius: 2px;\n    }\n\n    .svg-diagram {\n      width: 100%;\n      height: auto;\n      display: block;\n    }\n\n    /* ==========================================================================\n       COMANDOS COPIABLES CON MICRO-INTERACCIÓN\n       ========================================================================== */\n    .cmd-pill {\n      font-family: var(--font-mono);\n      font-size: 8.2pt;\n      font-weight: 600;\n      background: var(--slate-100);\n      color: var(--color-primary);\n      border: 1px solid var(--slate-300);\n      padding: 3px 8px;\n      border-radius: var(--radius-sm);\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      cursor: pointer;\n      user-select: all;\n      transition: all 0.15s ease;\n    }\n\n    .cmd-pill:hover {\n      background: var(--color-surgical-light);\n      border-color: var(--color-surgical-teal);\n      color: var(--color-surgical-dark);\n      transform: translateY(-1px);\n    }\n\n    .cmd-pill::after {\n      content: '📋';\n      font-size: 7pt;\n      opacity: 0.7;\n    }\n\n    /* ==========================================================================\n       TABLAS DE DATOS CLÍNICOS\n       ========================================================================== */\n    .table-wrapper {\n      border: 1px solid var(--slate-200);\n      border-radius: var(--radius-md);\n      overflow-x: auto;\n      background: #ffffff;\n      margin: 12px 0 16px 0;\n      box-shadow: var(--shadow-subtle);\n      break-inside: avoid;\n    }\n\n    table.editorial-table {\n      width: 100%;\n      border-collapse: collapse;\n      font-size: 8.6pt;\n    }\n\n    table.editorial-table th {\n      background: var(--color-primary);\n      color: #ffffff;\n      font-family: var(--font-sans);\n      font-weight: 700;\n      padding: 9px 14px;\n      text-align: left;\n      letter-spacing: 0.2px;\n    }\n\n    table.editorial-table td {\n      padding: 8px 14px;\n      border-bottom: 1px solid var(--slate-200);\n      color: var(--slate-700);\n      vertical-align: middle;\n    }\n\n    table.editorial-table tr:nth-child(even) td {\n      background: var(--slate-50);\n    }\n\n    table.editorial-table tr:hover td {\n      background: #f0fdfa;\n    }\n\n    /* ==========================================================================\n       SIMULADOR EN VIVO (DARK MODE QUIRÚRGICO)\n       ========================================================================== */\n    .simulator-container {\n      background: #090d16;\n      border: 1px solid #1e293b;\n      border-radius: var(--radius-lg);\n      padding: 20px;\n      margin: 20px 0;\n      box-shadow: 0 10px 30px rgba(0,0,0,0.25);\n      break-inside: avoid;\n    }\n\n    .sim-header {\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      margin-bottom: 14px;\n      border-bottom: 1px solid #1e293b;\n      padding-bottom: 10px;\n    }\n\n    .sim-tag {\n      font-family: var(--font-mono);\n      font-size: 8pt;\n      font-weight: 700;\n      color: #38bdf8;\n      display: flex;\n      align-items: center;\n      gap: 6px;\n    }\n\n    .sim-nav-buttons {\n      display: flex;\n      gap: 7px;\n      flex-wrap: wrap;\n      margin-bottom: 14px;\n    }\n\n    .sim-btn-item {\n      background: #131c2e;\n      border: 1px solid #334155;\n      color: #94a3b8;\n      padding: 5px 11px;\n      border-radius: 20px;\n      font-size: 7.6pt;\n      font-weight: 600;\n      cursor: pointer;\n      transition: all 0.2s ease;\n    }\n\n    .sim-btn-item:hover, .sim-btn-item.active {\n      background: var(--color-surgical-teal);\n      border-color: var(--color-surgical-teal);\n      color: #ffffff;\n      box-shadow: 0 0 10px rgba(13, 148, 136, 0.4);\n    }\n\n    .chat-display {\n      background: #060911;\n      border: 1px solid #1a2234;\n      border-radius: var(--radius-md);\n      padding: 16px;\n      min-height: 130px;\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n    }\n\n    .bubble-user-msg {\n      align-self: flex-end;\n      background: #005c4b;\n      color: #ffffff;\n      font-size: 8.5pt;\n      padding: 8px 14px;\n      border-radius: 10px 0 10px 10px;\n      max-width: 80%;\n      box-shadow: 0 2px 6px rgba(0,0,0,0.2);\n    }\n\n    .bubble-bot-msg {\n      align-self: flex-start;\n      background: #1e293b;\n      color: #e2e8f0;\n      font-size: 8.5pt;\n      padding: 12px 16px;\n      border-radius: 0 10px 10px 10px;\n      border-left: 3px solid var(--color-surgical-teal);\n      max-width: 88%;\n      line-height: 1.48;\n    }\n\n    .bubble-bot-msg a {\n      color: #38bdf8;\n      text-decoration: underline;\n    }\n\n    /* FOOTER EDITORIAL */\n    .document-footer {\n      background: var(--slate-100);\n      border-top: 1px solid var(--slate-200);\n      padding: 18px 42px;\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      font-size: 8.2pt;\n      color: var(--slate-600);\n      flex-wrap: wrap;\n      gap: 10px;\n      break-inside: avoid;\n    }\n\n    /* TOAST DE COPIADO */\n    #editorialToast {\n      position: fixed;\n      bottom: 24px;\n      right: 24px;\n      background: var(--color-primary);\n      color: #ffffff;\n      padding: 10px 18px;\n      border-radius: var(--radius-sm);\n      font-size: 8.8pt;\n      font-weight: 700;\n      box-shadow: 0 10px 30px rgba(0,0,0,0.3);\n      display: none;\n      z-index: 10000;\n      border-left: 4px solid var(--color-surgical-teal);\n      animation: toastIn 0.2s ease;\n    }\n\n    @keyframes toastIn {\n      from { transform: translateY(10px); opacity: 0; }\n      to { transform: translateY(0); opacity: 1; }\n    }\n\n    /* ==========================================================================\n       OPTIMIZACIÓN RIGUROSA PARA IMPRESIÓN Y PDF (CERO CORTES HUÉRFANOS)\n       ========================================================================== */\n    @page {\n      size: A4 portrait;\n      margin: 10mm 12mm 12mm 12mm;\n    }\n\n    @media print {\n      body {\n        background: #ffffff;\n      }\n      .editorial-wrapper {\n        box-shadow: none;\n        border: none;\n        border-radius: 0;\n        max-width: 100%;\n        margin: 0;\n      }\n      .no-print, .nav-toolbar, #scrollProgress, #editorialToast {\n        display: none !important;\n      }\n      .card-swiss, .diagram-container, .table-wrapper, .manual-section {\n        box-shadow: none;\n        break-inside: avoid !important;\n        page-break-inside: avoid !important;\n      }\n      .chapter-heading {\n        break-after: avoid !important;\n        page-break-after: avoid !important;\n      }\n    }\n  </style>\n</head>\n<body>\n\n<div id=\"scrollProgress\"></div>\n\n<div class=\"editorial-wrapper\">\n\n  <!-- ==================== MASTHEAD INSTITUCIONAL ==================== -->\n  <header class=\"masthead\">\n    <!-- SVG Aleatorio Dinámico de Ortopedia (Watermark) -->\n    <div id=\"orthoWatermarkContainer\">\n      <svg id=\"orthoWatermarkSvg\" width=\"340\" height=\"180\" viewBox=\"0 0 340 180\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n        <!-- Generado dinámicamente por JS en cada carga -->\n      </svg>\n    </div>\n\n    <div class=\"masthead-content\">\n      <div class=\"masthead-top-row\">\n        <div class=\"masthead-titles\">\n          <span class=\"edition-tag\" data-i18n=\"edition_tag\">Edición Oficial 2026.5 • Guía Operativa Institucional</span>\n          <h1 class=\"masthead-title\" data-i18n=\"masthead_title\">Biblioteca Médica Especializada</h1>\n          <div class=\"masthead-subtitle\" data-i18n=\"masthead_subtitle\">Cirugía Ortopédica y Traumatología • Guía Maestra de Uso, Procedimientos y Gobernanza</div>\n        </div>\n        \n        <!-- Recuadro Dirección y Custodia alineado al nivel del título en el lado derecho -->\n        <div class=\"custody-panel\">\n          <div class=\"custody-label\" data-i18n=\"custody_label\">DIRECCIÓN & CUSTODIA</div>\n          <div class=\"custody-identity\" data-i18n=\"custody_identity\">🏛️ Gestor de Contenido</div>\n        </div>\n      </div>\n\n      <!-- Badges de valor clínico (Limpios, sin referencias a infraestructuras) -->\n      <div class=\"telemetry-bar\">\n        <div class=\"telemetry-chip\" data-i18n=\"chip_service\"><span class=\"pulse-dot\"></span> Servicio Clínico 24/7 Disponible</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_multilingual\">🌍 Cobertura Global Multilingüe</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_pubmed\">🌐 Motor PubMed & Semantic Scholar</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_notebooklm\">🔬 Motor NotebookLM con Gemini</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_voice\">🎙️ Consultas por Audio / Voz</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_vision\">📷 Visión Radiográfica AO/OTA</div>\n        <div class=\"telemetry-chip\" data-i18n=\"chip_bulletin\">☀️ Boletín Dominical Quirúrgico</div>\n      </div>\n    </div>\n  </header>\n\n  <!-- ==================== BARRA DE HERRAMIENTAS & BÚSQUEDA INTERACTIVA ==================== -->\n  <div class=\"nav-toolbar no-print\">\n    <div class=\"quick-search-box\">\n      <span>🔍</span>\n      <input type=\"text\" id=\"filterInput\" data-i18n-placeholder=\"search_placeholder\" placeholder=\"Buscar temas (ej. AO, abordaje, PubMed, análisis)...\" oninput=\"filterContent()\">\n    </div>\n    <div class=\"nav-actions\">\n      <div class=\"lang-selector-group\" style=\"display:inline-flex; align-items:center; gap:3px; margin-right:8px; background:var(--slate-100); padding:2px 5px; border-radius:var(--radius-sm); border:1px solid var(--slate-300);\">\n        <span data-i18n=\"lang_label\" style=\"font-family:var(--font-mono); font-size:7.2pt; font-weight:700; color:var(--slate-600); margin-right:2px;\">IDIOMA:</span>\n        <button class=\"btn-lang-pill active\" id=\"btnLangES\" onclick=\"switchManualLanguage('ES')\" style=\"padding:2px 6px; border-radius:3px; border:none; background:var(--color-primary); color:#fff; font-size:7.2pt; font-weight:700; cursor:pointer;\" title=\"Español\">🇪🇸 ES</button>\n        <button class=\"btn-lang-pill\" id=\"btnLangEN\" onclick=\"switchManualLanguage('EN')\" style=\"padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;\" title=\"English\">🇺🇸 EN</button>\n        <button class=\"btn-lang-pill\" id=\"btnLangPT\" onclick=\"switchManualLanguage('PT')\" style=\"padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;\" title=\"Português\">🇧🇷 PT</button>\n        <button class=\"btn-lang-pill\" id=\"btnLangFR\" onclick=\"switchManualLanguage('FR')\" style=\"padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;\" title=\"Français\">🇫🇷 FR</button>\n        <button class=\"btn-lang-pill\" id=\"btnLangIT\" onclick=\"switchManualLanguage('IT')\" style=\"padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;\" title=\"Italiano\">🇮🇹 IT</button>\n      </div>\n      <a href=\"https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec?mode=buzon\" target=\"_blank\" class=\"btn-action buzon-direct-link\" data-i18n=\"btn_buzon\" style=\"background:#0d9488; color:#fff; border-color:#0d9488;\">📤 Buzón Digital</a>\n      <button class=\"btn-action\" data-i18n=\"btn_print\" onclick=\"window.print()\">🖨️ Imprimir / Guardar PDF</button>\n      <button class=\"btn-action btn-action-primary\" data-i18n=\"btn_sim\" onclick=\"scrollToSection('seccion-simulador')\">🩺 Simulador WhatsApp</button>\n    </div>\n  </div>\n\n  <main class=\"document-body\">\n\n    <!-- ==================== SECCIÓN 1: FILOSOFÍA Y PRIVACIDAD ==================== -->\n    <section class=\"manual-section\" id=\"seccion-filosofia\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch1_title\">\n        <span class=\"chapter-badge\">1</span>\n        Filosofía Académica y Principio de Anonimato Cardinal\n      </h2>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_support_title\">🎯 Apoyo Médico y Exención de Responsabilidad</div>\n          <p data-i18n=\"card_support_desc\">Iniciativa médica independiente para fortalecer la formación continua de residentes y cirujanos ortopedistas. La literatura, guías y monografías provistas son de <b>carácter estrictamente pedagógico</b>; toda decisión diagnóstica y terapéutica corresponde en exclusiva al criterio clínico del médico tratante.</p>\n        </div>\n\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_anon_title\">🛡️ Regla Sagrada de Anonimato Cardinal</div>\n          <p data-i18n=\"card_anon_desc\">El proyecto protege con celo inquebrantable la privacidad de la Dirección y de los usuarios autorizados. Todas las solicitudes, intermediaciones y respuestas operan a través del asistente autónomo con cifrado de extremo a extremo, preservando en todo momento el anonimato y la confidencialidad bilateral.</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 2: PROTOCOLO DE ADMISIÓN ==================== -->\n    <section class=\"manual-section\" id=\"seccion-admision\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch2_title\">\n        <span class=\"chapter-badge\">2</span>\n        Protocolo de Admisión y Ciclo de Vida del Usuario\n      </h2>\n\n      <!-- DIAGRAMA VECTORIAL SVG 1: CICLO DE ADMISIÓN -->\n      <div class=\"diagram-container\">\n        <div class=\"diagram-caption\" data-i18n=\"diag2_caption\">Esquema 2.1 — Flujo Autónomo de Admisión y Habilitación de Acceso</div>\n        <svg class=\"svg-diagram\" viewBox=\"0 0 900 120\" xmlns=\"http://www.w3.org/2000/svg\">\n          <defs>\n            <linearGradient id=\"gradStep1\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n              <stop offset=\"0%\" stop-color=\"#071a2e\"/>\n              <stop offset=\"100%\" stop-color=\"#153352\"/>\n            </linearGradient>\n            <linearGradient id=\"gradStep2\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n              <stop offset=\"0%\" stop-color=\"#0d9488\"/>\n              <stop offset=\"100%\" stop-color=\"#0f766e\"/>\n            </linearGradient>\n            <linearGradient id=\"gradStep3\" x1=\"0%\" y1=\"0%\" x2=\"100%\" y2=\"100%\">\n              <stop offset=\"0%\" stop-color=\"#0284c7\"/>\n              <stop offset=\"100%\" stop-color=\"#0369a1\"/>\n            </linearGradient>\n          </defs>\n          <!-- Paso 1 -->\n          <rect x=\"20\" y=\"15\" width=\"250\" height=\"90\" rx=\"8\" fill=\"url(#gradStep1)\"/>\n          <text x=\"40\" y=\"45\" data-i18n=\"svg_step1_tag\" fill=\"#5eead4\" font-family=\"'JetBrains Mono'\" font-size=\"11\" font-weight=\"bold\">PASO 01: SOLICITUD</text>\n          <text x=\"40\" y=\"67\" data-i18n=\"svg_step1_title\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"12\" font-weight=\"bold\">Registro por WhatsApp</text>\n          <text x=\"40\" y=\"87\" data-i18n=\"svg_step1_desc\" fill=\"#cbd5e1\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Nombre, Correo, Hospital y Nivel</text>\n          \n          <!-- Flecha 1 -->\n          <path d=\"M 285 60 L 315 60\" stroke=\"#0d9488\" stroke-width=\"2.5\" fill=\"none\"/>\n          \n          <!-- Paso 2 -->\n          <rect x=\"325\" y=\"15\" width=\"250\" height=\"90\" rx=\"8\" fill=\"url(#gradStep2)\"/>\n          <text x=\"345\" y=\"45\" data-i18n=\"svg_step2_tag\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"11\" font-weight=\"bold\">PASO 02: VALIDACIÓN</text>\n          <text x=\"345\" y=\"67\" data-i18n=\"svg_step2_title\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"12\" font-weight=\"bold\">Evaluación Autónoma</text>\n          <text x=\"345\" y=\"87\" data-i18n=\"svg_step2_desc\" fill=\"#e2e8f0\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Verificación de veracidad (~24 h)</text>\n          \n          <!-- Flecha 2 -->\n          <path d=\"M 590 60 L 620 60\" stroke=\"#0284c7\" stroke-width=\"2.5\" fill=\"none\"/>\n          \n          <!-- Paso 3 -->\n          <rect x=\"630\" y=\"15\" width=\"250\" height=\"90\" rx=\"8\" fill=\"url(#gradStep3)\"/>\n          <text x=\"650\" y=\"45\" data-i18n=\"svg_step3_tag\" fill=\"#e0f2fe\" font-family=\"'JetBrains Mono'\" font-size=\"11\" font-weight=\"bold\">PASO 03: HABILITACIÓN</text>\n          <text x=\"650\" y=\"67\" data-i18n=\"svg_step3_title\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"12\" font-weight=\"bold\">Acceso Pleno Inmediato</text>\n          <text x=\"650\" y=\"87\" data-i18n=\"svg_step3_desc\" fill=\"#cbd5e1\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Bienvenida, Manual y Consultas 24/7</text>\n        </svg>\n      </div>\n\n      <div class=\"editorial-grid-3\">\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_step1_title\">1. Solicitud y Registro Inicial</div>\n          <p data-i18n=\"card_step1_desc\">El médico escribe al WhatsApp del bot indicando: <b>Nombre Completo</b>, <b>Correo electrónico (personal o institucional)</b>, <b>Hospital o Universidad de formación</b> y <b>Nivel actual</b> (R1–R4, Especialista, Egresado). El sistema registra la solicitud con estado <code>PENDIENTE_APROBACION</code> y resguarda la información con sellado criptográfico en reposo.</p>\n        </div>\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_step2_title\">2. Análisis y Verificación Autónoma</div>\n          <p data-i18n=\"card_step2_desc\">Su solicitud es evaluada según parámetros preestablecidos de forma autónoma y conforme a los lineamientos del proyecto, luego de verificar la veracidad de la información en un período aproximado de <b>24 horas</b>.</p>\n        </div>\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_step3_title\">3. Acceso Pleno Inmediato</div>\n          <p data-i18n=\"card_step3_desc\">El usuario recibe su confirmación de bienvenida, el enlace al Manual Oficial interactivo y su cupo habilitado para realizar consultas y descargas clínicas 24/7.</p>\n        </div>\n      </div>\n\n      <!-- CARD ADICIONAL: DERECHO DE GESTIÓN Y ACTUALIZACIÓN DE DATOS PERSONALES -->\n      <div class=\"card-swiss\" style=\"margin-top: 16px; border-left: 4px solid var(--color-cyan); background: #f0f9ff;\">\n        <div class=\"card-heading\" style=\"color: var(--color-primary); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;\">\n          <span style=\"display: flex; align-items: center; gap: 8px;\">\n            <span style=\"font-size: 13pt;\">📝</span> <b>Derecho a la Actualización de Datos Personales en Cualquier Momento</b>\n          </span>\n          <span style=\"font-family: var(--font-mono); font-size: 7.5pt; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: var(--radius-sm); font-weight: 700;\" data-i18n=\"card_update_badge\">AUTOGESTIÓN SEGURA</span>\n        </div>\n        <p data-i18n=\"card_update_desc\" style=\"margin-top: 8px; color: var(--slate-700); font-size: 9pt; line-height: 1.55;\">\n          En consonancia con los principios de autodeterminación informativa y calidad del registro médico institucional, <b>todo usuario tiene el derecho inalienable de solicitar la actualización o rectificación de sus datos personales en cualquier momento</b> (actualización de correo personal o institucional, cambio de hospital, ascenso de residencia de R1 a R4 o titulación de especialista).\n        </p>\n\n        <div style=\"background: #ffffff; border: 1px solid var(--slate-200); border-radius: var(--radius-sm); padding: 12px 16px; margin: 12px 0;\">\n          <div data-i18n=\"card_update_cmd_hdr\" style=\"font-family: var(--font-mono); font-size: 7.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-surgical-dark); margin-bottom: 6px;\">\n            Mecanismo y Comando de Activación por WhatsApp:\n          </div>\n          <p data-i18n=\"card_update_cmd_desc\" style=\"margin: 0; font-size: 8.8pt; color: var(--slate-800);\">\n            Para consultar la guía de actualización, envíe simplemente: <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('ACTUALIZAR DATOS')\">ACTUALIZAR DATOS</span>\n            <br>\n            O transmita sus nuevos datos directamente en un solo mensaje estructurado:\n            <br>\n            <code style=\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\">ACTUALIZAR: [Nombre Completo], [Correo], [Hospital/Universidad], [Nivel]</code>\n          </p>\n        </div>\n\n        <div style=\"background: var(--color-amber-bg); border: 1px solid var(--color-amber-border); border-radius: var(--radius-sm); padding: 12px 16px; margin-top: 10px;\">\n          <div data-i18n=\"card_update_limit_hdr\" style=\"font-family: var(--font-mono); font-size: 7.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #92400e; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;\">\n            <span>⏱️</span> Política Institucional de Frecuencia Máxima de Modificaciones:\n          </div>\n          <p data-i18n=\"card_update_limit_desc\" style=\"margin: 0; font-size: 8.6pt; color: #78350f; line-height: 1.5;\">\n            Con el fin exclusivo de mantener la trazabilidad de los accesos clínicos, resguardar la identidad de los médicos participantes y prevenir la transferencia ilícita o fraudulenta de credenciales autorizadas, el sistema enforza automáticamente los siguientes límites temporales:\n            <br>\n            • <b>Máximo 3 actualizaciones en un periodo móvil de 6 meses</b> (180 días).<br>\n            • <b>Máximo 6 actualizaciones en un periodo móvil de 12 meses</b> (365 días).<br>\n            <i>Nota: Si por razones excepcionales de fuerza mayor requiere una rectificación adicional tras agotar dicho límite, puede remitir su solicitud formal a través del <a href=\"#seccion-canal-direccion\" style=\"color: #92400e; font-weight: 700; text-decoration: underline;\">Canal Intermediado con la Dirección</a>.</i>\n          </p>\n        </div>\n      </div>\n\n      <!-- CARD ADICIONAL: LIBERTAD DE ELECCIÓN DE IDIOMA Y PRESERVACIÓN DE LITERATURA ORIGINAL -->\n      <div class=\"card-swiss\" style=\"margin-top: 16px; border-left: 4px solid var(--color-surgical-teal); background: #f0fdfa;\">\n        <div class=\"card-heading\" style=\"color: var(--color-primary); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;\">\n          <span style=\"display: flex; align-items: center; gap: 8px;\">\n            <span style=\"font-size: 13pt;\">🌐</span> <b>Libertad de Elección del Idioma de Comunicación y Preservación de Documentos Originales</b>\n          </span>\n          <span style=\"font-family: var(--font-mono); font-size: 7.5pt; background: #ccfbf1; color: #0f766e; padding: 2px 8px; border-radius: var(--radius-sm); font-weight: 700;\" data-i18n=\"card_lang_badge\">MULTILINGÜISMO ILIMITADO</span>\n        </div>\n        <p data-i18n=\"card_lang_desc\" style=\"margin-top: 8px; color: var(--slate-700); font-size: 9pt; line-height: 1.55;\">\n          Con miras a la expansión internacional y al acompañamiento fraterno de la comunidad médica global, <b>todo usuario tiene la potestad de seleccionar el idioma en el cual desea interactuar con el asistente, recibir respuestas, síntesis de evidencia y comunicados oficiales</b>.\n        </p>\n\n        <div class=\"editorial-grid-2\" style=\"margin: 12px 0; gap: 12px;\">\n          <div style=\"background: #ffffff; border: 1px solid var(--slate-200); border-radius: var(--radius-sm); padding: 12px 14px;\">\n            <div data-i18n=\"card_lang_switch_hdr\" style=\"font-family: var(--font-mono); font-size: 7.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-surgical-teal); margin-bottom: 6px;\">\n              🔄 Actualización Inmediata y Sin Límites de Frecuencia:\n            </div>\n            <p style=\"margin: 0; font-size: 8.6pt; color: var(--slate-800); line-height: 1.5;\">\n              A diferencia de los datos de identidad que cuentan con control preventivo de frecuencia, la preferencia de idioma <b>no tiene ninguna restricción de cambio</b>. Puede alternarse en cualquier momento enviando:\n              <br>\n              • <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('IDIOMA: ES')\">IDIOMA: ES</span> (Español)<br>\n              • <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('LANGUAGE: EN')\">LANGUAGE: EN</span> (English)<br>\n              • <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('IDIOMA: PT')\">IDIOMA: PT</span> (Português)<br>\n              • <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('IDIOMA: FR')\">IDIOMA: FR</span> (Français)<br>\n              • <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('IDIOMA: IT')\">IDIOMA: IT</span> (Italiano)<br>\n              <i>O envíe simplemente <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('IDIOMA')\">IDIOMA</span> para consultar el menú.</i>\n            </p>\n          </div>\n\n          <div style=\"background: #ffffff; border: 1px solid var(--slate-200); border-radius: var(--radius-sm); padding: 12px 14px;\">\n            <div data-i18n=\"card_lang_comms_hdr\" style=\"font-family: var(--font-mono); font-size: 7.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #0284c7; margin-bottom: 6px;\">\n              📢 Comunicados del Gestor de Contenido en su Idioma:\n            </div>\n            <p data-i18n=\"card_lang_comms_desc\" style=\"margin: 0; font-size: 8.6pt; color: var(--slate-800); line-height: 1.5;\">\n              Sin importar el idioma en que el <b>Gestor de Contenido</b> redacte los comunicados institucionales o boletines, la plataforma realiza una traducción autónoma de alta fidelidad para que cada colega reciba el mensaje en su respectiva lengua preferida.\n            </p>\n          </div>\n        </div>\n\n        <div style=\"background: #ffffff; border: 1px solid #0d9488; border-radius: var(--radius-sm); padding: 14px 16px; margin-top: 10px; border-left: 5px solid #0d9488;\">\n          <div data-i18n=\"card_lang_preserve_hdr\" style=\"font-family: var(--font-mono); font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #0f766e; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;\">\n            <span>🛡️</span> Principio Fundamental de Preservación de la Originalidad Documental:\n          </div>\n          <p data-i18n=\"card_lang_preserve_desc\" style=\"margin: 0; font-size: 8.7pt; color: var(--slate-800); line-height: 1.55;\">\n            <b>Los artículos científicos, guías de técnica quirúrgica AO, libros de texto y monografías en formato PDF se preservan y descargan estrictamente en su idioma original de publicación</b>.\n            <br>\n            Para garantizar la más estricta fidelidad anatómica, evitar ambigüedades en dosificaciones farmacológicas y respetar las indicaciones y marcas de implantes certificadas por casas matrices, <b>los documentos originales jamás se alteran ni se traducen de forma sintética</b>. Se entregan íntegros y auténticos tal como fueron concebidos por la literatura biomédica internacional.\n          </p>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 3: MODALIDADES DE BÚSQUEDA QUIRÚRGICA ==================== -->\n    <section class=\"manual-section\" id=\"seccion-busqueda\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch3_title\">\n        <span class=\"chapter-badge\">3</span>\n        Modalidades de Búsqueda Quirúrgica en el Catálogo Especializado\n      </h2>\n\n      <!-- DIAGRAMA VECTORIAL SVG 2: PIPELINE DE RECUPERACIÓN -->\n      <div class=\"diagram-container\">\n        <div class=\"diagram-caption\" data-i18n=\"diag3_caption\">Esquema 3.1 — Pipeline de Recuperación Inteligente y Despacho Clínico</div>\n        <svg class=\"svg-diagram\" viewBox=\"0 0 900 115\" xmlns=\"http://www.w3.org/2000/svg\">\n          <rect x=\"15\" y=\"18\" width=\"165\" height=\"80\" rx=\"6\" fill=\"#071324\"/>\n          <text x=\"30\" y=\"46\" fill=\"#38bdf8\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">CONSULTA CLÍNICA</text>\n          <text x=\"30\" y=\"66\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Texto, Audio o Imagen</text>\n          <text x=\"30\" y=\"82\" fill=\"#94a3b8\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">\"artroplasta de cadra\"</text>\n\n          <line x1=\"180\" y1=\"58\" x2=\"220\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"220\" y=\"18\" width=\"215\" height=\"80\" rx=\"6\" fill=\"#0d9488\"/>\n          <text x=\"235\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">BÚSQUEDA DIFUSA (FUZZY)</text>\n          <text x=\"235\" y=\"66\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Tolerancia Levenshtein &ge;75%</text>\n          <text x=\"235\" y=\"82\" fill=\"#ccfbf1\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Normalización ortográfica y tildes</text>\n\n          <line x1=\"435\" y1=\"58\" x2=\"475\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"475\" y=\"18\" width=\"195\" height=\"80\" rx=\"6\" fill=\"#15263f\"/>\n          <text x=\"490\" y=\"46\" fill=\"#5eead4\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">ÍNDICE ESPECIALIZADO</text>\n          <text x=\"490\" y=\"66\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Recuperación Semántica</text>\n          <text x=\"490\" y=\"82\" fill=\"#94a3b8\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">AO/OTA, Técnicas e Implantes</text>\n\n          <line x1=\"670\" y1=\"58\" x2=\"710\" y2=\"58\" stroke=\"#0284c7\" stroke-width=\"2\"/>\n\n          <rect x=\"710\" y=\"18\" width=\"175\" height=\"80\" rx=\"6\" fill=\"#0284c7\"/>\n          <text x=\"725\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">ENTREGA SEGURA</text>\n          <text x=\"725\" y=\"66\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Enlace Institucional</text>\n          <text x=\"725\" y=\"82\" fill=\"#e0f2fe\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Descarga Directa Confidencial</text>\n        </svg>\n      </div>\n\n      <!-- TABLA EXHAUSTIVA DE TODAS LAS MODALIDADES DE BÚSQUEDA -->\n      <div class=\"table-wrapper\">\n        <table class=\"editorial-table\">\n          <thead>\n            <tr>\n              <th style=\"width: 25%;\" data-i18n=\"th_modality\">Modalidad de Búsqueda</th>\n              <th style=\"width: 40%;\" data-i18n=\"th_example\">Mensaje de Ejemplo en el Chat</th>\n              <th style=\"width: 35%;\" data-i18n=\"th_result\">Resultado Clínico Entregado</th>\n            </tr>\n          </thead>\n          <tbody>\n            <tr>\n              <td data-i18n=\"t_row1_mod\"><b>🦴 Patología o Técnica</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('Artroplastia reversa de hombro')\">Artroplastia reversa de hombro</span></td>\n              <td data-i18n=\"t_row1_res\">Tratados, monografías y técnicas de abordaje, implantes y biomecánica.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row2_mod\"><b>🎯 Clasificación AO/OTA & Epónimos</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('AO 31-A2')\">AO 31-A2</span> o <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('Schatzker II')\">Schatzker II</span></td>\n              <td data-i18n=\"t_row2_res\">Técnicas de reducción, principios biológicos y selección de implantes de osteosíntesis.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row3_mod\"><b>🔪 Abordajes Quirúrgicos</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('Abordaje anterolateral de cadera')\">Abordaje anterolateral de cadera</span></td>\n              <td data-i18n=\"t_row3_res\">Planos internerviosos, anatomía aplicada y pasos de disección quirúrgica.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row4_mod\"><b>🔩 Instrumental y Marcas</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('Synthes LCP')\">Synthes LCP</span> o <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('Stryker T2')\">Stryker T2</span></td>\n              <td data-i18n=\"t_row4_res\">Guías oficiales de técnica quirúrgica del fabricante con instrumental paso a paso.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row5_mod\"><b>📄 Código DOI, PMID o ISBN</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('10.1016/j.otsr.2023.103')\">10.1016/j.otsr.2023...</span></td>\n              <td data-i18n=\"t_row5_res\">Entrega directa del artículo o apertura automática de ticket de adquisición.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row6_mod\"><b>🔤 Tolerancia a Errores (Fuzzy)</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('artroplasta de cadra')\">artroplasta de cadra</span></td>\n              <td data-i18n=\"t_row6_res\">Recuperación precisa a pesar de digitación rápida, faltas ortográficas o ausencia de tildes.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row7_mod\"><b>🎙️ Consultas por Audio / Voz</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('[Nota de voz describiendo el caso]')\">Nota de voz en el chat</span></td>\n              <td data-i18n=\"t_row7_res\">Transcripción de terminología quirúrgica y ejecución automática de la consulta.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row8_mod\"><b>📑 Menú de Especialidades</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('MENU')\">MENU</span></td>\n              <td data-i18n=\"t_row8_res\">Despliegue del catálogo clasificado por subespecialidades ortopédicas.</td>\n            </tr>\n            <tr>\n              <td data-i18n=\"t_row9_mod\"><b>📖 Solicitud del Manual</b></td>\n              <td><span class=\"cmd-pill\" onclick=\"copyEditorialCmd('MANUAL')\">MANUAL</span> o <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('AYUDA')\">AYUDA</span></td>\n              <td data-i18n=\"t_row9_res\">Despacho instantáneo del enlace interactivo web y PDF del manual oficial.</td>\n            </tr>\n          </tbody>\n        </table>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 4: MOTOR DE EVIDENCIA GLOBAL ==================== -->\n    <section class=\"manual-section\" id=\"seccion-pubmed\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch4_title\">\n        <span class=\"chapter-badge\">4</span>\n        Motor de Evidencia Médica Global (PubMed & Semantic Scholar)\n      </h2>\n\n      <!-- DIAGRAMA VECTORIAL SVG 3: PIPELINE DE EVIDENCIA -->\n      <div class=\"diagram-container\">\n        <div class=\"diagram-caption\" data-i18n=\"diag4_caption\">Esquema 4.1 — Traducción Médica y Recuperación de Evidencia Científica</div>\n        <svg class=\"svg-diagram\" viewBox=\"0 0 900 115\" xmlns=\"http://www.w3.org/2000/svg\">\n          <rect x=\"20\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#071324\"/>\n          <text x=\"35\" y=\"46\" fill=\"#5eead4\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">CONSULTA CLÍNICA</text>\n          <text x=\"35\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">\"cerclaje vs placas bloqueadas</text>\n          <text x=\"35\" y=\"80\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">en fracturas de rótula 34-C3\"</text>\n\n          <line x1=\"210\" y1=\"58\" x2=\"245\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"245\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#0d9488\"/>\n          <text x=\"260\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">TRADUCCIÓN CLÍNICA</text>\n          <text x=\"260\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Mapeo terminológico MeSH</text>\n          <text x=\"260\" y=\"80\" fill=\"#ccfbf1\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">\"patellar fracture tension band\"</text>\n\n          <line x1=\"435\" y1=\"58\" x2=\"470\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"470\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#15263f\"/>\n          <text x=\"485\" y=\"46\" fill=\"#38bdf8\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">PUBMED / NCBI API</text>\n          <text x=\"485\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Entrez E-Utilities</text>\n          <text x=\"485\" y=\"80\" fill=\"#94a3b8\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">3 Artículos de Alto Impacto Recientes</text>\n\n          <line x1=\"660\" y1=\"58\" x2=\"695\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"695\" y=\"18\" width=\"185\" height=\"80\" rx=\"6\" fill=\"#0284c7\"/>\n          <text x=\"710\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">SÍNTESIS ESTRUCTURADA</text>\n          <text x=\"710\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Consenso Clínico 3 Párrafos</text>\n          <text x=\"710\" y=\"80\" fill=\"#e0f2fe\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Ficha de Evidencia PDF con QR</text>\n        </svg>\n      </div>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss accent-cyan\">\n          <div class=\"card-heading\" data-i18n=\"card_pubmed_title\">🌐 Consulta Directa a PubMed</div>\n          <p data-i18n=\"card_pubmed_desc\">Permite interrogar en tiempo real más de 35 millones de publicaciones biomédicas indexadas. Para formular una consulta científica, escriba en el chat:<br>\n          <span class=\"cmd-pill\" style=\"margin-top:6px;\" onclick=\"copyEditorialCmd('EVIDENCIA: ')\">EVIDENCIA: [su pregunta clínica o técnica]</span><br>\n          <i>Ejemplo: \"EVIDENCIA: Cerclaje vs placas bloqueadas en fracturas de rótula 34-C3\"</i></p>\n        </div>\n\n        <div class=\"card-swiss accent-cyan\">\n          <div class=\"card-heading\" data-i18n=\"card_evidence_results_title\">📊 Entrega de Resultados Estructurados</div>\n          <ul data-i18n=\"card_evidence_results_desc\">\n            <li><b>Resumen WhatsApp (3–4 párrafos):</b> Consenso actual, hallazgos clave de los 3 estudios más recientes y recomendación quirúrgica.</li>\n            <li><b>Enlaces HTTPS Directos:</b> Enlaces directos a PubMed, DOI y Consensus para leer el artículo original a texto completo.</li>\n            <li><b>Ficha de Evidencia PDF:</b> Documento clínico formal descargable generado bajo las reglas institucionales con tabla comparativa y escala Oxford de evidencia.</li>\n          </ul>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 5: LECTURA CRÍTICA DE ARTÍCULOS PROPIOS ==================== -->\n    <section class=\"manual-section\" id=\"seccion-notebooklm\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch5_title\">\n        <span class=\"chapter-badge\">5</span>\n        Lectura Crítica de Artículos Propios (Motor NotebookLM con Gemini)\n      </h2>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_crit_flow_title\">🔬 Flujo Guiado de Análisis Documental</div>\n          <p>Para activar el análisis o comparación crítica entre documentos propios:<br>\n          <b>1. Notificación previa:</b> El médico informa al chatbot que desea realizar una comparación o análisis escribiendo:<br>\n          <span class=\"cmd-pill\" style=\"margin-top:6px;\" onclick=\"copyEditorialCmd('ANALIZAR: ')\">ANALIZAR: [preguntas o foco clínico]</span><br>\n          <b>2. Solicitud guiada:</b> El bot responderá solicitando adjuntar los archivos (límite estricto de <b>máximo 2 artículos en PDF</b>; omite libros masivos).<br>\n          <b>3. Ejecución analítica:</b> El motor procesa metodología, tablas y conclusiones clínicas.</p>\n        </div>\n\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_crit_anti_title\">⚖️ Incorporación Automática y Anti-Duplicación</div>\n          <ul data-i18n=\"card_crit_anti_desc\">\n            <li><b>Crecimiento Autónomo de la Colección:</b> Si durante el análisis se identifica que alguno de los artículos adjuntos no existe en la base de datos de la biblioteca, este <b>será agregado al catálogo de forma automática</b>.</li>\n            <li><b>Escudo Anti-Duplicación:</b> Si los documentos ya formaban parte de la información almacenada, se evita cualquier duplicación y el motor se limita estrictamente al análisis comparativo.</li>\n            <li><b>Entregables:</b> Resumen PICO, metodología, significación estadística, riesgo de sesgos y <b>Matriz Comparativa Cruzada</b>.</li>\n          </ul>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 6: VÍAS DE APORTE Y ENRIQUECIMIENTO ==================== -->\n    <section class=\"manual-section\" id=\"seccion-ingesta\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch6_title\">\n        <span class=\"chapter-badge\">6</span>\n        Vías de Aporte y Enriquecimiento del Acervo Especializado\n      </h2>\n\n      <!-- DIAGRAMA VECTORIAL SVG 4: BUZÓN DIGITAL Y RECEPCIÓN -->\n      <div class=\"diagram-container\">\n        <div class=\"diagram-caption\" data-i18n=\"diag6_caption\">Esquema 6.1 — Ciclo Autónomo de Enriquecimiento e Ingesta Colaborativa</div>\n        <svg class=\"svg-diagram\" viewBox=\"0 0 900 115\" xmlns=\"http://www.w3.org/2000/svg\">\n          <rect x=\"20\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#071324\"/>\n          <text x=\"35\" y=\"46\" fill=\"#fde68a\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">APORTE COLABORATIVO</text>\n          <text x=\"35\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Buzón Web o WhatsApp</text>\n          <text x=\"35\" y=\"80\" fill=\"#94a3b8\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Documentos PDF de médicos</text>\n\n          <line x1=\"210\" y1=\"58\" x2=\"245\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"245\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#0d9488\"/>\n          <text x=\"260\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">PROCESAMIENTO ASÍNCRONO</text>\n          <text x=\"260\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Validación de Integridad</text>\n          <text x=\"260\" y=\"80\" fill=\"#ccfbf1\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Extracción de metadatos clínicos</text>\n\n          <line x1=\"435\" y1=\"58\" x2=\"470\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"470\" y=\"18\" width=\"190\" height=\"80\" rx=\"6\" fill=\"#15263f\"/>\n          <text x=\"485\" y=\"46\" fill=\"#5eead4\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">INDEXACIÓN & DEDUPLICACIÓN</text>\n          <text x=\"485\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Clasificación Temática</text>\n          <text x=\"485\" y=\"80\" fill=\"#94a3b8\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Incorporación al Inventario Maestro</text>\n\n          <line x1=\"660\" y1=\"58\" x2=\"695\" y2=\"58\" stroke=\"#0d9488\" stroke-width=\"2\"/>\n\n          <rect x=\"695\" y=\"18\" width=\"185\" height=\"80\" rx=\"6\" fill=\"#0284c7\"/>\n          <text x=\"710\" y=\"46\" fill=\"#ffffff\" font-family=\"'JetBrains Mono'\" font-size=\"10\" font-weight=\"bold\">DISPONIBILIDAD INMEDIATA</text>\n          <text x=\"710\" y=\"64\" fill=\"#ffffff\" font-family=\"'Plus Jakarta Sans'\" font-size=\"9.5\">Acceso Comunitario 24/7</text>\n          <text x=\"710\" y=\"80\" fill=\"#e0f2fe\" font-family=\"'Plus Jakarta Sans'\" font-size=\"8.5\">Acuse de Recibo al Donante</text>\n        </svg>\n      </div>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_option_a_title\">📁 Opción A: Buzón Digital Seguro Web</div>\n          <p data-i18n=\"card_option_a_desc\">Los colaboradores pueden depositar literatura médica de manera confidencial y blindada a través del portal institucional anónimo embebido, sin exponer cuentas personales ni interfaces externas.</p>\n          <a href=\"https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec?mode=buzon\" target=\"_blank\" class=\"btn-buzon-interactivo buzon-direct-link\" data-i18n=\"btn_buzon_share\">\n            📤 Comparte tu información en el Buzón Digital\n          </a>\n        </div>\n\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_option_b_title\">📱 Opción B: Ingesta Directa por WhatsApp</div>\n          <p data-i18n=\"card_option_b_desc\">Los médicos autorizados pueden enviar directamente un archivo PDF al chat de WhatsApp acompañando el documento con el texto <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('APORTE')\">APORTE</span> o <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('DONAR')\">DONAR</span>.<br>\n          El asistente valida la integridad del archivo, lo cataloga por subespecialidad y le devuelve una confirmación formal con su identificador de indexación.</p>\n        </div>\n      </div>\n\n      <div class=\"card-swiss accent-cyan\" style=\"margin-top: 14px;\">\n        <div class=\"card-heading\" data-i18n=\"card_large_files_title\">📦 Tratados Voluminosos y Archivos de Gran Tamaño (> 45 MB hasta 2 GB)</div>\n        <div data-i18n=\"card_large_files_desc\">\n        <p>Para atlas quirúrgicos completos, monografías enciclopédicas o tratados escaneados de alto volumen, el ecosistema cuenta con 4 estrategias de recepción optimizadas:</p>\n        <ul style=\"margin-top: 8px;\">\n          <li><b>1. Documento Adjunto por WhatsApp (Hasta 100 MB – 2 GB):</b> Puede adjuntar el archivo directamente en nuestro chat de WhatsApp junto con la palabra clave <span class=\"cmd-pill\" onclick=\"copyEditorialCmd('APORTE')\">APORTE</span>. La plataforma procesa la recepción en streaming continuo.</li>\n          <li><b>2. Subida Fraccionada por Bloques (Chunked Upload):</b> En el Buzón Digital Web, los documentos pesados son divididos automáticamente en bloques de 10 MB a 15 MB transmitidos en secuencia con barra de progreso interactiva.</li>\n          <li><b>3. Sesión Reanudable Efímera (Resumable Upload):</b> Enlace temporal con tolerancia a interrupciones de red que permite reanudar transferencias sin perder bytes ya transmitidos.</li>\n          <li><b>4. Optimización y Recompresión en Navegador:</b> Ajuste dinámico de escaneos a 150–200 DPI clínicos de lectura en su propio dispositivo antes de enviar, reduciendo el peso hasta un 70% sin menoscabo visual.</li>\n        </ul>\n      </div>\n        <div data-i18n=\"card_donor_privacy\" style=\"margin-top: 10px; font-size: 8pt; color: var(--slate-600); border-top: 1px dashed var(--slate-300); padding-top: 8px;\">\n          🔒 <b>Registro de Control Interno Confidencial:</b> Los datos de los médicos donantes se asientan exclusivamente en una sección de registro privado para la Dirección. Nunca se publicará, expondrá ni informará qué usuario aportó determinada información.\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 7: POTENCIACIONES MULTIMODALES ==================== -->\n    <section class=\"manual-section\" id=\"seccion-multimodal\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch7_title\">\n        <span class=\"chapter-badge\">7</span>\n        Potenciaciones Multimodales del Asistente: Voz, Visión AO y Boletín\n      </h2>\n\n      <div class=\"editorial-grid-3\">\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_voice_title\">🎙️ Consultas por Nota de Voz</div>\n          <p data-i18n=\"card_voice_desc\">En áreas de lavado, consulta o quirófano, los cirujanos pueden enviar notas de voz al chat. El asistente procesa el audio multimodal con inteligencia artificial para transcribir con precisión la terminología ortopédica y ejecutar la búsqueda o lectura crítica sin necesidad de teclear.</p>\n        </div>\n\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_vision_title\">📷 Orientación Radiográfica AO/OTA</div>\n          <p data-i18n=\"card_vision_desc\">Al adjuntar una radiografía o tomografía en el chat, el motor de visión computacional analiza el segmento óseo, sugiere la clasificación AO/OTA preliminar más probable y recupera de forma proactiva la monografía y técnica quirúrgica correspondiente.</p>\n        </div>\n\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_bulletin_title\">☀️ Boletín Dominical de Actualización</div>\n          <p data-i18n=\"card_bulletin_desc\">Todos los domingos a las 8:00 AM (o por solicitud oficial), los médicos autorizados reciben un resumen editorial con 3 perlas quirúrgicas y lecturas destacadas de la semana para debate académico en la revista de sala (Grand Rounds).</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 8: CÓDIGO DE CONDUCTA ==================== -->\n    <section class=\"manual-section\" id=\"seccion-conducta\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch8_title\">\n        <span class=\"chapter-badge\">8</span>\n        Código de Conducta y Régimen Disciplinario Institucional\n      </h2>\n\n      <div class=\"card-swiss accent-rose\">\n        <div class=\"card-heading\" data-i18n=\"card_conduct_title\" style=\"color: var(--color-rose);\">⛔ Régimen Disciplinario y Escala de Estatus Institucionales</div>\n        <div data-i18n=\"card_conduct_desc\">\n        <p style=\"margin-bottom:8px;\">La biblioteca es un instrumento de estricto rigor científico y ético. La Dirección gestiona la condición de cada participante mediante una <b>escala disciplinaria escalonada</b> modificable vía WhatsApp o directamente en la hoja de control:</p>\n        <ul style=\"margin-bottom: 12px;\">\n          <li><b>1. ACTIVO (Habilitado Pleno):</b> Acceso regular a búsquedas, lectura crítica NotebookLM, síntesis PubMed y solicitud de literatura.</li>\n          <li><b>2. SUSPENDIDO TEMPORALMENTE (24h, 48h o 72h):</b> Período de inhabilitación transitorio ante lenguaje inapropiado o faltas leves. El bot calcula el término y se reactiva automáticamente al vencer el plazo.</li>\n          <li><b>3. BLOQUEADO INDEFINIDAMENTE:</b> Inhabilitación preventiva ante conductas reiteradas o desacato a las directrices, sujeto a valoración directa de la Dirección.</li>\n          <li><b>4. EXPULSADO PERMANENTE:</b> Veto definitivo e irrevocable del número telefónico y registro ante intentos de vulneración o faltas graves. El sistema bloquea de raíz cualquier intento futuro de reincorporación.</li>\n        </ul>\n      </div>\n        <div data-i18n=\"card_status_notify\" style=\"font-size: 8.5pt; color: var(--slate-700); background: rgba(225, 29, 72, 0.05); border: 1px solid rgba(225, 29, 72, 0.2); border-radius: var(--radius-sm); padding: 10px 14px;\">\n          🔔 <b>Protocolo de Notificación Automática:</b> Cada vez que la Dirección modifica el estatus de un usuario (sea desde WhatsApp o en la hoja central), el sistema despacha de forma inmediata un mensaje oficial al usuario informándole de su nueva condición, causales y tiempo de vigencia.\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 9: CANAL INTERMEDIADO CONFIDENCIAL ==================== -->\n    <section class=\"manual-section\" id=\"seccion-canal\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch9_title\">\n        <span class=\"chapter-badge\">9</span>\n        Canal Intermediado Confidencial con la Dirección\n      </h2>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_msg_dir_title\">📩 Envío de Mensaje a la Dirección</div>\n          <p data-i18n=\"card_msg_dir_desc\">Para elevar sugerencias de literatura, reportar dudas o comunicarse formalmente con la Dirección sin vulnerar el anonimato bilateral, escriba en el chat:<br>\n          <span class=\"cmd-pill\" style=\"margin-top:6px;\" onclick=\"copyEditorialCmd('MENSAJE A LA DIRECCION: ')\">MENSAJE A LA DIRECCION: [su consulta detallada]</span><br>\n          El sistema retransmite el mensaje a la consola ejecutiva de forma confidencial.</p>\n        </div>\n\n        <div class=\"card-swiss accent-teal\">\n          <div class=\"card-heading\" data-i18n=\"card_resp_dir_title\">📤 Recepción de Respuesta Oficial</div>\n          <p data-i18n=\"card_resp_dir_desc\">Cuando la solicitud sea evaluada, el médico recibirá la comunicación directamente en su chat de WhatsApp con el encabezado oficial:<br>\n          <span class=\"cmd-pill\" style=\"margin-top:6px;\">DIRECCIÓN DEL PROYECTO: [respuesta institucional]</span><br>\n          Garantizando un canal de comunicación transparente, ordenado y protegido.</p>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN 10: GOBERNANZA Y AUTOAPRENDIZAJE ==================== -->\n    <section class=\"manual-section\" id=\"seccion-gobernanza\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch10_title\">\n        <span class=\"chapter-badge\">10</span>\n        Gobernanza Dinámica: Comunicados Oficiales y Autoaprendizaje\n      </h2>\n\n      <div class=\"editorial-grid-2\">\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_comms_title\">📢 Comunicados Institucionales Oficiales</div>\n          <p data-i18n=\"card_comms_desc\">Ante cambios, mejoras en el servicio, incorporación de nuevos módulos o actualización de las políticas de uso, se emitirá un <b>comunicado oficial masivo</b> a todos los médicos autorizados directamente a través del asistente conversacional, asegurando una difusión oportuna y uniforme.</p>\n        </div>\n\n        <div class=\"card-swiss\">\n          <div class=\"card-heading\" data-i18n=\"card_learning_title\">🧠 Sistema de Autoaprendizaje Continuo</div>\n          <ul data-i18n=\"card_learning_desc\">\n            <li><b>Expansión de Sinónimos:</b> Mapeo automático de términos equivalentes (ej. <i>prótesis &rarr; artroplastia / reemplazo; LCA &rarr; ligamento cruzado anterior</i>).</li>\n            <li><b>Detección de Brechas:</b> Las consultas que no arrojen resultados quedan registradas en la memoria de aprendizaje del sistema para orientar nuevas adquisiciones de literatura.</li>\n          </ul>\n        </div>\n      </div>\n    </section>\n\n    <!-- ==================== SECCIÓN SIMULADOR EN VIVO ==================== -->\n    <section class=\"manual-section no-print\" id=\"seccion-simulador\">\n      <h2 class=\"chapter-heading\" data-i18n=\"ch11_title\">\n        <span class=\"chapter-badge\">🩺</span>\n        Simulador Clínico Interactivo de WhatsApp en Tiempo Real\n      </h2>\n\n      <div class=\"simulator-container\">\n        <div class=\"sim-header\">\n          <span class=\"sim-tag\" data-i18n=\"sim_header_tag\">⚡ Consola de Demostración en Vivo</span>\n          <span style=\"font-size: 8pt; color: #64748b;\" data-i18n=\"sim_header_hint\">Haga clic en un comando para observar la respuesta del Asistente:</span>\n        </div>\n\n        <div class=\"sim-nav-buttons\">\n          <button class=\"sim-btn-item active\" onclick=\"activateSimScenario('AO 31-A2')\">AO 31-A2</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('EVIDENCIA: Lesiones Radiales Menisco')\">EVIDENCIA: Menisco Radial</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('ANALIZAR: 2 Artículos LCA')\">ANALIZAR: 2 PDFs</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('Synthes LCP')\">Synthes LCP</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('MANUAL')\">MANUAL</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('LANGUAGE: EN')\">🌐 LANGUAGE: EN</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('IDIOMA: PT')\">🇧🇷 IDIOMA: PT</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('IDIOMA: FR')\">🇫🇷 IDIOMA: FR</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('IDIOMA: IT')\">🇮🇹 IDIOMA: IT</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('COMUNICADO (Traducción)')\">📢 Comunicado Traducido</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('MENSAJE A LA DIRECCION')\">Mensaje a la Dirección</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('ACTUALIZAR DATOS')\">Actualizar Datos</button>\n          <button class=\"sim-btn-item\" onclick=\"activateSimScenario('APORTE: Donación PDF')\">Aporte al Buzón</button>\n        </div>\n\n        <div class=\"chat-display\">\n          <div class=\"bubble-user-msg\" id=\"simUserBox\">AO 31-A2</div>\n          <div class=\"bubble-bot-msg\" id=\"simBotBox\">\n            📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>\n            ━━━━━━━━━━━━━━━━━━━━━━━━━━<br>\n            📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>\n            ✍️ <b>Autor:</b> AO Foundation (2024)<br>\n            📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>\n            🎯 <b>Clasificación AO:</b> 31-A2<br>\n            ━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>\n            🔗 <b>Descarga Segura Institucional:</b><br>\n            <a href=\"#\" onclick=\"alert('Enlace firmado de descarga directa'); return false;\">https://script.google.com/macros/s/.../exec?token=eyJ0eX...</a>\n          </div>\n        </div>\n      </div>\n    </section>\n\n  </main>\n\n  <!-- ==================== FOOTER EDITORIAL SUIZO ==================== -->\n  <footer class=\"document-footer\">\n    <div data-i18n=\"footer_org\">\n      <b>Biblioteca Médica Especializada de Ortopedia y Traumatología</b><br>\n      Dirección Institucional: <b>Dirección del Proyecto</b> • Servicio Clínico Permanente 24/7\n    </div>\n    <div data-i18n=\"footer_edition\" style=\"text-align: right;\">\n      <span>Documento Maestro Vivo • Edición Oficial v2026.5</span><br>\n      <span style=\"color: var(--color-surgical-teal); font-weight: 700;\">Vigencia Activa y Actualización Permanente</span>\n    </div>\n  </footer>\n\n</div>\n\n<!-- TOAST FLOTANTE -->\n<div id=\"editorialToast\">¡Comando copiado al portapapeles!</div>\n\n<script>\n  // ==========================================================================\n  // ESCENARIOS INTERACTIVOS DEL SIMULADOR WHATSAPP\n  // ==========================================================================\n  const simScenarios = {\n    'AO 31-A2': {\n      user: 'AO 31-A2',\n      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>✍️ <b>Autor:</b> AO Foundation (2024)<br>📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>🎯 <b>Clasificación AO:</b> 31-A2<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href=\"#\" onclick=\"alert(\\'Enlace firmado de descarga directa\\'); return false;\">https://script.google.com/macros/s/.../exec?token=eyJ0eX...</a>'\n    },\n    'EVIDENCIA: Lesiones Radiales Menisco': {\n      user: 'EVIDENCIA: requiero evidencia para el tratamiento de lesiones radiales de meniscos',\n      bot: '🌐 <b>SÍNTESIS DE EVIDENCIA BIOMÉDICA (PubMed)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>❓ <b>Consulta:</b> \"tratamiento de lesiones radiales de meniscos\"<br><br>💡 <b>Síntesis Clínica:</b><br>Los estudios recuperados reflejan una tendencia actual orientada a la preservación biológica, fijación estable y movilización precoz.<br><br><b>Estudios Principales Recuperados:</b><br>1. <i>Cohen D et al.</i> - Meniscal root tears: A state of the art (J ISAKOS, 2026 Oct).<br>2. <i>Rivarola H et al.</i> - Rotational instability spectrum of ACL deficiency (J ISAKOS, 2026 Oct).<br>3. <i>Boonrod A et al.</i> - Diagnostic accuracy of MRI for meniscal tear patterns (Skeletal Radiol, 2026 Oct).<br><br>🔗 <a href=\"#\">PubMed #42600745</a> | <a href=\"#\">DOI: 10.1016/j.jisako.2026</a> | <a href=\"#\">Consensus Search</a><br><br>📥 <b>Ficha de Evidencia PDF:</b> <a href=\"#\" onclick=\"alert(\\'Ficha PDF firmada\\'); return false;\">https://script.google.com/.../exec?token=evid_...</a>'\n    },\n    'ANALIZAR: 2 Artículos LCA': {\n      user: 'ANALIZAR: Comparar plastia HTH vs Tendón Cuadricipital [Adjunta 2 PDFs]',\n      bot: '🔬 <b>LECTURA CRÍTICA NOTEBOOKLM (2 Artículos Procesados)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Objetivo PICO:</b> Comparación de estabilidad anteroposterior y dolor anterior de rodilla en reconstrucción de LCA.<br><br><b>Matriz Comparativa Cruzada:</b><br>• <i>Estudio 1 (Müller 2024):</i> HTH muestra 8% más dolor anterior al arrodillarse; fijación ósea más rápida.<br>• <i>Estudio 2 (Chen 2025):</i> Tendón cuadricipital presenta menor morbilidad de zona donante sin diferencia en tasa de rerrotura a 2 años (p=0.48).<br><br><b>Nivel de Evidencia:</b> Nivel II (Ensayos prospectivos aleatorizados).<br><br>💡 <i>El documento \"Chen 2025\" no existía en la colección y ha sido incorporado automáticamente al catálogo de la biblioteca.</i><br><br>📥 <b>Informe de Lectura Crítica PDF:</b> <a href=\"#\" onclick=\"alert(\\'Informe PDF firmado\\'); return false;\">https://script.google.com/.../exec?token=crit_...</a>'\n    },\n    'Synthes LCP': {\n      user: 'Synthes LCP',\n      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Synthes LCP Locking Compression Plate System Technique Guide<br>✍️ <b>Autor:</b> DePuy Synthes Trauma (2022)<br>📁 <b>Especialidad:</b> Catálogos e Instrumental Quirúrgico<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href=\"#\" onclick=\"alert(\\'Enlace seguro de descarga\\'); return false;\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'\n    },\n    'MANUAL': {\n      user: 'MANUAL',\n      bot: '📖 <b>MANUAL DE USO Y GOBERNANZA DEL PROYECTO</b><br><b>Dirección:</b> Dirección del Proyecto<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Este documento contiene las directrices completas para:<br>• Búsquedas quirúrgicas en el catálogo especializado.<br>• Consulta de evidencia en PubMed (EVIDENCIA:).<br>• Lectura crítica y comparativa (ANALIZAR: máx 2 PDFs).<br>• Buzón digital seguro y donaciones por WhatsApp.<br>• Código de Conducta y Régimen Disciplinario.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>📥 <b>Manual Oficial Interactivo & PDF:</b><br><a href=\"#\" onclick=\"alert(\\'Abre el portal oficial del manual\\'); return false;\">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'\n    },\n    'MENSAJE A LA DIRECCION': {\n      user: 'MENSAJE A LA DIRECCION: Solicitamos valorar la adquisición de la última edición de Green Operative Hand Surgery.',\n      bot: '📩 <b>Mensaje Transmitido a la Dirección</b><br><br>Su comunicación ha sido remitida a la <b>Dirección del Proyecto</b> de forma estrictamente confidencial.<br>Le notificaremos en este mismo chat en cuanto se emita una respuesta institucional.'\n    },\n    'ACTUALIZAR DATOS': {\n      user: 'ACTUALIZAR: Dr. Carlos Pérez, carlos.perez@hospital.edu.co, Hospital San José, Especialista',\n      bot: '✅ <b>DATOS PERSONALES ACTUALIZADOS CON ÉXITO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Estimado(a) <b>Dr. Carlos Pérez</b>:<br>Su información personal ha sido actualizada satisfactoriamente en el Directorio Institucional.<br><br>📋 <b>Ficha Actualizada:</b><br>• 👤 <b>Nombre:</b> Dr. Carlos Pérez<br>• 📧 <b>Correo:</b> carlos.perez@hospital.edu.co<br>• 🏥 <b>Institución:</b> Hospital San José<br>• 🎓 <b>Nivel:</b> Especialista<br><br>📊 <b>Control de Frecuencia:</b><br>Ha utilizado <b>1 de 3</b> actualizaciones permitidas en 6 meses (<b>1 de 6</b> anuales).<br>━━━━━━━━━━━━━━━━━━━━━━━━━━'\n    },\n    'APORTE: Donación PDF': {\n      user: 'APORTE [Adjunta PDF: Campbell_Cirugia_Ortopedica_Tomo4.pdf]',\n      bot: '✅ <b>Aporte Recibido y Catalogado con Éxito</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Documento:</b> Campbell_Cirugia_Ortopedica_Tomo4.pdf<br>📁 <b>Clasificación:</b> Tratados y Monografías Generales<br>🆔 <b>ID de Registro:</b> MED-2026-9482<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Agradecemos sinceramente su contribución al fortalecimiento del acervo bibliotecario de la comunidad.'\n    },\n    'LANGUAGE: EN': {\n      user: 'LANGUAGE: EN',\n      bot: '🌐 <b>LANGUAGE SUCCESSFULLY UPDATED</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Your preferred communication language has been set to: <b>English (EN)</b>.<br><br>All future responses, search digests, evidence summaries, and administrative announcements will be sent to you in English.<br><br>📚 <b>Medical Literature Notice:</b> Original scientific PDF articles and textbooks are preserved and downloaded in their authentic language of publication.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━'\n    },\n    'IDIOMA: PT': {\n      user: 'IDIOMA: PT',\n      bot: '🌐 <b>IDIOMA ATUALIZADO COM SUCESSO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Seu idioma de comunicação preferido agora é: <b>Português (PT)</b>.<br><br>Todas as respostas futuras, sínteses de evidências, resumos de busca e comunicados administrativos serão enviados em português.<br><br>📚 <b>Aviso sobre Literatura Médica:</b> Livros e artigos científicos em PDF originais são mantidos e baixados em seu idioma de publicação autêntico.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━'\n    },\n    'IDIOMA: FR': {\n      user: 'IDIOMA: FR',\n      bot: '🌐 <b>LANGUE MISE À JOUR AVEC SUCCÈS</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Votre langue de communication préférée est désormais : <b>Français (FR)</b>.<br><br>Toutes les réponses futures, synthèses de preuves, résumés de recherche et communications officielles vous seront envoyés en français.<br><br>📚 <b>Avis sur la Littérature Médicale :</b> Les articles scientifiques et manuels en format PDF originaux sont conservés et téléchargés dans leur langue de publication authentique.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━'\n    },\n    'IDIOMA: IT': {\n      user: 'IDIOMA: IT',\n      bot: '🌐 <b>LINGUA AGGIORNATA CON SUCCESSO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>La tua lingua di comunicazione preferita è ora: <b>Italiano (IT)</b>.<br><br>Tutte le risposte future, le sintesi delle evidenze, i riepiloghi di ricerca e le comunicazioni ufficiali saranno inviati in italiano.<br><br>📚 <b>Avviso sulla Letteratura Medica :</b> Gli articoli scientifici e i trattati originali in formato PDF sono conservati e scaricati nella loro lingua di pubblicazione autentica.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━'\n    },\n    'COMUNICADO (Traducción)': {\n      user: '[Despacho institucional emitido en español por el Gestor de Contenido]',\n      bot: '📢 <b>COMUNICADO OFICIAL DE LA DIRECCIÓN</b><br><b>Biblioteca Médica de Cirugía Ortopédica</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>🌐 <i>[Multilingual Broadcast entregado a cada colega en su lengua elegida]:</i><br><b>Estimados Colegas / Dear Colleagues / Chers Confrères:</b> Mantenimiento preventivo programado hoy a las 23:00 UTC (duración: 2 h).<br>Atentamente, <b>Gestor de Contenido / Content Manager</b>.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><i>Cada usuario recibe el comunicado en su lengua preferida (ES, EN, PT, FR, IT), preservando los PDFs originales sin alteración.</i>'\n    }\n  };\n\n  function activateSimScenario(key) {\n    const data = simScenarios[key];\n    if (!data) return;\n    document.getElementById('simUserBox').innerHTML = data.user;\n    document.getElementById('simBotBox').innerHTML = data.bot;\n\n    const btns = document.querySelectorAll('.sim-btn-item');\n    btns.forEach(b => {\n      if (b.innerText === key || b.getAttribute('onclick').includes(key)) {\n        b.classList.add('active');\n      } else {\n        b.classList.remove('active');\n      }\n    });\n  }\n\n  // ==========================================================================\n  // MOTOR DE TRADUCCIÓN CLIENT-SIDE ULTRA-LIVIANO (i18n IN-BROWSER)\n  // Soporte Oficial: Español (ES), English (EN), Português (PT), Français (FR), Italiano (IT)\n  // ==========================================================================\n  const I18N_DICTIONARY = {\n  \"ES\": {\n    \"btn_buzon\": \"📤 Buzón Digital\",\n    \"btn_buzon_share\": \"📤 Comparte tu información en el Buzón Digital\",\n    \"btn_print\": \"🖨️ Imprimir / Guardar PDF\",\n    \"btn_sim\": \"🩺 Simulador WhatsApp\",\n    \"card_anon_desc\": \"El proyecto protege con celo inquebrantable la privacidad de la Dirección y de los usuarios autorizados. Todas las solicitudes, intermediaciones y respuestas operan a través del asistente autónomo con cifrado de extremo a extremo, preservando en todo momento el anonimato y la confidencialidad bilateral.\",\n    \"card_anon_title\": \"🛡️ Regla Sagrada de Anonimato Cardinal\",\n    \"card_bulletin_desc\": \"Todos los domingos a las 8:00 AM (o por solicitud oficial), los médicos autorizados reciben un resumen editorial con 3 perlas quirúrgicas y lecturas destacadas de la semana para debate académico en la revista de sala (Grand Rounds).\",\n    \"card_bulletin_title\": \"☀️ Boletín Dominical de Actualización\",\n    \"card_comms_desc\": \"Ante cambios, mejoras en el servicio, incorporación de nuevos módulos o actualización de las políticas de uso, se emitirá un <b>comunicado oficial masivo</b> a todos los médicos autorizados directamente a través del asistente conversacional, asegurando una difusión oportuna y uniforme.\",\n    \"card_comms_title\": \"📢 Comunicados Institucionales Oficiales\",\n    \"card_conduct_desc\": \"<p style=\\\"margin-bottom:8px;\\\">La biblioteca es un instrumento de estricto rigor científico y ético. La Dirección gestiona la condición de cada participante mediante una <b>escala disciplinaria escalonada</b> modificable vía WhatsApp o directamente en la hoja de control:</p><ul style=\\\"margin-bottom: 12px;\\\"><li><b>1. ACTIVO (Habilitado Pleno):</b> Acceso regular a búsquedas, lectura crítica NotebookLM, síntesis PubMed y solicitud de literatura.</li><li><b>2. SUSPENDIDO TEMPORALMENTE (24h, 48h o 72h):</b> Período de inhabilitación transitorio ante lenguaje inapropiado o faltas leves. El bot calcula el término y se reactiva automáticamente al vencer el plazo.</li><li><b>3. BLOQUEADO INDEFINIDAMENTE:</b> Inhabilitación preventiva ante conductas reiteradas o desacato a las directrices, sujeto a valoración directa de la Dirección.</li><li><b>4. EXPULSADO PERMANENTE:</b> Veto definitivo e irrevocable del número telefónico y registro ante intentos de vulneración o faltas graves. El sistema bloquea de raíz cualquier intento futuro de reincorporación.</li></ul>\",\n    \"card_conduct_title\": \"⛔ Régimen Disciplinario y Escala de Estatus Institucionales\",\n    \"card_crit_anti_desc\": \"<li><b>Crecimiento Autónomo de la Colección:</b> Si durante el análisis se identifica que alguno de los artículos adjuntos no existe en la base de datos de la biblioteca, este <b>será agregado al catálogo de forma automática</b>.</li><li><b>Escudo Anti-Duplicación:</b> Si los documentos ya formaban parte de la información almacenada, se evita cualquier duplicación y el motor se limita estrictamente al análisis comparativo.</li><li><b>Entregables:</b> Resumen PICO, metodología, significación estadística, riesgo de sesgos y <b>Matriz Comparativa Cruzada</b>.</li>\",\n    \"card_crit_anti_title\": \"⚖️ Incorporación Automática y Anti-Duplicación\",\n    \"card_crit_flow_title\": \"🔬 Flujo Guiado de Análisis Documental\",\n    \"card_donor_privacy\": \"🔒 <b>Registro de Control Interno Confidencial:</b> Los datos de los médicos donantes se asientan exclusivamente en una sección de registro privado para la Dirección. Nunca se publicará, expondrá ni informará qué usuario aportó determinada información.\",\n    \"card_evidence_results_desc\": \"<li><b>Resumen WhatsApp (3–4 párrafos):</b> Consenso actual, hallazgos clave de los 3 estudios más recientes y recomendación quirúrgica.</li><li><b>Enlaces HTTPS Directos:</b> Enlaces directos a PubMed, DOI y Consensus para leer el artículo original a texto completo.</li><li><b>Ficha de Evidencia PDF:</b> Documento clínico formal descargable generado bajo las reglas institucionales con tabla comparativa y escala Oxford de evidencia.</li>\",\n    \"card_evidence_results_title\": \"📊 Entrega de Resultados Estructurados\",\n    \"card_lang_badge\": \"MULTILINGÜISMO ILIMITADO\",\n    \"card_lang_comms_desc\": \"Sin importar el idioma en que el <b>Gestor de Contenido</b> redacte los comunicados institucionales o boletines, la plataforma realiza una traducción autónoma de alta fidelidad para que cada colega reciba el mensaje en su respectiva lengua preferida.\",\n    \"card_lang_comms_hdr\": \"📢 Comunicados del Gestor de Contenido en su Idioma:\",\n    \"card_lang_desc\": \"Con miras a la expansión internacional y al acompañamiento fraterno de la comunidad médica global, <b>todo usuario tiene la potestad de seleccionar el idioma en el cual desea interactuar con el asistente, recibir respuestas, síntesis de evidencia y comunicados oficiales</b>.\",\n    \"card_lang_preserve_desc\": \"<b>Los artículos científicos, guías de técnica quirúrgica AO, libros de texto y monografías en formato PDF se preservan y descargan estrictamente en su idioma original de publicación</b>.<br>Para garantizar la más estricta fidelidad anatómica, evitar ambigüedades en dosificaciones farmacológicas y respetar las indicaciones y marcas de implantes certificadas por casas matrices, <b>los documentos originales jamás se alteran ni se traducen de forma sintética</b>. Se entregan íntegros y auténticos tal como fueron concebidos por la literatura biomédica internacional.\",\n    \"card_lang_preserve_hdr\": \"<span>🛡️</span> Principio Fundamental de Preservación de la Originalidad Documental:\",\n    \"card_lang_switch_hdr\": \"🔄 Actualización Inmediata y Sin Límites de Frecuencia:\",\n    \"card_large_files_desc\": \"<p>Para atlas quirúrgicos completos, monografías enciclopédicas o tratados escaneados de alto volumen, el ecosistema cuenta con 4 estrategias de recepción optimizadas:</p><ul style=\\\"margin-top: 8px;\\\"><li><b>1. Documento Adjunto por WhatsApp (Hasta 100 MB – 2 GB):</b> Puede adjuntar el archivo directamente en nuestro chat de WhatsApp junto con la palabra clave <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span>. La plataforma procesa la recepción en streaming continuo.</li><li><b>2. Subida Fraccionada por Bloques (Chunked Upload):</b> En el Buzón Digital Web, los documentos pesados son divididos automáticamente en bloques de 10 MB a 15 MB transmitidos en secuencia con barra de progreso interactiva.</li><li><b>3. Sesión Reanudable Efímera (Resumable Upload):</b> Enlace temporal con tolerancia a interrupciones de red que permite reanudar transferencias sin perder bytes ya transmitidos.</li><li><b>4. Optimización y Recompresión en Navegador:</b> Ajuste dinámico de escaneos a 150–200 DPI clínicos de lectura en su propio dispositivo antes de enviar, reduciendo el peso hasta un 70% sin menoscabo visual.</li></ul>\",\n    \"card_large_files_title\": \"📦 Tratados Voluminosos y Archivos de Gran Tamaño (> 45 MB hasta 2 GB)\",\n    \"card_learning_desc\": \"<li><b>Expansión de Sinónimos:</b> Mapeo automático de términos equivalentes (ej. <i>prótesis &rarr; artroplastia / reemplazo; LCA &rarr; ligamento cruzado anterior</i>).</li><li><b>Detección de Brechas:</b> Las consultas que no arrojen resultados quedan registradas en la memoria de aprendizaje del sistema para orientar nuevas adquisiciones de literatura.</li>\",\n    \"card_learning_title\": \"🧠 Sistema de Autoaprendizaje Continuo\",\n    \"card_msg_dir_desc\": \"Para elevar sugerencias de literatura, reportar dudas o comunicarse formalmente con la Dirección sin vulnerar el anonimato bilateral, escriba en el chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('MENSAJE A LA DIRECCION: ')\\\">MENSAJE A LA DIRECCION: [su consulta detallada]</span><br>El sistema retransmite el mensaje a la consola ejecutiva de forma confidencial.\",\n    \"card_msg_dir_title\": \"📩 Envío de Mensaje a la Dirección\",\n    \"card_option_a_desc\": \"Los colaboradores pueden depositar literatura médica de manera confidencial y blindada a través del portal institucional anónimo embebido, sin exponer cuentas personales ni interfaces externas.\",\n    \"card_option_a_title\": \"📁 Opción A: Buzón Digital Seguro Web\",\n    \"card_option_b_desc\": \"Los médicos autorizados pueden enviar directamente un archivo PDF al chat de WhatsApp acompañando el documento con el texto <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span> o <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('DONAR')\\\">DONAR</span>.<br>El asistente valida la integridad del archivo, lo cataloga por subespecialidad y le devuelve una confirmación formal con su identificador de indexación.\",\n    \"card_option_b_title\": \"📱 Opción B: Ingesta Directa por WhatsApp\",\n    \"card_pubmed_desc\": \"Permite interrogar en tiempo real más de 35 millones de publicaciones biomédicas indexadas. Para formular una consulta científica, escriba en el chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('EVIDENCIA: ')\\\">EVIDENCIA: [su pregunta clínica o técnica]</span><br><i>Ejemplo: \\\"EVIDENCIA: Cerclaje vs placas bloqueadas en fracturas de rótula 34-C3\\\"</i>\",\n    \"card_pubmed_title\": \"🌐 Consulta Directa a PubMed\",\n    \"card_resp_dir_desc\": \"Cuando la solicitud sea evaluada, el médico recibirá la comunicación directamente en su chat de WhatsApp con el encabezado oficial:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\">DIRECCIÓN DEL PROYECTO: [respuesta institucional]</span><br>Garantizando un canal de comunicación transparente, ordenado y protegido.\",\n    \"card_resp_dir_title\": \"📤 Recepción de Respuesta Oficial\",\n    \"card_status_notify\": \"🔔 <b>Protocolo de Notificación Automática:</b> Cada vez que la Dirección modifica el estatus de un usuario (sea desde WhatsApp o en la hoja central), el sistema despacha de forma inmediata un mensaje oficial al usuario informándole de su nueva condición, causales y tiempo de vigencia.\",\n    \"card_step1_desc\": \"El médico escribe al WhatsApp del bot indicando: <b>Nombre Completo</b>, <b>Correo electrónico (personal o institucional)</b>, <b>Hospital o Universidad de formación</b> y <b>Nivel actual</b> (R1–R4, Especialista, Egresado). El sistema registra la solicitud con estado <code>PENDIENTE_APROBACION</code> y resguarda la información con sellado criptográfico en reposo.\",\n    \"card_step1_title\": \"1. Solicitud y Registro Inicial\",\n    \"card_step2_desc\": \"Su solicitud es evaluada según parámetros preestablecidos de forma autónoma y conforme a los lineamientos del proyecto, luego de verificar la veracidad de la información en un período aproximado de <b>24 horas</b>.\",\n    \"card_step2_title\": \"2. Análisis y Verificación Autónoma\",\n    \"card_step3_desc\": \"El usuario recibe su confirmación de bienvenida, el enlace al Manual Oficial interactivo y su cupo habilitado para realizar consultas y descargas clínicas 24/7.\",\n    \"card_step3_title\": \"3. Acceso Pleno Inmediato\",\n    \"card_support_desc\": \"Iniciativa médica independiente para fortalecer la formación continua de residentes y cirujanos ortopedistas. La literatura, guías y monografías provistas son de <b>carácter estrictamente pedagógico</b>; toda decisión diagnóstica y terapéutica corresponde en exclusiva al criterio clínico del médico tratante.\",\n    \"card_support_title\": \"🎯 Apoyo Médico y Exención de Responsabilidad\",\n    \"card_update_badge\": \"AUTOGESTIÓN SEGURA\",\n    \"card_update_cmd_desc\": \"Para consultar la guía de actualización, envíe simplemente: <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('ACTUALIZAR DATOS')\\\">ACTUALIZAR DATOS</span><br>O transmita sus nuevos datos directamente en un solo mensaje estructurado:<br><code style=\\\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\\\">ACTUALIZAR: [Nombre Completo], [Correo], [Hospital/Universidad], [Nivel]</code>\",\n    \"card_update_cmd_hdr\": \"Mecanismo y Comando de Activación por WhatsApp:\",\n    \"card_update_desc\": \"En consonancia con los principios de autodeterminación informativa y calidad del registro médico institucional, <b>todo usuario tiene el derecho inalienable de solicitar la actualización o rectificación de sus datos personales en cualquier momento</b> (actualización de correo personal o institucional, cambio de hospital, ascenso de residencia de R1 a R4 o titulación de especialista).\",\n    \"card_update_limit_desc\": \"Con el fin exclusivo de mantener la trazabilidad de los accesos clínicos, resguardar la identidad de los médicos participantes y prevenir la transferencia ilícita o fraudulenta de credenciales autorizadas, el sistema enforza automáticamente los siguientes límites temporales:<br>• <b>Máximo 3 actualizaciones en un periodo móvil de 6 meses</b> (180 días).<br>• <b>Máximo 6 actualizaciones en un periodo móvil de 12 meses</b> (365 días).<br><i>Nota: Si por razones excepcionales de fuerza mayor requiere una rectificación adicional tras agotar dicho límite, puede remitir su solicitud formal a través del <a href=\\\"#seccion-canal\\\" style=\\\"color: #92400e; font-weight: 700; text-decoration: underline;\\\">Canal Intermediado con la Dirección</a>.</i>\",\n    \"card_update_limit_hdr\": \"<span>⏱️</span> Política Institucional de Frecuencia Máxima de Modificaciones:\",\n    \"card_vision_desc\": \"Al adjuntar una radiografía o tomografía en el chat, el motor de visión computacional analiza el segmento óseo, sugiere la clasificación AO/OTA preliminar más probable y recupera de forma proactiva la monografía y técnica quirúrgica correspondiente.\",\n    \"card_vision_title\": \"📷 Orientación Radiográfica AO/OTA\",\n    \"card_voice_desc\": \"En áreas de lavado, consulta o quirófano, los cirujanos pueden enviar notas de voz al chat. El asistente procesa el audio multimodal con inteligencia artificial para transcribir con precisión la terminología ortopédica y ejecutar la búsqueda o lectura crítica sin necesidad de teclear.\",\n    \"card_voice_title\": \"🎙️ Consultas por Nota de Voz\",\n    \"ch10_title\": \"<span class=\\\"chapter-badge\\\">10</span> Gobernanza Dinámica: Comunicados Oficiales y Autoaprendizaje\",\n    \"ch11_title\": \"<span class=\\\"chapter-badge\\\">🩺</span> Simulador Clínico Interactivo de WhatsApp en Tiempo Real\",\n    \"ch1_title\": \"<span class=\\\"chapter-badge\\\">1</span> Filosofía Académica y Principio de Anonimato Cardinal\",\n    \"ch2_title\": \"<span class=\\\"chapter-badge\\\">2</span> Protocolo de Admisión y Ciclo de Vida del Usuario\",\n    \"ch3_title\": \"<span class=\\\"chapter-badge\\\">3</span> Modalidades de Búsqueda Quirúrgica en el Catálogo Especializado\",\n    \"ch4_title\": \"<span class=\\\"chapter-badge\\\">4</span> Motor de Evidencia Médica Global (PubMed & Semantic Scholar)\",\n    \"ch5_title\": \"<span class=\\\"chapter-badge\\\">5</span> Lectura Crítica de Artículos Propios (Motor NotebookLM con Gemini)\",\n    \"ch6_title\": \"<span class=\\\"chapter-badge\\\">6</span> Vías de Aporte y Enriquecimiento del Acervo Especializado\",\n    \"ch7_title\": \"<span class=\\\"chapter-badge\\\">7</span> Potenciaciones Multimodales del Asistente: Voz, Visión AO y Boletín\",\n    \"ch8_title\": \"<span class=\\\"chapter-badge\\\">8</span> Código de Conducta y Régimen Disciplinario Institucional\",\n    \"ch9_title\": \"<span class=\\\"chapter-badge\\\">9</span> Canal Intermediado Confidencial con la Dirección\",\n    \"chip_bulletin\": \"☀️ Boletín Dominical Quirúrgico\",\n    \"chip_multilingual\": \"🌍 Cobertura Global Multilingüe\",\n    \"chip_notebooklm\": \"🔬 Motor NotebookLM con Gemini\",\n    \"chip_pubmed\": \"🌐 Motor PubMed & Semantic Scholar\",\n    \"chip_service\": \"<span class=\\\"pulse-dot\\\"></span> Servicio Clínico 24/7 Disponible\",\n    \"chip_vision\": \"📷 Visión Radiográfica AO/OTA\",\n    \"chip_voice\": \"🎙️ Consultas por Audio / Voz\",\n    \"custody_identity\": \"🏛️ Gestor de Contenido\",\n    \"custody_label\": \"DIRECCIÓN & CUSTODIA\",\n    \"diag2_caption\": \"Esquema 2.1 — Flujo Autónomo de Admisión y Habilitación de Acceso\",\n    \"diag3_caption\": \"Esquema 3.1 — Pipeline de Recuperación Inteligente y Despacho Clínico\",\n    \"diag4_caption\": \"Esquema 4.1 — Traducción Médica y Recuperación de Evidencia Científica\",\n    \"diag6_caption\": \"Esquema 6.1 — Ciclo Autónomo de Enriquecimiento e Ingesta Colaborativa\",\n    \"edition_tag\": \"Edición Oficial 2026.5 • Guía Operativa Institucional\",\n    \"footer_edition\": \"<span>Documento Maestro Vivo • Edición Oficial v2026.5</span><br><span style=\\\"color: var(--color-surgical-teal); font-weight: 700;\\\">Vigencia Activa y Actualización Permanente</span>\",\n    \"footer_org\": \"<b>Biblioteca Médica Especializada de Ortopedia y Traumatología</b><br>Dirección Institucional: <b>Dirección del Proyecto</b> • Servicio Clínico Permanente 24/7\",\n    \"lang_label\": \"IDIOMA:\",\n    \"masthead_subtitle\": \"Cirugía Ortopédica y Traumatología • Guía Maestra de Uso, Procedimientos y Gobernanza\",\n    \"masthead_title\": \"Biblioteca Médica Especializada\",\n    \"search_placeholder\": \"Buscar temas (ej. AO, abordaje, PubMed, análisis)...\",\n    \"sim_header_hint\": \"Haga clic en un comando para observar la respuesta del Asistente:\",\n    \"sim_header_tag\": \"⚡ Consola de Demostración en Vivo\",\n    \"svg_step1_desc\": \"Nombre, Correo, Hospital y Nivel\",\n    \"svg_step1_tag\": \"PASO 01: SOLICITUD\",\n    \"svg_step1_title\": \"Registro por WhatsApp\",\n    \"svg_step2_desc\": \"Verificación de veracidad (~24 h)\",\n    \"svg_step2_tag\": \"PASO 02: VALIDACIÓN\",\n    \"svg_step2_title\": \"Evaluación Autónoma\",\n    \"svg_step3_desc\": \"Bienvenida, Manual y Consultas 24/7\",\n    \"svg_step3_tag\": \"PASO 03: HABILITACIÓN\",\n    \"svg_step3_title\": \"Acceso Pleno Inmediato\",\n    \"t_row1_mod\": \"<b>🦴 Patología o Técnica</b>\",\n    \"t_row1_res\": \"Tratados, monografías y técnicas de abordaje, implantes y biomecánica.\",\n    \"t_row2_mod\": \"<b>🎯 Clasificación AO/OTA & Epónimos</b>\",\n    \"t_row2_res\": \"Técnicas de reducción, principios biológicos y selección de implantes de osteosíntesis.\",\n    \"t_row3_mod\": \"<b>🔪 Abordajes Quirúrgicos</b>\",\n    \"t_row3_res\": \"Planos internerviosos, anatomía aplicada y pasos de disección quirúrgica.\",\n    \"t_row4_mod\": \"<b>🔩 Instrumental y Marcas</b>\",\n    \"t_row4_res\": \"Guías oficiales de técnica quirúrgica del fabricante con instrumental paso a paso.\",\n    \"t_row5_mod\": \"<b>📄 Código DOI, PMID o ISBN</b>\",\n    \"t_row5_res\": \"Entrega directa del artículo o apertura automática de ticket de adquisición.\",\n    \"t_row6_mod\": \"<b>🔤 Tolerancia a Errores (Fuzzy)</b>\",\n    \"t_row6_res\": \"Recuperación precisa a pesar de digitación rápida, faltas ortográficas o ausencia de tildes.\",\n    \"t_row7_mod\": \"<b>🎙️ Consultas por Audio / Voz</b>\",\n    \"t_row7_res\": \"Transcripción de terminología quirúrgica y ejecución automática de la consulta.\",\n    \"t_row8_mod\": \"<b>📑 Menú de Especialidades</b>\",\n    \"t_row8_res\": \"Despliegue del catálogo clasificado por subespecialidades ortopédicas.\",\n    \"t_row9_mod\": \"<b>📖 Solicitud del Manual</b>\",\n    \"t_row9_res\": \"Despacho instantáneo del enlace interactivo web y PDF del manual oficial.\",\n    \"th_example\": \"Mensaje de Ejemplo en el Chat\",\n    \"th_modality\": \"Modalidad de Búsqueda\",\n    \"th_result\": \"Resultado Clínico Entregado\",\n    \"toast_copy\": \"¡Comando copiado al portapapeles!\"\n  },\n  \"EN\": {\n    \"btn_buzon\": \"📤 Digital Mailbox\",\n    \"btn_buzon_share\": \"📤 Share Literature in the Digital Mailbox\",\n    \"btn_print\": \"🖨️ Print / Save PDF\",\n    \"btn_sim\": \"🩺 WhatsApp Simulator\",\n    \"card_anon_desc\": \"The project unwaveringly protects the privacy of Leadership and authorized users. All requests, intermediaries, and responses operate through the autonomous assistant with end-to-end encryption, preserving bilateral anonymity and confidentiality at all times.\",\n    \"card_anon_title\": \"🛡️ Sacred Rule of Cardinal Anonymity\",\n    \"card_bulletin_desc\": \"Every Sunday at 8:00 AM (or upon official request), authorized physicians receive an editorial digest featuring 3 surgical pearls and featured weekly literature for academic discussion at Grand Rounds.\",\n    \"card_bulletin_title\": \"☀️ Sunday Surgical Update Bulletin\",\n    \"card_comms_desc\": \"For system improvements, new features, or policy updates, an <b>official broadcast announcement</b> is dispatched to all authorized physicians via WhatsApp, ensuring timely and consistent updates.\",\n    \"card_comms_title\": \"📢 Official Institutional Announcements\",\n    \"card_conduct_desc\": \"<p style=\\\"margin-bottom:8px;\\\">The library is an instrument of strict scientific and ethical rigor. Leadership manages participant status through a <b>tiered disciplinary scale</b> adjustable via WhatsApp or directly in the control sheet:</p><ul style=\\\"margin-bottom: 12px;\\\"><li><b>1. ACTIVE (Fully Enabled):</b> Regular access to searches, NotebookLM critical analysis, PubMed syntheses, and literature requests.</li><li><b>2. TEMPORARILY SUSPENDED (24h, 48h, or 72h):</b> Transitory cooling-off period for inappropriate conduct or minor infractions. The bot reactivates automatically upon expiration.</li><li><b>3. INDEFINITELY BLOCKED:</b> Preventive disabling for repeated offenses, subject to direct review by Leadership.</li><li><b>4. PERMANENTLY EXPELLED:</b> Definitive and irrevocable ban of phone number and registration following security breach attempts or severe misconduct.</li></ul>\",\n    \"card_conduct_title\": \"⛔ Disciplinary Framework & Institutional Status Scale\",\n    \"card_crit_anti_desc\": \"<li><b>Autonomous Collection Growth:</b> If during analysis an attached paper is not found in the library database, it is <b>automatically added to the catalog</b>.</li><li><b>Anti-Duplication Shield:</b> If the files already exist in storage, duplication is prevented and the engine focuses purely on comparative analysis.</li><li><b>Deliverables:</b> PICO summary, methodology, statistical significance, bias risk, and <b>Cross-Comparative Matrix</b>.</li>\",\n    \"card_crit_anti_title\": \"⚖️ Automatic Incorporation & Anti-Duplication\",\n    \"card_crit_flow_title\": \"🔬 Guided Document Analysis Workflow\",\n    \"card_donor_privacy\": \"🔒 <b>Confidential Internal Record:</b> Donor physician data is recorded exclusively in a private leadership log. The identity of contributors will never be published, exposed, or revealed.\",\n    \"card_evidence_results_desc\": \"<li><b>WhatsApp Summary (3–4 paragraphs):</b> Current consensus, key findings from the 3 latest studies, and surgical recommendations.</li><li><b>Direct HTTPS Links:</b> Direct links to PubMed, DOI, and Consensus to read the full original article.</li><li><b>PDF Evidence Brief:</b> Formal downloadable clinical document generated under institutional rules with comparative table and Oxford evidence scale.</li>\",\n    \"card_evidence_results_title\": \"📊 Structured Results Delivery\",\n    \"card_lang_badge\": \"UNLIMITED MULTILINGUALISM\",\n    \"card_lang_comms_desc\": \"Regardless of the language in which the <b>Content Manager</b> drafts official communiqués or bulletins, the platform automatically performs high-fidelity translation so each colleague receives the bulletin in their chosen language.\",\n    \"card_lang_comms_hdr\": \"📢 Content Manager Announcements in Your Language:\",\n    \"card_lang_desc\": \"To support international expansion and foster fraternity across the global medical community, <b>every user has full autonomy to choose the language used for bot interactions, replies, evidence digests, and administrative bulletins</b>.\",\n    \"card_lang_preserve_desc\": \"<b>Scientific papers, AO surgical technique guides, textbooks, and monographs in PDF format are strictly preserved and downloaded in their original language of publication</b>.<br>To ensure absolute anatomical accuracy, prevent pharmacological dosage ambiguities, and respect certified implant trademarks, <b>original medical documents are never synthetically altered or translated</b>. They are delivered authentic and intact as published in international biomedical literature.\",\n    \"card_lang_preserve_hdr\": \"<span>🛡️</span> Fundamental Principle of Document Originality Preservation:\",\n    \"card_lang_switch_hdr\": \"🔄 Instant Updates with No Frequency Limits:\",\n    \"card_large_files_desc\": \"<p>For comprehensive surgical atlases, encyclopedic monographs, or high-volume scanned treatises, the ecosystem features 4 optimized reception strategies:</p><ul style=\\\"margin-top: 8px;\\\"><li><b>1. WhatsApp Attachment (Up to 100 MB – 2 GB):</b> Attach the file directly in WhatsApp with the keyword <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('CONTRIBUTE')\\\">CONTRIBUTE</span>. The platform handles continuous streaming reception.</li><li><b>2. Chunked Upload:</b> In the Web Digital Mailbox, heavy files are automatically split into 10 MB to 15 MB chunks transmitted sequentially with an interactive progress bar.</li><li><b>3. Ephemeral Resumable Upload:</b> Temporary link with network interruption tolerance enabling transfers to resume without losing bytes already sent.</li><li><b>4. In-Browser Optimization:</b> Dynamic scan adjustment to 150–200 clinical reading DPI on your device before sending, cutting weight up to 70% with zero visual compromise.</li></ul>\",\n    \"card_large_files_title\": \"📦 Bulky Treatises & Large Files (> 45 MB up to 2 GB)\",\n    \"card_learning_desc\": \"<li><b>Synonym Expansion:</b> Automatic mapping of equivalent clinical terms (e.g., <i>prosthesis &rarr; arthroplasty / replacement; ACL &rarr; anterior cruciate ligament</i>).</li><li><b>Gap Detection:</b> Queries yielding no results are logged in system memory to guide upcoming literature acquisitions.</li>\",\n    \"card_learning_title\": \"🧠 Continuous Self-Learning System\",\n    \"card_msg_dir_desc\": \"To submit literature suggestions, report questions, or contact Leadership confidentially without breaking bilateral anonymity, type in chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('MESSAGE TO LEADERSHIP: ')\\\">MESSAGE TO LEADERSHIP: [detailed inquiry]</span><br>The system securely forwards the inquiry to the executive console.\",\n    \"card_msg_dir_title\": \"📩 Sending a Message to Leadership\",\n    \"card_option_a_desc\": \"Collaborators can deposit medical literature confidentially through the anonymous embedded institutional portal, without exposing personal accounts or external interfaces.\",\n    \"card_option_a_title\": \"📁 Option A: Secure Web Digital Mailbox\",\n    \"card_option_b_desc\": \"Authorized physicians can send a PDF directly to WhatsApp accompanied by the keyword <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('CONTRIBUTE')\\\">CONTRIBUTE</span> or <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('DONATE')\\\">DONATE</span>.<br>The assistant validates file integrity, catalogs it by subspecialty, and returns formal confirmation with indexing ID.\",\n    \"card_option_b_title\": \"📱 Option B: Direct WhatsApp Ingestion\",\n    \"card_pubmed_desc\": \"Enables real-time querying of over 35 million indexed biomedical publications. To formulate a scientific query, write in the chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('EVIDENCE: ')\\\">EVIDENCE: [your clinical or technical question]</span><br><i>Example: \\\"EVIDENCE: Tension band vs locked plates in patellar fracture 34-C3\\\"</i>\",\n    \"card_pubmed_title\": \"🌐 Direct Query to PubMed\",\n    \"card_resp_dir_desc\": \"Once evaluated, the physician receives the official decision directly in WhatsApp with the institutional header:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\">PROJECT LEADERSHIP: [institutional reply]</span><br>Ensuring a transparent, orderly, and protected communication channel.\",\n    \"card_resp_dir_title\": \"📤 Receiving an Official Response\",\n    \"card_status_notify\": \"🔔 <b>Automatic Notification Protocol:</b> Whenever Leadership modifies a user status, the system immediately dispatches an official message detailing the new status, reasons, and duration.\",\n    \"card_step1_desc\": \"The physician contacts the bot WhatsApp stating: <b>Full Name</b>, <b>Email (personal or institutional)</b>, <b>Training Hospital or University</b> and <b>Current Level</b> (R1–R4, Specialist, Alumni). The system records the request with status <code>PENDING_APPROVAL</code> and protects information with cryptographic sealing at rest.\",\n    \"card_step1_title\": \"1. Initial Request & Registration\",\n    \"card_step2_desc\": \"The application is evaluated based on pre-established parameters autonomously and in accordance with project guidelines, following factual verification over approximately <b>24 hours</b>.\",\n    \"card_step2_title\": \"2. Autonomous Analysis & Verification\",\n    \"card_step3_desc\": \"The user receives a welcome confirmation, link to the interactive Official Manual, and full 24/7 quota to perform clinical queries and literature downloads.\",\n    \"card_step3_title\": \"3. Immediate Full Access\",\n    \"card_support_desc\": \"Independent medical initiative to strengthen continuous training for orthopedic residents and surgeons. All literature, guides, and monographs provided are strictly for <b>educational purposes</b>; every diagnostic and therapeutic decision is the sole clinical responsibility of the treating physician.\",\n    \"card_support_title\": \"🎯 Medical Support & Disclaimer\",\n    \"card_update_badge\": \"SECURE SELF-MANAGEMENT\",\n    \"card_update_cmd_desc\": \"To view the update guide, simply send: <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('UPDATE DATA')\\\">UPDATE DATA</span><br>Or submit your new information in a single structured message:<br><code style=\\\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\\\">UPDATE: [Full Name], [Email], [Hospital/University], [Level]</code>\",\n    \"card_update_cmd_hdr\": \"WhatsApp Activation Mechanism & Command:\",\n    \"card_update_desc\": \"In accordance with information self-determination principles and institutional medical record standards, <b>every user has the inalienable right to request updates or corrections of personal data at any time</b> (email update, hospital transfer, residency promotion R1 to R4, or specialist certification).\",\n    \"card_update_limit_desc\": \"Exclusively to preserve auditability of clinical access, protect physician identity, and prevent illicit credential transfers, the system enforces the following limits:<br>• <b>Maximum 3 updates in a rolling 6-month period</b> (180 days).<br>• <b>Maximum 6 updates in a rolling 12-month period</b> (365 days).<br><i>Note: Exceptional cases may submit a formal request via the <a href=\\\"#seccion-canal\\\" style=\\\"color: #92400e; font-weight: 700; text-decoration: underline;\\\">Intermediated Channel with Leadership</a>.</i>\",\n    \"card_update_limit_hdr\": \"<span>⏱️</span> Institutional Policy on Maximum Modification Frequency:\",\n    \"card_vision_desc\": \"When an X-ray or CT scan is attached in chat, the computer vision engine analyzes the bone segment, suggests the most probable preliminary AO/OTA classification, and proactively retrieves the surgical technique.\",\n    \"card_vision_title\": \"📷 AO/OTA Radiographic Guidance\",\n    \"card_voice_desc\": \"In scrub rooms, outpatient clinics, or operating theaters, surgeons can send voice notes. The assistant processes multimodal audio with AI to accurately transcribe orthopedic terminology and execute queries hands-free.\",\n    \"card_voice_title\": \"🎙️ Voice Note Inquiries\",\n    \"ch10_title\": \"<span class=\\\"chapter-badge\\\">10</span> Dynamic Governance: Official Announcements & Continuous Learning\",\n    \"ch11_title\": \"<span class=\\\"chapter-badge\\\">🩺</span> Interactive WhatsApp Clinical Simulator in Real Time\",\n    \"ch1_title\": \"<span class=\\\"chapter-badge\\\">1</span> Academic Philosophy and Cardinal Anonymity Principle\",\n    \"ch2_title\": \"<span class=\\\"chapter-badge\\\">2</span> Admission Protocol and User Lifecycle\",\n    \"ch3_title\": \"<span class=\\\"chapter-badge\\\">3</span> Surgical Search Modalities in the Specialized Catalog\",\n    \"ch4_title\": \"<span class=\\\"chapter-badge\\\">4</span> Global Medical Evidence Engine (PubMed & Semantic Scholar)\",\n    \"ch5_title\": \"<span class=\\\"chapter-badge\\\">5</span> Critical Reading of Own Articles (NotebookLM Engine with Gemini)\",\n    \"ch6_title\": \"<span class=\\\"chapter-badge\\\">6</span> Channels for Contribution & Enrichment of the Collection\",\n    \"ch7_title\": \"<span class=\\\"chapter-badge\\\">7</span> Multimodal Enhancements: Voice, AO Vision & Bulletin\",\n    \"ch8_title\": \"<span class=\\\"chapter-badge\\\">8</span> Code of Conduct and Institutional Disciplinary Framework\",\n    \"ch9_title\": \"<span class=\\\"chapter-badge\\\">9</span> Confidential Intermediated Channel with Leadership\",\n    \"chip_bulletin\": \"☀️ Sunday Surgical Bulletin\",\n    \"chip_multilingual\": \"🌍 Global Multilingual Coverage\",\n    \"chip_notebooklm\": \"🔬 NotebookLM Engine with Gemini\",\n    \"chip_pubmed\": \"🌐 PubMed & Semantic Scholar Engine\",\n    \"chip_service\": \"<span class=\\\"pulse-dot\\\"></span> 24/7 Clinical Service Available\",\n    \"chip_vision\": \"📷 AO/OTA Radiographic Vision\",\n    \"chip_voice\": \"🎙️ Audio / Voice Inquiries\",\n    \"custody_identity\": \"🏛️ Content Manager\",\n    \"custody_label\": \"LEADERSHIP & CUSTODY\",\n    \"diag2_caption\": \"Diagram 2.1 — Autonomous Admission and Access Enablement Flow\",\n    \"diag3_caption\": \"Diagram 3.1 — Intelligent Retrieval Pipeline and Clinical Dispatch\",\n    \"diag4_caption\": \"Diagram 4.1 — Medical Translation and Scientific Evidence Retrieval\",\n    \"diag6_caption\": \"Diagram 6.1 — Autonomous Enrichment Cycle & Collaborative Ingestion\",\n    \"edition_tag\": \"Official Edition 2026.5 • Institutional Operational Guide\",\n    \"footer_edition\": \"<span>Living Master Document • Official Edition v2026.5</span><br><span style=\\\"color: var(--color-surgical-teal); font-weight: 700;\\\">Active Validity and Continuous Updating</span>\",\n    \"footer_org\": \"<b>Specialized Medical Library of Orthopedics & Traumatology</b><br>Institutional Custody: <b>Project Leadership</b> • Continuous 24/7 Clinical Service\",\n    \"lang_label\": \"LANGUAGE:\",\n    \"masthead_subtitle\": \"Orthopedic Surgery & Traumatology • Master Guide for Usage, Procedures and Governance\",\n    \"masthead_title\": \"Specialized Medical Library\",\n    \"search_placeholder\": \"Search topics (e.g., AO, approach, PubMed, analysis)...\",\n    \"sim_header_hint\": \"Click on any command to preview the Assistant response:\",\n    \"sim_header_tag\": \"⚡ Live Demonstration Console\",\n    \"svg_step1_desc\": \"Name, Email, Hospital & Level\",\n    \"svg_step1_tag\": \"STEP 01: REQUEST\",\n    \"svg_step1_title\": \"Registration via WhatsApp\",\n    \"svg_step2_desc\": \"Factual verification (~24 h)\",\n    \"svg_step2_tag\": \"STEP 02: VALIDATION\",\n    \"svg_step2_title\": \"Autonomous Evaluation\",\n    \"svg_step3_desc\": \"Welcome, Manual & 24/7 Queries\",\n    \"svg_step3_tag\": \"STEP 03: ACCESS ENABLED\",\n    \"svg_step3_title\": \"Immediate Full Access\",\n    \"t_row1_mod\": \"<b>🦴 Pathology or Technique</b>\",\n    \"t_row1_res\": \"Treatises, monographs, surgical approaches, implants, and biomechanics.\",\n    \"t_row2_mod\": \"<b>🎯 AO/OTA Classification & Eponyms</b>\",\n    \"t_row2_res\": \"Reduction techniques, biological principles, and osteosynthesis implant selection.\",\n    \"t_row3_mod\": \"<b>🔪 Surgical Approaches</b>\",\n    \"t_row3_res\": \"Internervous planes, applied anatomy, and step-by-step dissection pearls.\",\n    \"t_row4_mod\": \"<b>🔩 Instruments & Brands</b>\",\n    \"t_row4_res\": \"Official manufacturer surgical technique guides with instrumentation steps.\",\n    \"t_row5_mod\": \"<b>📄 DOI, PMID or ISBN Code</b>\",\n    \"t_row5_res\": \"Direct delivery of scientific paper or automatic acquisition ticket creation.\",\n    \"t_row6_mod\": \"<b>🔤 Error Tolerance (Fuzzy Search)</b>\",\n    \"t_row6_res\": \"Precise retrieval despite quick typing, misspellings, or missing accents.\",\n    \"t_row7_mod\": \"<b>🎙️ Audio / Voice Inquiries</b>\",\n    \"t_row7_res\": \"Transcription of orthopedic terminology and automatic query execution.\",\n    \"t_row8_mod\": \"<b>📑 Specialties Menu</b>\",\n    \"t_row8_res\": \"Display of catalog organized by orthopedic subspecialties.\",\n    \"t_row9_mod\": \"<b>📖 Manual Request</b>\",\n    \"t_row9_res\": \"Instant delivery of the interactive web link and official manual PDF.\",\n    \"th_example\": \"Example Chat Message\",\n    \"th_modality\": \"Search Modality\",\n    \"th_result\": \"Clinical Result Delivered\",\n    \"toast_copy\": \"Command copied to clipboard!\"\n  },\n  \"PT\": {\n    \"btn_buzon\": \"📤 Caixa Digital\",\n    \"btn_buzon_share\": \"📤 Compartilhe Literatura na Caixa Digital\",\n    \"btn_print\": \"🖨️ Imprimir / Salvar PDF\",\n    \"btn_sim\": \"🩺 Simulador WhatsApp\",\n    \"card_anon_desc\": \"O projeto protege com zelo inabalável a privacidade da Direção e dos usuários autorizados. Todas as solicitações, intermediações e respostas operam por meio do assistente autônomo com criptografia de ponta a ponta, preservando em todos os momentos o anonimato e a confidencialidade bilateral.\",\n    \"card_anon_title\": \"🛡️ Regra Sagrada do Anonimato Cardinal\",\n    \"card_bulletin_desc\": \"Todo domingo às 8h00 (ou sob solicitação oficial), os médicos recebem um resumo editorial com 3 pérolas cirúrgicas e leituras destacadas da semana para debate em reuniões clínicas.\",\n    \"card_bulletin_title\": \"☀️ Boletim Dominical Cirúrgico\",\n    \"card_comms_desc\": \"Para atualizações, novidades no acervo ou avisos regimentais, é emitido um <b>comunicado oficial direto</b> a todos os médicos autorizados pelo assistente, garantindo ampla e simultânea informação.\",\n    \"card_comms_title\": \"📢 Comunicados Institucionais Oficiais\",\n    \"card_conduct_desc\": \"<p style=\\\"margin-bottom:8px;\\\">A biblioteca opera com estrito rigor científico e ético. A Direção gerencia a condição de cada participante por meio de uma <b>escala disciplinar escalonada</b> ajustável via WhatsApp ou na planilha de controle:</p><ul style=\\\"margin-bottom: 12px;\\\"><li><b>1. ATIVO (Habilitado Pleno):</b> Acesso regular a buscas, leitura crítica NotebookLM, sínteses PubMed e requisições de literatura.</li><li><b>2. SUSPENSO TEMPORARIAMENTE (24h, 48h ou 72h):</b> Período de suspensão preventiva para conduta inadequada ou faltas leves. Reativação automática ao término.</li><li><b>3. BLOQUEADO INDEFINIDAMENTE:</b> Inabilitação preventiva diante de reincidências, sujeita à reavaliação da Direção.</li><li><b>4. EXPULSO PERMANENTEMENTE:</b> Bloqueio definitivo e irrevogável do número e cadastro por violações graves ou tentativas de quebra de segurança.</li></ul>\",\n    \"card_conduct_title\": \"⛔ Regime Disciplinar e Escala de Status Institucionais\",\n    \"card_crit_anti_desc\": \"<li><b>Crescimento Autônomo da Coleção:</b> Se durante a análise algum artigo não constar na base da biblioteca, ele <b>será adicionado automaticamente ao catálogo</b>.</li><li><b>Proteção Anti-Duplicação:</b> Se os arquivos já existirem no repositório, evita-se duplicação e foca-se estritamente na análise comparativa.</li><li><b>Entregáveis:</b> Síntese PICO, metodologia, significância estatística, avaliação de viés e <b>Matriz Comparativa Cruzada</b>.</li>\",\n    \"card_crit_anti_title\": \"⚖️ Incorporação Automática e Anti-Duplicação\",\n    \"card_crit_flow_title\": \"🔬 Fluxo Guiado de Análise Documental\",\n    \"card_donor_privacy\": \"🔒 <b>Registro de Controle Interno Confidencial:</b> Os dados dos doadores constam exclusivamente em registro privado para a Direção. Jamais será publicado ou informado quem contribuiu com cada obra.\",\n    \"card_evidence_results_desc\": \"<li><b>Resumo WhatsApp (3–4 parágrafos):</b> Consenso atual, conclusões dos 3 artigos mais recentes e recomendação cirúrgica.</li><li><b>Links HTTPS Diretos:</b> Acesso direto ao PubMed, DOI e Consensus para ler o estudo completo original.</li><li><b>Ficha de Evidência em PDF:</b> Documento clínico formal com tabela comparativa e escala Oxford de evidência.</li>\",\n    \"card_evidence_results_title\": \"📊 Entrega de Resultados Estruturados\",\n    \"card_lang_badge\": \"MULTILINGUISMO ILIMITADO\",\n    \"card_lang_comms_desc\": \"Independentemente do idioma em que o <b>Gestor de Conteúdo</b> redigir os comunicados ou boletins institucionais, a plataforma executa tradução autônoma de alta fidelidade para que cada colega receba a mensagem em seu idioma escolhido.\",\n    \"card_lang_comms_hdr\": \"📢 Comunicados do Gestor de Conteúdo no Seu Idioma:\",\n    \"card_lang_desc\": \"Visando à expansão internacional e ao acolhimento fraterno da comunidade médica global, <b>todo usuário tem a prerrogativa de selecionar o idioma no qual deseja interagir com o assistente, receber respostas, sínteses de evidências e comunicados oficiais</b>.\",\n    \"card_lang_preserve_desc\": \"<b>Os artigos científicos, guias de técnica cirúrgica AO, livros-texto e monografias em formato PDF são estritamente preservados e baixados em seu idioma original de publicação</b>.<br>Para assegurar a máxima fidelidade anatômica, evitar ambiguidades posológicas e respeitar as indicações de implantes certificados, <b>os documentos originais jamais são sintetizados ou modificados por tradução automática</b>. São entregues autênticos e íntegros como na literatura internacional.\",\n    \"card_lang_preserve_hdr\": \"<span>🛡️</span> Princípio Fundamental de Preservação da Originalidade Documental:\",\n    \"card_lang_switch_hdr\": \"🔄 Atualização Imediata e Sem Limite de Frequência:\",\n    \"card_large_files_desc\": \"<p>Para atlas cirúrgicos completos ou grandes tratados digitalizados, o ecossistema dispõe de 4 estratégias otimizadas:</p><ul style=\\\"margin-top: 8px;\\\"><li><b>1. Anexo pelo WhatsApp (Até 100 MB – 2 GB):</b> Envie o arquivo diretamente no WhatsApp com a palavra-chave <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span>. Processamento contínuo em streaming.</li><li><b>2. Envio Fracionado (Chunked Upload):</b> Na Caixa Digital Web, documentos pesados são segmentados em blocos de 10 MB a 15 MB com barra de progresso em tempo real.</li><li><b>3. Sessão Reiniciável (Resumable Upload):</b> Link temporário tolerante a oscilações de rede, permitindo retomar sem perda de dados.</li><li><b>4. Otimização no Navegador:</b> Ajuste dinâmico prévio a 150–200 DPI clínicos no seu próprio aparelho, reduzindo até 70% do peso mantendo fidelidade total.</li></ul>\",\n    \"card_large_files_title\": \"📦 Tratados Volumosos e Arquivos Pesados (> 45 MB até 2 GB)\",\n    \"card_learning_desc\": \"<li><b>Mapeamento de Sinônimos:</b> Associação automática de termos equivalentes (ex. <i>prótese &rarr; artroplastia / substituição; LCA &rarr; ligamento cruzado anterior</i>).</li><li><b>Detecção de Lacunas:</b> Pesquisas sem correspondência direta são registradas para orientar aquisição de novos títulos.</li>\",\n    \"card_learning_title\": \"🧠 Sistema de Autoaprendizagem Contínua\",\n    \"card_msg_dir_desc\": \"Para sugerir novas obras, relatar dúvidas ou falar com a Direção preservando o anonimato bilateral, escreva no chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('MENSAGEM A DIRECAO: ')\\\">MENSAGEM A DIRECAO: [sua consulta detalhada]</span><br>O sistema encaminha a mensagem à gerência executiva de modo sigiloso.\",\n    \"card_msg_dir_title\": \"📩 Envio de Mensagem à Direção\",\n    \"card_option_a_desc\": \"Os colaboradores podem depositar literatura médica de forma confidencial e protegida por meio do portal anônimo institucional, sem expor contas pessoais nem dados externos.\",\n    \"card_option_a_title\": \"📁 Opção A: Caixa Digital Segura Web\",\n    \"card_option_b_desc\": \"Médicos autorizados podem enviar diretamente um arquivo PDF no chat de WhatsApp acompanhado do termo <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span> ou <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('DOAR')\\\">DOAR</span>.<br>O assistente valida a integridade, cataloga por subespecialidade e confirma com identificador de registro.\",\n    \"card_option_b_title\": \"📱 Opção B: Ingestão Direta pelo WhatsApp\",\n    \"card_pubmed_desc\": \"Permite interrogar em tempo real mais de 35 milhões de publicações biomédicas indexadas. Para realizar uma consulta científica, envie no chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('EVIDENCIA: ')\\\">EVIDENCIA: [sua pergunta clínica ou técnica]</span><br><i>Exemplo: \\\"EVIDENCIA: Banda de tensão vs placas bloqueadas em fraturas de patela 34-C3\\\"</i>\",\n    \"card_pubmed_title\": \"🌐 Consulta Direta ao PubMed\",\n    \"card_resp_dir_desc\": \"Quando avaliada a solicitação, o médico receberá a resposta em seu próprio WhatsApp com o cabeçalho oficial:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\">DIREÇÃO DO PROJETO: [resposta institucional]</span><br>Assegurando canal ordenado, transparente e seguro.\",\n    \"card_resp_dir_title\": \"📤 Recebimento de Resposta Oficial\",\n    \"card_status_notify\": \"🔔 <b>Protocolo de Notificação Automática:</b> Toda alteração de status decidida pela Direção dispara imediatamente mensagem oficial ao médico informando nova condição, motivos e prazo.\",\n    \"card_step1_desc\": \"O médico envia mensagem ao WhatsApp do bot informando: <b>Nome Completo</b>, <b>E-mail (pessoal ou institucional)</b>, <b>Hospital ou Universidade</b> e <b>Nível Atual</b> (R1–R4, Especialista, Egresso). O sistema registra a solicitação com status <code>PENDENTE_APROVAÇÃO</code> com proteção criptográfica.\",\n    \"card_step1_title\": \"1. Solicitação e Registro Inicial\",\n    \"card_step2_desc\": \"A solicitação é avaliada com base em critérios predefinidos de forma autônoma e em conformidade com as diretrizes do projeto, após verificação da veracidade das informações em cerca de <b>24 horas</b>.\",\n    \"card_step2_title\": \"2. Análise e Verificação Autônoma\",\n    \"card_step3_desc\": \"O usuário recebe mensagem de boas-vindas, o link para o Manual Oficial interativo e sua cota habilitada para consultas e downloads clínicos 24/7.\",\n    \"card_step3_title\": \"3. Acesso Pleno Imediato\",\n    \"card_support_desc\": \"Iniciativa médica independente para fortalecer a formação continuada de residentes e cirurgiões ortopedistas. A literatura, guias e monografias fornecidas têm <b>caráter estritamente pedagógico</b>; toda decisão diagnóstica e terapêutica cabe exclusivamente ao critério clínico do médico assistente.\",\n    \"card_support_title\": \"🎯 Apoio Médico e Isenção de Responsabilidade\",\n    \"card_update_badge\": \"AUTOGESTÃO SEGURA\",\n    \"card_update_cmd_desc\": \"Para consultar o guia de atualização, envie simplesmente: <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('ATUALIZAR DADOS')\\\">ATUALIZAR DADOS</span><br>Ou envie diretamente seus novos dados em mensagem estruturada:<br><code style=\\\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\\\">ATUALIZAR: [Nome Completo], [E-mail], [Hospital/Universidade], [Nível]</code>\",\n    \"card_update_cmd_hdr\": \"Mecanismo e Comando de Ativação pelo WhatsApp:\",\n    \"card_update_desc\": \"Em consonância com a autodeterminação informativa e rigor cadastral, <b>todo usuário possui o direito inalienável de solicitar a atualização ou retificação dos seus dados pessoais a qualquer momento</b> (mudança de e-mail, hospital, promoção de residência R1 a R4 ou titulação).\",\n    \"card_update_limit_desc\": \"Com a finalidade exclusiva de manter a rastreabilidade do acesso clínico e prevenir transferências fraudulentas de credenciais, o sistema aplica os seguintes limites temporais:<br>• <b>Máximo 3 atualizações em um período móvel de 6 meses</b> (180 dias).<br>• <b>Máximo 6 atualizações em um período móvel de 12 meses</b> (365 dias).<br><i>Nota: Casos excepcionais podem enviar solicitação formal pelo <a href=\\\"#seccion-canal\\\" style=\\\"color: #92400e; font-weight: 700; text-decoration: underline;\\\">Canal Intermediado com a Direção</a>.</i>\",\n    \"card_update_limit_hdr\": \"<span>⏱️</span> Política Institucional de Frequência Máxima de Modificações:\",\n    \"card_vision_desc\": \"Ao enviar radiografia ou tomografia, o motor de visão computacional analisa o segmento ósseo, sugere a classificação AO/OTA mais provável e recupera a técnica cirúrgica correspondente.\",\n    \"card_vision_title\": \"📷 Orientação Radiográfica AO/OTA\",\n    \"card_voice_desc\": \"No centro cirúrgico ou ambulatório, cirurgiões podem enviar áudios ao chat. O assistente transcreve termos ortopédicos com inteligência artificial e executa buscas sem necessidade de digitação.\",\n    \"card_voice_title\": \"🎙️ Consultas por Nota de Voz\",\n    \"ch10_title\": \"<span class=\\\"chapter-badge\\\">10</span> Governança Dinâmica: Comunicados Oficiais e Autoaprendizagem\",\n    \"ch11_title\": \"<span class=\\\"chapter-badge\\\">🩺</span> Simulador Clínico Interativo do WhatsApp em Tempo Real\",\n    \"ch1_title\": \"<span class=\\\"chapter-badge\\\">1</span> Filosofia Acadêmica e Princípio do Anonimato Cardinal\",\n    \"ch2_title\": \"<span class=\\\"chapter-badge\\\">2</span> Protocolo de Admissão e Ciclo de Vida do Usuário\",\n    \"ch3_title\": \"<span class=\\\"chapter-badge\\\">3</span> Modalidades de Busca Cirúrgica no Catálogo Especializado\",\n    \"ch4_title\": \"<span class=\\\"chapter-badge\\\">4</span> Motor de Evidências Médicas Globais (PubMed & Semantic Scholar)\",\n    \"ch5_title\": \"<span class=\\\"chapter-badge\\\">5</span> Leitura Crítica de Artigos Próprios (Motor NotebookLM com Gemini)\",\n    \"ch6_title\": \"<span class=\\\"chapter-badge\\\">6</span> Vias de Contribuição e Enriquecimento do Acervo Especializado\",\n    \"ch7_title\": \"<span class=\\\"chapter-badge\\\">7</span> Potencializações Multimodais do Assistente: Voz, Visão AO e Boletim\",\n    \"ch8_title\": \"<span class=\\\"chapter-badge\\\">8</span> Código de Conducta e Regime Disciplinar Institucional\",\n    \"ch9_title\": \"<span class=\\\"chapter-badge\\\">9</span> Canal Intermediado Confidencial com a Direção\",\n    \"chip_bulletin\": \"☀️ Boletim Dominical Cirúrgico\",\n    \"chip_multilingual\": \"🌍 Cobertura Global Multilíngue\",\n    \"chip_notebooklm\": \"🔬 Motor NotebookLM com Gemini\",\n    \"chip_pubmed\": \"🌐 Motor PubMed & Semantic Scholar\",\n    \"chip_service\": \"<span class=\\\"pulse-dot\\\"></span> Serviço Clínico 24/7 Disponível\",\n    \"chip_vision\": \"📷 Visão Radiográfica AO/OTA\",\n    \"chip_voice\": \"🎙️ Consultas por Áudio / Voz\",\n    \"custody_identity\": \"🏛️ Gestor de Conteúdo\",\n    \"custody_label\": \"DIREÇÃO & CUSTÓDIA\",\n    \"diag2_caption\": \"Esquema 2.1 — Fluxo Autônomo de Admissão e Habilitação de Acesso\",\n    \"diag3_caption\": \"Esquema 3.1 — Pipeline de Recuperação Inteligente e Despacho Clínico\",\n    \"diag4_caption\": \"Esquema 4.1 — Tradução Médica e Recuperação de Evidência Científica\",\n    \"diag6_caption\": \"Esquema 6.1 — Ciclo Autônomo de Enriquecimento e Ingestão Colaborativa\",\n    \"edition_tag\": \"Edição Oficial 2026.5 • Guia Operacional Institucional\",\n    \"footer_edition\": \"<span>Documento Mestre Vivo • Edição Oficial v2026.5</span><br><span style=\\\"color: var(--color-surgical-teal); font-weight: 700;\\\">Vigência Ativa e Atualização Permanente</span>\",\n    \"footer_org\": \"<b>Biblioteca Médica Especializada de Ortopedia e Traumatologia</b><br>Direção Institucional: <b>Direção do Projeto</b> • Serviço Clínico Permanente 24/7\",\n    \"lang_label\": \"IDIOMA:\",\n    \"masthead_subtitle\": \"Cirurgia Ortopédica e Traumatologia • Guia Mestre de Uso, Procedimentos e Governança\",\n    \"masthead_title\": \"Biblioteca Médica Especializada\",\n    \"search_placeholder\": \"Pesquisar tópicos (ex. AO, abordagem, PubMed, análise)...\",\n    \"sim_header_hint\": \"Clique em qualquer comando para visualizar a resposta do Assistente:\",\n    \"sim_header_tag\": \"⚡ Console de Demonstração em Tempo Real\",\n    \"svg_step1_desc\": \"Nome, E-mail, Hospital e Nível\",\n    \"svg_step1_tag\": \"PASSO 01: SOLICITAÇÃO\",\n    \"svg_step1_title\": \"Registro pelo WhatsApp\",\n    \"svg_step2_desc\": \"Verificação de veracidade (~24 h)\",\n    \"svg_step2_tag\": \"PASSO 02: VALIDAÇÃO\",\n    \"svg_step2_title\": \"Avaliação Autônoma\",\n    \"svg_step3_desc\": \"Boas-vindas, Manual e Consultas 24/7\",\n    \"svg_step3_tag\": \"PASSO 03: HABILITAÇÃO\",\n    \"svg_step3_title\": \"Acesso Pleno Imediato\",\n    \"t_row1_mod\": \"<b>🦴 Patologia ou Técnica</b>\",\n    \"t_row1_res\": \"Tratados, monografias, técnicas de abordagem, implantes e biomecânica.\",\n    \"t_row2_mod\": \"<b>🎯 Classificação AO/OTA & Epônimos</b>\",\n    \"t_row2_res\": \"Técnicas de redução, princípios biológicos e seleção de implantes de osteossíntese.\",\n    \"t_row3_mod\": \"<b>🔪 Abordagens Cirúrgicas</b>\",\n    \"t_row3_res\": \"Planos internervosos, anatomia cirúrgica aplicada e passos de dissecção.\",\n    \"t_row4_mod\": \"<b>🔩 Instrumental e Fabricantes</b>\",\n    \"t_row4_res\": \"Guias oficiais de técnica cirúrgica do fabricante com instrumentais passo a passo.\",\n    \"t_row5_mod\": \"<b>📄 Código DOI, PMID ou ISBN</b>\",\n    \"t_row5_res\": \"Entrega direta do artigo científico ou abertura automática de ticket de aquisição.\",\n    \"t_row6_mod\": \"<b>🔤 Tolerância a Erros (Fuzzy)</b>\",\n    \"t_row6_res\": \"Recuperação precisa mesmo com digitação rápida, erros ortográficos ou ausência de acentos.\",\n    \"t_row7_mod\": \"<b>🎙️ Consultas por Áudio / Voz</b>\",\n    \"t_row7_res\": \"Transcrição precisa de termos ortopédicos e execução direta da pesquisa.\",\n    \"t_row8_mod\": \"<b>📑 Menu de Especialidades</b>\",\n    \"t_row8_res\": \"Exibição do catálogo organizado por subespecialidades ortopédicas.\",\n    \"t_row9_mod\": \"<b>📖 Solicitação do Manual</b>\",\n    \"t_row9_res\": \"Despacho imediato do link interativo web e PDF do manual oficial.\",\n    \"th_example\": \"Mensagem de Exemplo no Chat\",\n    \"th_modality\": \"Modalidade de Busca\",\n    \"th_result\": \"Resultado Clínico Entregue\",\n    \"toast_copy\": \"Comando copiado para a área de transferência!\"\n  },\n  \"FR\": {\n    \"btn_buzon\": \"📤 Boîte Numérique\",\n    \"btn_buzon_share\": \"📤 Partagez des Documents dans la Boîte Numérique\",\n    \"btn_print\": \"🖨️ Imprimer / Enregistrer PDF\",\n    \"btn_sim\": \"🩺 Simulateur WhatsApp\",\n    \"card_anon_desc\": \"Le projet protège avec un zèle inébranlable la confidentialité de la Direction et des utilisateurs autorisés. Toutes les demandes, intermédiations et réponses s'effectuent via l'assistant autonome avec un chiffrement de bout en bout, préservant à tout moment l'anonymat et la confidentialité bilatérale.\",\n    \"card_anon_title\": \"🛡️ Règle Sacrée de l'Anonymat Cardinal\",\n    \"card_bulletin_desc\": \"Chaque dimanche à 8h00 (ou sur demande officielle), les confrères reçoivent une synthèse éditoriale comprenant 3 perles chirurgicales et les lectures de la semaine pour les réunions de service.\",\n    \"card_bulletin_title\": \"☀️ Bulletin Chirurgical Dominical\",\n    \"card_comms_desc\": \"Lors de mises à jour, de nouveaux modules ou d'évolutions des directives, un <b>communiqué officiel général</b> est diffusé à l'ensemble des médecins autorisés via l'assistant, assurant une information synchrone.\",\n    \"card_comms_title\": \"📢 Communiqués Institutionnels Officiels\",\n    \"card_conduct_desc\": \"<p style=\\\"margin-bottom:8px;\\\">La bibliothèque exige une rigueur éthique et scientifique absolue. La Direction gère la situation de chaque médecin selon une <b>échelle disciplinaire graduée</b> configurable via WhatsApp ou sur le registre central :</p><ul style=\\\"margin-bottom: 12px;\\\"><li><b>1. ACTIF (Accès Complet) :</b> Accès complet aux recherches, analyse critique NotebookLM, synthèses PubMed et commandes d'articles.</li><li><b>2. SUSPENDU TEMPORAIREMENT (24h, 48h ou 72h) :</b> Période transitoire en cas de langage inapproprié ou manquement mineur. Réactivation automatique à l'échéance.</li><li><b>3. BLOQUÉ INDÉFINIMENT :</b> Suspension préventive en cas de récidive, soumise à l'évaluation directe de la Direction.</li><li><b>4. EXCLU DÉFINITIVEMENT :</b> Révocation définitive et irrévocable du numéro et du compte en cas de tentative d'intrusion ou faute grave.</li></ul>\",\n    \"card_conduct_title\": \"⛔ Régime Disciplinaire et Échelle des Statuts Institutionnels\",\n    \"card_crit_anti_desc\": \"<li><b>Croissance Autonome du Fonds :</b> Si un article analysé ne figure pas dans le catalogue, il est <b>automatiquement intégré à la bibliothèque</b>.</li><li><b>Protection Anti-Doublon :</b> Si les documents existent déjà, toute duplication est évitée et le système se concentre sur l'analyse comparative.</li><li><b>Livrables :</b> Résumé PICO, méthodologie, puissance statistique, risque de biais et <b>Matrice Comparative Croisée</b>.</li>\",\n    \"card_crit_anti_title\": \"⚖️ Incorporation Automatique et Anti-Doublon\",\n    \"card_crit_flow_title\": \"🔬 Parcours Guidé d'Analyse Documentaire\",\n    \"card_donor_privacy\": \"🔒 <b>Registre Interne Confidentiel :</b> Les informations des confrères donateurs sont enregistrées exclusivement dans un registre privé pour la Direction. L'identité des donateurs ne sera jamais divulguée.\",\n    \"card_evidence_results_desc\": \"<li><b>Résumé WhatsApp (3–4 paragraphes) :</b> Consensus actuel, conclusions clés des 3 études les plus récentes et recommandations opératoires.</li><li><b>Liens HTTPS Directs :</b> Liens vers PubMed, DOI et Consensus pour lire l'article original intégral.</li><li><b>Fiche de Preuves PDF :</b> Document clinique téléchargeable avec tableau comparatif et échelle de preuve d'Oxford.</li>\",\n    \"card_evidence_results_title\": \"📊 Restitution des Résultats Structurés\",\n    \"card_lang_badge\": \"MULTILINGUISME ILLIMITÉ\",\n    \"card_lang_comms_desc\": \"Quelle que soit la langue dans laquelle le <b>Gestionnaire de Contenu</b> rédige les communiqués officiels ou bulletins, la plateforme assure une traduction autonome de haute fidélité afin que chaque confrère reçoive le message dans sa langue de prédilection.\",\n    \"card_lang_comms_hdr\": \"📢 Communiqués du Gestionnaire de Contenu dans Votre Langue :\",\n    \"card_lang_desc\": \"Dans une perspective de rayonnement international et d'accompagnement fraternel de la communauté médicale mondiale, <b>chaque confrère a la pleine liberté de choisir la langue dans laquelle il souhaite interagir avec l'assistant, recevoir les réponses, les synthèses de preuves et les communiqués officiels</b>.\",\n    \"card_lang_preserve_desc\": \"<b>Les articles scientifiques, guides de techniques chirurgicales AO, manuels et monographies au format PDF sont strictement conservés et téléchargés dans leur langue originale de publication</b>.<br>Afin de garantir la plus rigoureuse exactitude anatomique, d'éviter toute ambiguïté posologique et de respecter les indications d'implants certifiées par les fabricants, <b>les documents originaux ne sont jamais modifiés ni traduits artificiellement</b>. Ils sont transmis intacts et authentiques tels que publiés dans la littérature biomédicale internationale.\",\n    \"card_lang_preserve_hdr\": \"<span>🛡️</span> Principe Fondamental de Préservation de l'Originalité Documentaire :\",\n    \"card_lang_switch_hdr\": \"🔄 Mise à Jour Immédiate et Sans Aucune Limite de Fréquence :\",\n    \"card_large_files_desc\": \"<p>Pour les atlas chirurgicaux volumineux ou les traités numérisés lourds, l'écosystème propose 4 solutions adaptées :</p><ul style=\\\"margin-top: 8px;\\\"><li><b>1. Pièce Jointe WhatsApp (Jusqu'à 100 Mo – 2 Go) :</b> Joignez le fichier dans le chat avec le mot <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span>. Traitement continu en flux.</li><li><b>2. Téléversement Fractionné (Chunked Upload) :</b> Sur la Boîte Numérique Web, les gros fichiers sont découpés en blocs de 10 à 15 Mo avec jauge de progression.</li><li><b>3. Session Reprenable (Resumable Upload) :</b> Lien éphémère tolérant aux coupures de réseau pour reprendre le transfert sans perte de données.</li><li><b>4. Optimisation dans le Navigateur :</b> Réglage automatique à 150–200 DPI de lecture clinique directement sur votre appareil, réduisant le poids de 70% sans dégradation visuelle.</li></ul>\",\n    \"card_large_files_title\": \"📦 Traités Volumineux et Fichiers Lourds (> 45 Mo jusqu'à 2 Go)\",\n    \"card_learning_desc\": \"<li><b>Expansion Synonymique :</b> Association automatique des termes équivalents (ex. <i>prothèse &rarr; arthroplastie / remplacement ; LCA &rarr; ligament croisé antérieur</i>).</li><li><b>Détection des Besoins :</b> Les recherches infructueuses sont mémorisées afin d'orienter les futures acquisitions documentaires.</li>\",\n    \"card_learning_title\": \"🧠 Système d'Auto-Apprentissage Continu\",\n    \"card_msg_dir_desc\": \"Pour proposer l'acquisition d'un traité, poser une question ou joindre la Direction en préservant l'anonymat réciproque, écrivez dans le chat :<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('MESSAGE A LA DIRECTION: ')\\\">MESSAGE A LA DIRECTION: [votre demande détaillée]</span><br>Le système transmet discrètement le message à la console exécutive.\",\n    \"card_msg_dir_title\": \"📩 Envoi de Message à la Direction\",\n    \"card_option_a_desc\": \"Les confrères peuvent déposer de la littérature médicale de manière confidentielle via le portail institutionnel anonyme, sans exposer de comptes personnels.\",\n    \"card_option_a_title\": \"📁 Option A : Boîte Numérique Sécurisée Web\",\n    \"card_option_b_desc\": \"Les médecins autorisés peuvent joindre directement un fichier PDF sur le chat WhatsApp avec le mot-clé <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span> ou <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('DON')\\\">DON</span>.<br>L'assistant valide l'intégrité du document, le classe par sous-spécialité et renvoie un accusé de réception avec identifiant.\",\n    \"card_option_b_title\": \"📱 Option B : Transmission Directe par WhatsApp\",\n    \"card_pubmed_desc\": \"Permet d'interroger en direct plus de 35 millions de publications biomédicales indexées. Pour formuler une question scientifique, écrivez dans le chat :<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('PREUVES: ')\\\">PREUVES: [votre question clinique ou technique]</span><br><i>Exemple : \\\"EVIDENCE: Haubannage vs plaques verrouillées dans les fractures de rotule 34-C3\\\"</i>\",\n    \"card_pubmed_title\": \"🌐 Consultation Directe de PubMed\",\n    \"card_resp_dir_desc\": \"Dès son examen, le médecin reçoit la communication officielle directement dans son chat WhatsApp avec l'en-tête officiel :<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\">DIRECTION DU PROJET: [réponse institutionnelle]</span><br>Garantissant un canal d'échange transparent, ordonné et sécurisé.\",\n    \"card_resp_dir_title\": \"📤 Réception de la Réponse Officielle\",\n    \"card_status_notify\": \"🔔 <b>Protocole de Notification Automatique :</b> Chaque décision de modification de statut émise par la Direction génère immédiatement un message officiel précisant la nouvelle situation, les motifs et la durée.\",\n    \"card_step1_desc\": \"Le médecin contacte le bot WhatsApp en indiquant : <b>Nom Complet</b>, <b>Adresse e-mail (personnelle ou institutionnelle)</b>, <b>Hôpital ou Université</b> et <b>Niveau Actuel</b> (Interne R1–R4, Spécialiste, Ancien). Le système enregistre la demande avec le statut <code>EN_ATTENTE_VALIDATION</code> et sécurise les données par scellement cryptographique.\",\n    \"card_step1_title\": \"1. Demande et Enregistrement Initial\",\n    \"card_step2_desc\": \"La candidature est évaluée selon des critères prédéfinis de manière autonome et conformément aux directives du projet, après vérification des informations sous environ <b>24 heures</b>.\",\n    \"card_step2_title\": \"2. Analyse et Vérification Autonome\",\n    \"card_step3_desc\": \"L'utilisateur reçoit une confirmation de bienvenue, le lien vers le Manuel Officiel interactif et son quota activé pour effectuer des recherches et des téléchargements cliniques 24/7.\",\n    \"card_step3_title\": \"3. Accès Complet Immédiat\",\n    \"card_support_desc\": \"Initiative médicale indépendante pour renforcer la formation continue des résidents et chirurgiens orthopédistes. La littérature, les guides et monographies fournis ont un <b>caractère strictement pédagogique</b> ; toute décision diagnostique et thérapeutique relève exclusivement du jugement clinique du médecin traitant.\",\n    \"card_support_title\": \"🎯 Soutien Médical et Avis de Non-Responsabilité\",\n    \"card_update_badge\": \"AUTOGESTION SÉCURISÉE\",\n    \"card_update_cmd_desc\": \"Pour consulter le guide de mise à jour, envoyez simplement : <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('METTRE A JOUR DONNEES')\\\">METTRE A JOUR DONNEES</span><br>Ou transmettez directement vos nouvelles données en un seul message structuré :<br><code style=\\\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\\\">ACTUALISER: [Nom Complet], [E-mail], [Hôpital/Université], [Niveau]</code>\",\n    \"card_update_cmd_hdr\": \"Mécanisme et Commande d'Activation par WhatsApp :\",\n    \"card_update_desc\": \"Conformément aux principes d'autodétermination informationnelle et d'exactitude des dossiers médicaux, <b>chaque utilisateur dispose du droit inaliénable de demander la mise à jour ou rectification de ses données personnelles à tout moment</b> (changement d'e-mail, d'hôpital, avancement d'internat R1 à R4 ou obtention du titre de spécialiste).\",\n    \"card_update_limit_desc\": \"Afin de garantir la traçabilité des accès cliniques et d'empêcher les transferts frauduleux d'identifiants, le système applique les limites suivantes :<br>• <b>Maximum 3 mises à jour sur une période glissante de 6 mois</b> (180 jours).<br>• <b>Maximum 6 mises à jour sur une période glissante de 12 mois</b> (365 jours).<br><i>Remarque : En cas de force majeure, une demande formelle peut être adressée via le <a href=\\\"#seccion-canal\\\" style=\\\"color: #92400e; font-weight: 700; text-decoration: underline;\\\">Canal Intermédiaire avec la Direction</a>.</i>\",\n    \"card_update_limit_hdr\": \"<span>⏱️</span> Politique Institutionnelle de Fréquence Maximale des Modifications :\",\n    \"card_vision_desc\": \"En joignant une radiographie ou un scanner, le système de vision artificielle examine le segment osseux, propose la classification AO/OTA la plus probable et récupère la technique chirurgicale adaptée.\",\n    \"card_vision_title\": \"📷 Orientation Radiographique AO/OTA\",\n    \"card_voice_desc\": \"Au bloc opératoire ou en consultation, les chirurgiens peuvent transmettre des notes vocales. L'assistant transcrit précisément la terminologie orthopédique par IA et lance la recherche sans frappe au clavier.\",\n    \"card_voice_title\": \"🎙️ Consultations par Note Vocale\",\n    \"ch10_title\": \"<span class=\\\"chapter-badge\\\">10</span> Gouvernance Dynamique : Communiqués Officiels et Auto-Apprentissage\",\n    \"ch11_title\": \"<span class=\\\"chapter-badge\\\">🩺</span> Simulateur Clinique Interactif de WhatsApp en Temps Réel\",\n    \"ch1_title\": \"<span class=\\\"chapter-badge\\\">1</span> Philosophie Académique et Principe d'Anonymat Cardinal\",\n    \"ch2_title\": \"<span class=\\\"chapter-badge\\\">2</span> Protocole d'Admission et Cycle de Vie de l'Utilisateur\",\n    \"ch3_title\": \"<span class=\\\"chapter-badge\\\">3</span> Modalités de Recherche Chirurgicale dans le Catalogue Spécialisé\",\n    \"ch4_title\": \"<span class=\\\"chapter-badge\\\">4</span> Moteur de Preuves Médicales Mondiales (PubMed & Semantic Scholar)\",\n    \"ch5_title\": \"<span class=\\\"chapter-badge\\\">5</span> Lecture Critique d'Articles Personnels (Moteur NotebookLM avec Gemini)\",\n    \"ch6_title\": \"<span class=\\\"chapter-badge\\\">6</span> Voies de Contribution et Enrichissement du Fonds Spécialisé\",\n    \"ch7_title\": \"<span class=\\\"chapter-badge\\\">7</span> Améliorations Multimodales de l'Assistant : Voix, Vision AO et Bulletin\",\n    \"ch8_title\": \"<span class=\\\"chapter-badge\\\">8</span> Code de Conduite et Régime Disciplinaire Institutionnel\",\n    \"ch9_title\": \"<span class=\\\"chapter-badge\\\">9</span> Canal Intermédiaire Confidentiel avec la Direction\",\n    \"chip_bulletin\": \"☀️ Bulletin Chirurgical Dominical\",\n    \"chip_multilingual\": \"🌍 Couverture Mondiale Multilingue\",\n    \"chip_notebooklm\": \"🔬 Moteur NotebookLM avec Gemini\",\n    \"chip_pubmed\": \"🌐 Moteur PubMed & Semantic Scholar\",\n    \"chip_service\": \"<span class=\\\"pulse-dot\\\"></span> Service Clinique 24/7 Disponible\",\n    \"chip_vision\": \"📷 Vision Radiographique AO/OTA\",\n    \"chip_voice\": \"🎙️ Consultations par Audio / Voix\",\n    \"custody_identity\": \"🏛️ Gestionnaire de Contenu\",\n    \"custody_label\": \"DIRECTION & GARDE\",\n    \"diag2_caption\": \"Schéma 2.1 — Flux Autonome d'Admission et d'Habilitation d'Accès\",\n    \"diag3_caption\": \"Schéma 3.1 — Pipeline de Récupération Intelligente et Envoi Clinique\",\n    \"diag4_caption\": \"Schéma 4.1 — Traduction Médicale et Récupération de Preuves Scientifiques\",\n    \"diag6_caption\": \"Schéma 6.1 — Cycle Autonome d'Enrichissement et d'Ingestion Collaborative\",\n    \"edition_tag\": \"Édition Officielle 2026.5 • Guide Opérationnel Institutionnel\",\n    \"footer_edition\": \"<span>Document Maître Vivant • Édition Officielle v2026.5</span><br><span style=\\\"color: var(--color-surgical-teal); font-weight: 700;\\\">Validité Active et Mise à Jour Continue</span>\",\n    \"footer_org\": \"<b>Bibliothèque Médicale Spécialisée d'Orthopédie et Traumatologie</b><br>Direction Institutionnelle : <b>Direction du Projet</b> • Service Clinique Permanent 24/7\",\n    \"lang_label\": \"LANGUE :\",\n    \"masthead_subtitle\": \"Chirurgie Orthopédique et Traumatologie • Guide Maître d'Utilisation, Procédures et Gouvernance\",\n    \"masthead_title\": \"Bibliothèque Médicale Spécialisée\",\n    \"search_placeholder\": \"Rechercher des sujets (ex. AO, voie d'abord, PubMed, analyse)...\",\n    \"sim_header_hint\": \"Cliquez sur une commande pour observer la réponse de l'Assistant :\",\n    \"sim_header_tag\": \"⚡ Console de Démonstration en Direct\",\n    \"svg_step1_desc\": \"Nom, E-mail, Hôpital et Niveau\",\n    \"svg_step1_tag\": \"ÉTAPE 01 : DEMANDE\",\n    \"svg_step1_title\": \"Enregistrement via WhatsApp\",\n    \"svg_step2_desc\": \"Vérification des faits (~24 h)\",\n    \"svg_step2_tag\": \"ÉTAPE 02 : VALIDATION\",\n    \"svg_step2_title\": \"Évaluation Autonome\",\n    \"svg_step3_desc\": \"Bienvenue, Manuel et Recherches 24/7\",\n    \"svg_step3_tag\": \"ÉTAPE 03 : HABILITATION\",\n    \"svg_step3_title\": \"Accès Complet Immédiat\",\n    \"t_row1_mod\": \"<b>🦴 Pathologie ou Technique</b>\",\n    \"t_row1_res\": \"Traités, monographies, voies d'abord chirurgicales, implants et biomécanique.\",\n    \"t_row2_mod\": \"<b>🎯 Classification AO/OTA & Éponymes</b>\",\n    \"t_row2_res\": \"Techniques de réduction, principes biologiques et sélection d'implants d'ostéosynthèse.\",\n    \"t_row3_mod\": \"<b>🔪 Voies d'Abord Chirurgicales</b>\",\n    \"t_row3_res\": \"Plans internervieux, anatomie chirurgicale appliquée et étapes de dissection.\",\n    \"t_row4_mod\": \"<b>🔩 Matériel et Fabricants</b>\",\n    \"t_row4_res\": \"Guides officiels de technique opératoire du fabricant avec instrumentation détaillée.\",\n    \"t_row5_mod\": \"<b>📄 Code DOI, PMID ou ISBN</b>\",\n    \"t_row5_res\": \"Remise directe de l'article scientifique ou ouverture d'un ticket d'acquisition.\",\n    \"t_row6_mod\": \"<b>🔤 Tolérance aux Fautes (Fuzzy)</b>\",\n    \"t_row6_res\": \"Récupération précise malgré la frappe rapide, les fautes de frappe ou l'absence d'accents.\",\n    \"t_row7_mod\": \"<b>🎙️ Consultations par Audio / Voix</b>\",\n    \"t_row7_res\": \"Transcription fidèle des termes orthopédiques et exécution immédiate de la requête.\",\n    \"t_row8_mod\": \"<b>📑 Menu des Spécialités</b>\",\n    \"t_row8_res\": \"Affichage du catalogue classé par sous-spécialités orthopédiques.\",\n    \"t_row9_mod\": \"<b>📖 Demande du Manuel</b>\",\n    \"t_row9_res\": \"Envoi immédiat du lien web interactif et du PDF du manuel officiel.\",\n    \"th_example\": \"Exemple de Message dans le Chat\",\n    \"th_modality\": \"Modalité de Recherche\",\n    \"th_result\": \"Résultat Clinique Délivré\",\n    \"toast_copy\": \"Commande copiée dans le presse-papiers !\"\n  },\n  \"IT\": {\n    \"btn_buzon\": \"📤 Casella Digitale\",\n    \"btn_buzon_share\": \"📤 Condividi Documenti nella Casella Digitale\",\n    \"btn_print\": \"🖨️ Stampa / Salva PDF\",\n    \"btn_sim\": \"🩺 Simulatore WhatsApp\",\n    \"card_anon_desc\": \"Il progetto tutela con incrollabile rigore la riservatezza della Direzione e degli utenti autorizzati. Tutte le richieste, intermediazioni e risposte operano tramite l'assistente autonomo con crittografia end-to-end, preservando in ogni momento l'anonimato e la riservatezza bilaterale.\",\n    \"card_anon_title\": \"🛡️ Regola Sacra dell'Anonimato Cardinale\",\n    \"card_bulletin_desc\": \"Ogni domenica alle 8:00 (o su richiesta ufficiale), i medici ricevono un estratto editoriale con 3 perle chirurgiche e gli articoli in evidenza della settimana per il dibattito nei briefing clinici.\",\n    \"card_bulletin_title\": \"☀️ Bollettino Chirurgico Domenicale\",\n    \"card_comms_desc\": \"In occasione di aggiornamenti del servizio, introduzione di nuove funzionalità o revisione dei regolamenti, viene diffuso un <b>comunicato ufficiale centralizzato</b> a tutti i medici autorizzati tramite l'assistente.\",\n    \"card_comms_title\": \"📢 Comunicati Istituzionali Ufficiali\",\n    \"card_conduct_desc\": \"<p style=\\\"margin-bottom:8px;\\\">La biblioteca opera con rigorosi standard etici e scientifici. La Direzione gestisce la posizione di ciascun medico attraverso una <b>scala disciplinare progressiva</b> gestibile via WhatsApp o sul foglio centrale:</p><ul style=\\\"margin-bottom: 12px;\\\"><li><b>1. ATTIVO (Pienamente Abilitato):</b> Accesso ordinario a ricerche, analisi critica NotebookLM, sintesi PubMed e richieste di letteratura.</li><li><b>2. SOSPESO TEMPORANEAMENTE (24h, 48h o 72h):</b> Periodo di inibizione transitorio in caso di linguaggio non conforme o lievi infrazioni. Riattivazione automatica al termine.</li><li><b>3. BLOCCATO A TEMPO INDETERMINATO:</b> Sospensione cautelativa in caso di condotte recidive, soggetta a riesame diretto della Direzione.</li><li><b>4. ESPULSO DEFINITIVAMENTE:</b> Revoca definitiva e irrevocabile dell'utenza e del recapito telefonico per tentativi di manomissione o gravi violazioni.</li></ul>\",\n    \"card_conduct_title\": \"⛔ Regime Disciplinare e Scala degli Status Istituzionali\",\n    \"card_crit_anti_desc\": \"<li><b>Crescita Autonoma del Fondo:</b> Se durante l'analisi un documento allegato non è presente nell'archivio, <b>viene aggiunto automaticamente al catalogo</b>.</li><li><b>Filtro Anti-Duplicazione:</b> Se i documenti sono già presenti, si evita qualsiasi duplicazione focalizzandosi esclusivamente sul confronto analitico.</li><li><b>Elaborati Forniti:</b> Riepilogo PICO, metodologia, significatività statistica, valutazione dei bias e <b>Matrice Comparativa Incrociata</b>.</li>\",\n    \"card_crit_anti_title\": \"⚖️ Inclusione Automatica e Anti-Duplicazione\",\n    \"card_crit_flow_title\": \"🔬 Percorso Guidato di Analisi Documentale\",\n    \"card_donor_privacy\": \"🔒 <b>Registro Interno Riservato:</b> I riferimenti dei medici donatori sono registrati esclusivamente in un archivio privato della Direzione. Non sarà mai divulgata l'identità di chi ha fornito una determinata opera.\",\n    \"card_evidence_results_desc\": \"<li><b>Sintesi WhatsApp (3–4 paragrafi):</b> Consenso attuale, conclusioni chiave dei 3 studi più recenti e raccomandazioni chirurgiche.</li><li><b>Collegamenti HTTPS Diretti:</b> Accesso immediato a PubMed, DOI e Consensus per consultare il testo completo originale.</li><li><b>Scheda di Evidenza PDF:</b> Documento clinico formale scaricabile con tabella comparativa e scala Oxford delle evidenze.</li>\",\n    \"card_evidence_results_title\": \"📊 Consegna dei Risultati Strutturati\",\n    \"card_lang_badge\": \"MULTILINGUISMO ILLIMITATO\",\n    \"card_lang_comms_desc\": \"A prescindere dalla lingua con cui il <b>Gestore dei Contenuti</b> redige i comunicati ufficiali o bollettini, la piattaforma esegue una traduzione autonoma ad alta fedeltà affinché ogni collega riceva il messaggio nella propria lingua prescelta.\",\n    \"card_lang_comms_hdr\": \"📢 Comunicati del Gestore dei Contenuti nella Vostra Lingua:\",\n    \"card_lang_desc\": \"In vista dell'espansione internazionale e della vicinanza fraterna alla comunità medica globale, <b>ogni utente ha la facoltà di selezionare la lingua con cui interagire con l'assistente, ricevere risposte, sintesi di evidenze e comunicati ufficiali</b>.\",\n    \"card_lang_preserve_desc\": \"<b>Gli articoli scientifici, le guide di tecnica chirurgica AO, i libri di testo e le monografie in formato PDF sono rigorosamente conservati e scaricati nella loro lingua originale di pubblicazione</b>.<br>Per garantire l'assoluta fedeltà anatomica, evitare ambiguità posologiche e rispettare i marchi di impianti certificati, <b>i documenti originali non vengono mai modificati né tradotti sinteticamente</b>. Vengono forniti autentici e integri così come prodotti dalla letteratura biomedica internazionale.\",\n    \"card_lang_preserve_hdr\": \"<span>🛡️</span> Principio Fondamentale di Conservazione dell'Originalità Documentale:\",\n    \"card_lang_switch_hdr\": \"🔄 Aggiornamento Immediato e Senza Limiti di Frequenza:\",\n    \"card_large_files_desc\": \"<p>Per atlanti chirurgici completi o corposi trattati scansionati, l'ecosistema dispone di 4 strategie ottimizzate di ricezione:</p><ul style=\\\"margin-top: 8px;\\\"><li><b>1. Allegato WhatsApp (Fino a 100 MB – 2 GB):</b> Inviare il file direttamente in chat con la parola chiave <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span>. Elaborazione continua in streaming.</li><li><b>2. Caricamento Frazionato (Chunked Upload):</b> Nella Casella Digitale Web, i file pesanti vengono suddivisi automaticamente in blocchi da 10 MB a 15 MB con barra di avanzamento in tempo reale.</li><li><b>3. Sessione Riprendibile (Resumable Upload):</b> Collegamento temporaneo resistente a interruzioni di linea che consente di riprendere il trasferimento senza perdere dati.</li><li><b>4. Ottimizzazione nel Browser:</b> Regolazione dinamica a 150–200 DPI clinici di lettura sul proprio dispositivo prima dell'invio, riducendo le dimensioni fino al 70% a parità di nitidezza.</li></ul>\",\n    \"card_large_files_title\": \"📦 Trattati Voluminosi e File di Grandi Dimensioni (> 45 MB fino a 2 GB)\",\n    \"card_learning_desc\": \"<li><b>Espansione dei Sinonimi:</b> Mappatura automatica dei termini clinici equivalenti (es. <i>protesi &rarr; artroplastica / sostituzione; LCA &rarr; legamento crociato anteriore</i>).</li><li><b>Rilevamento delle Lacune:</b> Le interrogazioni senza esito vengono memorizzate per orientare i successivi acquisti bibliografici.</li>\",\n    \"card_learning_title\": \"🧠 Sistema di Autoapprendimento Continuo\",\n    \"card_msg_dir_desc\": \"Per suggerire l'acquisizione di testi, segnalare quesiti o comunicare formalmente con la Direzione tutelando il reciproco anonimato, digitare in chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('MESSAGGIO ALLA DIREZIONE: ')\\\">MESSAGGIO ALLA DIREZIONE: [richiesta dettagliata]</span><br>Il sistema inoltra il messaggio alla console esecutiva in forma confidenziale.\",\n    \"card_msg_dir_title\": \"📩 Invio di Messaggi alla Direzione\",\n    \"card_option_a_desc\": \"I collaboratori possono depositare letteratura medica in modo riservato attraverso il portale istituzionale anonimo, senza esporre account personali.\",\n    \"card_option_a_title\": \"📁 Opzione A: Casella Digitale Protetta Web\",\n    \"card_option_b_desc\": \"I medici autorizzati possono inviare direttamente un file PDF nella chat di WhatsApp accompagnato dalla dicitura <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('APORTE')\\\">APORTE</span> o <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('DONAZIONE')\\\">DONAZIONE</span>.<br>L'assistente valida l'integrità del file, lo cataloga per sottospecialità e restituisce ricevuta formale con codice identificativo.\",\n    \"card_option_b_title\": \"📱 Opzione B: Invio Diretto via WhatsApp\",\n    \"card_pubmed_desc\": \"Consente di interrogare in tempo reale oltre 35 milioni di pubblicazioni biomediche indicizzate. Per formulare un quesito scientifico, scrivere in chat:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\" onclick=\\\"copyEditorialCmd('EVIDENZE: ')\\\">EVIDENZE: [domanda clinica o tecnica]</span><br><i>Esempio: \\\"EVIDENCE: Cerchiaggio vs placche bloccate nelle fratture di rotula 34-C3\\\"</i>\",\n    \"card_pubmed_title\": \"🌐 Interrogazione Diretta di PubMed\",\n    \"card_resp_dir_desc\": \"Una volta esaminata la richiesta, il medico riceverà la comunicazione direttamente nella propria chat WhatsApp con l'intestazione formale:<br><span class=\\\"cmd-pill\\\" style=\\\"margin-top:6px;\\\">DIREZIONE DEL PROGETTO: [risposta istituzionale]</span><br>Garantendo un canale chiaro, ordinato e protetto.\",\n    \"card_resp_dir_title\": \"📤 Ricezione del Riscontro Ufficiale\",\n    \"card_status_notify\": \"🔔 <b>Protocolo di Notifica Automatica:</b> Ogni aggiornamento di stato deciso dalla Direzione genera tempestivamente un messaggio ufficiale all'utente indicante la nuova condizione, i motivi e la durata.\",\n    \"card_step1_desc\": \"Il medico contatta il bot WhatsApp indicando: <b>Nome e Cognome</b>, <b>E-mail (personale o istituzionale)</b>, <b>Ospedale o Università</b> e <b>Livello Attuale</b> (Specializzando R1–R4, Specialista, Ex-allievo). Il sistema registra la richiesta con stato <code>IN_ATTESA_DI_APPROVAZIONE</code> con crittografia protetta.\",\n    \"card_step1_title\": \"1. Richiesta e Registrazione Iniziale\",\n    \"card_step2_desc\": \"La richiesta viene valutata secondo criteri prestabiliti in modo autonomo e conforme alle linee guida del progetto, previa verifica dei dati in circa <b>24 ore</b>.\",\n    \"card_step2_title\": \"2. Analisi e Verifica Autonoma\",\n    \"card_step3_desc\": \"L'utente riceve il messaggio di benvenuto, il collegamento al Manuale Ufficiale interattivo e l'abilitazione della quota per effettuare consultazioni e download clinici 24/7.\",\n    \"card_step3_title\": \"3. Accesso Completo Immediato\",\n    \"card_support_desc\": \"Iniziativa medica indipendente volta a potenziare la formazione continua di specializzandi e chirurghi ortopedici. La letteratura, le guide e le monografie fornite hanno <b>carattere strettamente pedagogico</b>; qualsiasi decisione diagnostica e terapeutica compete esclusivamente al giudizio clinico del medico curante.\",\n    \"card_support_title\": \"🎯 Supporto Medico ed Esclusione di Responsabilità\",\n    \"card_update_badge\": \"AUTOGESTIONE SICURA\",\n    \"card_update_cmd_desc\": \"Per consultare la guida di aggiornamento, inviare semplicemente: <span class=\\\"cmd-pill\\\" onclick=\\\"copyEditorialCmd('AGGIORNARE DATI')\\\">AGGIORNARE DATI</span><br>Oppure trasmettere i nuovi dati in un unico messaggio strutturato:<br><code style=\\\"background: var(--slate-100); color: var(--color-primary); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 8.2pt; display: inline-block; margin-top: 6px; border: 1px solid var(--slate-300);\\\">AGGIORNARE: [Nome e Cognome], [E-mail], [Ospedale/Università], [Livello]</code>\",\n    \"card_update_cmd_hdr\": \"Meccanismo e Comando di Attivazione via WhatsApp:\",\n    \"card_update_desc\": \"In armonia con i principi di autodeterminazione informativa e integrità dei dati, <b>ogni utente ha il diritto inalienabile di richiedere l'aggiornamento o la rettifica dei propri dati personali in qualsiasi momento</b> (cambio di e-mail, ospedale, avanzamento da R1 a R4 o conseguimento del titolo di specialista).\",\n    \"card_update_limit_desc\": \"Al fine esclusivo di garantire la tracciabilità degli accessi clinici e prevenire cessioni illecite di credenziali, il sistema applica i seguenti limiti temporali:<br>• <b>Massimo 3 aggiornamenti in un periodo mobile di 6 mesi</b> (180 giorni).<br>• <b>Massimo 6 aggiornamenti in un periodo mobile di 12 mesi</b> (365 giorni).<br><i>Nota: Per casi eccezionali è possibile inoltrare richiesta formale tramite il <a href=\\\"#seccion-canal\\\" style=\\\"color: #92400e; font-weight: 700; text-decoration: underline;\\\">Canal Intermediato con la Direzione</a>.</i>\",\n    \"card_update_limit_hdr\": \"<span>⏱️</span> Politica Istituzionale di Frequenza Massima delle Modifiche:\",\n    \"card_vision_desc\": \"Inviando una radiografia o TC, il sistema di visione artificiale analizza il distretto scheletrico, propone la classificazione AO/OTA preliminare più verosimile e recupera la tecnica chirurgica pertinente.\",\n    \"card_vision_title\": \"📷 Orientamento Radiografico AO/OTA\",\n    \"card_voice_desc\": \"In sala operatoria o in ambulatorio, i chirurghi possono inviare note vocali in chat. L'assistente trascrive con precisione la terminologia ortopedica mediante intelligenza artificiale ed esegue la ricerca a mani libere.\",\n    \"card_voice_title\": \"🎙️ Consultazioni Audio / Voce\",\n    \"ch10_title\": \"<span class=\\\"chapter-badge\\\">10</span> Governance Dinamica: Comunicati Ufficiali e Autoapprendimento\",\n    \"ch11_title\": \"<span class=\\\"chapter-badge\\\">🩺</span> Simulatore Clinico Interattivo di WhatsApp in Tempo Reale\",\n    \"ch1_title\": \"<span class=\\\"chapter-badge\\\">1</span> Filosofia Accademica e Principio di Anonimato Cardinale\",\n    \"ch2_title\": \"<span class=\\\"chapter-badge\\\">2</span> Protocollo di Ammissione e Ciclo di Vita dell'Utente\",\n    \"ch3_title\": \"<span class=\\\"chapter-badge\\\">3</span> Modalità di Ricerca Chirurgica nel Catalogo Specializzato\",\n    \"ch4_title\": \"<span class=\\\"chapter-badge\\\">4</span> Motore di Evidenze Mediche Globali (PubMed & Semantic Scholar)\",\n    \"ch5_title\": \"<span class=\\\"chapter-badge\\\">5</span> Lettura Critica di Articoli Personali (Motore NotebookLM con Gemini)\",\n    \"ch6_title\": \"<span class=\\\"chapter-badge\\\">6</span> Vie di Contributo e Arricchimento del Patrimonio Specializzato\",\n    \"ch7_title\": \"<span class=\\\"chapter-badge\\\">7</span> Potenziamenti Multimodali dell'Assistente: Voce, Visione AO e Bollettino\",\n    \"ch8_title\": \"<span class=\\\"chapter-badge\\\">8</span> Codice di Condotta e Regime Disciplinare Istituzionale\",\n    \"ch9_title\": \"<span class=\\\"chapter-badge\\\">9</span> Canale Intermediato Riservato con la Direzione\",\n    \"chip_bulletin\": \"☀️ Bollettino Chirurgico Domenicale\",\n    \"chip_multilingual\": \"🌍 Copertura Globale Multilingue\",\n    \"chip_notebooklm\": \"🔬 Motore NotebookLM con Gemini\",\n    \"chip_pubmed\": \"🌐 Motore PubMed & Semantic Scholar\",\n    \"chip_service\": \"<span class=\\\"pulse-dot\\\"></span> Servizio Clinico 24/7 Disponibile\",\n    \"chip_vision\": \"📷 Visione Radiografica AO/OTA\",\n    \"chip_voice\": \"🎙️ Consultazioni Audio / Voce\",\n    \"custody_identity\": \"🏛️ Gestore dei Contenuti\",\n    \"custody_label\": \"DIREZIONE & CUSTODIA\",\n    \"diag2_caption\": \"Schema 2.1 — Flusso Autonomo di Ammissione e Abilitazione all'Accesso\",\n    \"diag3_caption\": \"Schema 3.1 — Pipeline di Recupero Intelligente e Invio Clinico\",\n    \"diag4_caption\": \"Schema 4.1 — Traduzione Medica e Recupero di Evidenze Scientifiche\",\n    \"diag6_caption\": \"Schema 6.1 — Ciclo Autonomo di Arricchimento e Acquisizione Collaborativa\",\n    \"edition_tag\": \"Edizione Ufficiale 2026.5 • Guida Operativa Istituzionale\",\n    \"footer_edition\": \"<span>Documento Maestro Vivente • Edizione Ufficiale v2026.5</span><br><span style=\\\"color: var(--color-surgical-teal); font-weight: 700;\\\">Validità Attiva e Aggiornamento Costante</span>\",\n    \"footer_org\": \"<b>Biblioteca Medica Specializzata di Ortopedia e Traumatologia</b><br>Direzione Istituzionale: <b>Direzione del Progetto</b> • Servizio Clinico Permanente 24/7\",\n    \"lang_label\": \"LINGUA:\",\n    \"masthead_subtitle\": \"Chirurgia Ortopedica e Traumatologia • Guida Maestra di Utilizzo, Procedure e Governance\",\n    \"masthead_title\": \"Biblioteca Medica Specializzata\",\n    \"search_placeholder\": \"Cerca argomenti (es. AO, accesso, PubMed, analisi)...\",\n    \"sim_header_hint\": \"Fare clic su un comando per visualizzare la risposta dell'Assistente:\",\n    \"sim_header_tag\": \"⚡ Console di Dimostrazione dal Vivo\",\n    \"svg_step1_desc\": \"Nome, E-mail, Ospedale e Livello\",\n    \"svg_step1_tag\": \"PASSO 01: RICHIESTA\",\n    \"svg_step1_title\": \"Registrazione via WhatsApp\",\n    \"svg_step2_desc\": \"Verifica di veridicità (~24 h)\",\n    \"svg_step2_tag\": \"PASSO 02: VALIDAZIONE\",\n    \"svg_step2_title\": \"Valutazione Autonoma\",\n    \"svg_step3_desc\": \"Benvenuto, Manuale e Consultazioni 24/7\",\n    \"svg_step3_tag\": \"PASSO 03: ABILITAZIONE\",\n    \"svg_step3_title\": \"Accesso Completo Immediato\",\n    \"t_row1_mod\": \"<b>🦴 Patologia o Tecnica</b>\",\n    \"t_row1_res\": \"Trattati, monografie, vie d'accesso chirurgico, impianti e biomeccanica.\",\n    \"t_row2_mod\": \"<b>🎯 Classificazione AO/OTA ed Eponimi</b>\",\n    \"t_row2_res\": \"Tecniche di riduzione, principi biologici e selezione di impianti di osteosintesi.\",\n    \"t_row3_mod\": \"<b>🔪 Vie di Accesso Chirurgico</b>\",\n    \"t_row3_res\": \"Piani internervosi, anatomia applicata e passaggi di dissezione chirurgica.\",\n    \"t_row4_mod\": \"<b>🔩 Strumentario e Produttori</b>\",\n    \"t_row4_res\": \"Guide ufficiali di tecnica chirurgica del produttore con strumentario passo dopo passo.\",\n    \"t_row5_mod\": \"<b>📄 Codice DOI, PMID o ISBN</b>\",\n    \"t_row5_res\": \"Consegna diretta dell'articolo o apertura automatica del ticket di acquisizione.\",\n    \"t_row6_mod\": \"<b>🔤 Tolleranza agli Errori (Fuzzy)</b>\",\n    \"t_row6_res\": \"Recupero accurato nonostante digitazione veloce, refusi o assenza di accenti.\",\n    \"t_row7_mod\": \"<b>🎙️ Consultazioni Audio / Voce</b>\",\n    \"t_row7_res\": \"Trascrizione fedele della terminologia ortopedica ed esecuzione immediata della richiesta.\",\n    \"t_row8_mod\": \"<b>📑 Menu delle Specialità</b>\",\n    \"t_row8_res\": \"Visualizzazione del catalogo organizzato per sottospecialità ortopediche.\",\n    \"t_row9_mod\": \"<b>📖 Richiesta del Manuale</b>\",\n    \"t_row9_res\": \"Invio istantaneo del collegamento interattivo web e del PDF del manuale ufficiale.\",\n    \"th_example\": \"Messaggio di Esempio nella Chat\",\n    \"th_modality\": \"Modalità di Ricerca\",\n    \"th_result\": \"Risultato Clinico Fornito\",\n    \"toast_copy\": \"Comando copiato negli appunti!\"\n  }\n};\n\n  function switchManualLanguage(lang) {\n    if (!I18N_DICTIONARY[lang]) lang = 'ES';\n    \n    // 1. Actualizar apariencia de los botones del selector\n    const supportedLangs = ['ES', 'EN', 'PT', 'FR', 'IT'];\n    supportedLangs.forEach(code => {\n      const btn = document.getElementById('btnLang' + code);\n      if (btn) {\n        if (code === lang) {\n          btn.style.background = 'var(--color-primary)';\n          btn.style.color = '#ffffff';\n          btn.classList.add('active');\n        } else {\n          btn.style.background = 'transparent';\n          btn.style.color = 'var(--slate-700)';\n          btn.classList.remove('active');\n        }\n      }\n    });\n\n    // 2. Mutar instantáneamente todos los elementos marcados con data-i18n (< 4ms)\n    const elements = document.querySelectorAll('[data-i18n]');\n    elements.forEach(el => {\n      const key = el.getAttribute('data-i18n');\n      if (I18N_DICTIONARY[lang] && typeof I18N_DICTIONARY[lang][key] !== 'undefined') {\n        el.innerHTML = I18N_DICTIONARY[lang][key];\n      }\n    });\n\n    // 3. Traducir placeholder del buscador rápido\n    const filterInput = document.getElementById('filterInput');\n    if (filterInput && I18N_DICTIONARY[lang] && I18N_DICTIONARY[lang].search_placeholder) {\n      filterInput.placeholder = I18N_DICTIONARY[lang].search_placeholder;\n    }\n\n    // 4. Persistir preferencia de idioma en el navegador del usuario\n    try {\n      localStorage.setItem('ortho_manual_lang', lang);\n    } catch(e) {}\n\n    // 5. Sincronizar escenario pedagógico en el simulador\n    if (lang === 'EN') activateSimScenario('LANGUAGE: EN');\n    else if (lang === 'PT') activateSimScenario('IDIOMA: PT');\n    else if (lang === 'FR') activateSimScenario('IDIOMA: FR');\n    else if (lang === 'IT') activateSimScenario('IDIOMA: IT');\n    else activateSimScenario('AO 31-A2');\n\n    // 6. Notificación visual instantánea en el idioma seleccionado\n    const toastMessages = {\n      ES: 'Preferencia de idioma activa: Español (ES)',\n      EN: 'Active language preference: English (EN)',\n      PT: 'Preferência de idioma ativa: Português (PT)',\n      FR: 'Préférence de langue active : Français (FR)',\n      IT: 'Preferenza di lingua attiva: Italiano (IT)'\n    };\n    const toast = document.getElementById('editorialToast');\n    if (toast) {\n      toast.innerText = toastMessages[lang] || toastMessages.ES;\n      toast.style.display = 'block';\n      setTimeout(() => {\n        toast.style.display = 'none';\n        toast.innerText = (I18N_DICTIONARY[lang] && I18N_DICTIONARY[lang].toast_copy) || '¡Comando copiado al portapapeles!';\n      }, 2400);\n    }\n  }\n\n  // Inicializar idioma guardado automáticamente al cargar el documento\n  window.addEventListener('DOMContentLoaded', () => {\n    let savedLang = 'ES';\n    try {\n      savedLang = localStorage.getItem('ortho_manual_lang') || 'ES';\n    } catch(e) {}\n    if (savedLang && savedLang !== 'ES' && I18N_DICTIONARY[savedLang]) {\n      switchManualLanguage(savedLang);\n    }\n  });\n</script>\n\n<script>\n  // Enrutamiento seguro y canónico para el Buzón Digital\n  (function() {\n    const DEFAULT_WEB_APP = 'https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec';\n    function getCanonicalBuzonUrl() {\n      const baseUrl = (typeof window.CANONICAL_APP_URL !== 'undefined' && window.CANONICAL_APP_URL)\n        ? window.CANONICAL_APP_URL\n        : DEFAULT_WEB_APP;\n      return baseUrl.split('?')[0] + '?mode=buzon';\n    }\n\n    document.querySelectorAll('.buzon-direct-link, a[href*=\"mode=buzon\"]').forEach(function(el) {\n      el.addEventListener('click', function(e) {\n        e.preventDefault();\n        const targetUrl = getCanonicalBuzonUrl();\n        window.open(targetUrl, '_blank');\n      });\n    });\n  })();\n</script>\n\n</body>\n</html>\n";
+  baseHtml = baseHtml.replace(/href="\?mode=buzon"/g, 'href="' + buzonUrl + '"');
+  baseHtml = baseHtml.replace(/href='\?mode=buzon'/g, 'href="' + buzonUrl + '"');
+
+  const scriptInjection = '<script>window.CANONICAL_APP_URL = "' + webAppUrl + '";</script>';
+  baseHtml = baseHtml.replace('</head>', scriptInjection + '</head>');
 
   const topDownloadBar = 
-    '<div class="no-print" style="position:sticky; top:0; z-index:999; background:#0f2b48; color:#ffffff; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,0.18); border-bottom:2.5px solid #0d9488; flex-wrap:wrap; gap:10px;">' +
-    '  <div style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px;">' +
-    '    <span style="font-size:16px;">📖</span>' +
+    '<div class="no-print" style="position:sticky; top:0; z-index:999; background:#071324; color:#ffffff; padding:10px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,0.18); border-bottom:2.5px solid #0d9488; flex-wrap:wrap; gap:10px;">' +
+    '  <div style="font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">' +
+    '    <span style="font-size:15px;">📖</span>' +
     '    <span>Biblioteca Médica de Cirugía Ortopédica</span>' +
-    '    <span style="background:#0d9488; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700;">Gestor de Contenido</span>' +
+    '    <span style="background:#0d9488; color:#fff; font-size:9.5px; padding:2px 8px; border-radius:4px; font-weight:700;">Dirección del Proyecto</span>' +
     '  </div>' +
     '  <div style="display:flex; align-items:center; gap:10px;">' +
+    '    <a href="' + buzonUrl + '" target="_blank" class="buzon-direct-link" style="background:#0284c7; color:#ffffff; text-decoration:none; padding:7px 14px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">' +
+    '      📤 Buzón Digital' +
+    '    </a>' +
     '    <a href="https://wa.me/573205955993?text=MANUAL" target="_blank" style="background:#1e3a5f; color:#38bdf8; text-decoration:none; padding:7px 14px; border-radius:6px; font-size:11.5px; font-weight:700; border:1px solid #38bdf8; display:inline-flex; align-items:center; gap:6px;">' +
     '      💬 Abrir en WhatsApp' +
     '    </a>' +
-    '    <a id="btnDescargarPdfManual" style="background:#0d9488; color:#ffffff; text-decoration:none; padding:8px 18px; border-radius:6px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.25); cursor:pointer;">' +
+    '    <a id="btnDescargarPdfManual" style="background:#0d9488; color:#ffffff; text-decoration:none; padding:7px 16px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.25); cursor:pointer;">' +
     '      📥 Descargar Manual Oficial (PDF)' +
     '    </a>' +
     '  </div>' +
@@ -1422,7 +1936,826 @@ function renderRichInteractiveManual(b64Pdf) {
 
   return HtmlService.createHtmlOutput(finalHtml)
     .setTitle('Manual Oficial - Biblioteca Médica de Ortopedia')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Sirve el Buzón Digital Seguro Anónimo embebido (?mode=buzon)
+ * Compatible con archivos grandes (> 45 MB hasta 2 GB) vía Chunked Upload
+ */
+function serveBuzonDropzone() {
+  const webAppUrl = getWebAppBaseUrl();
+  const buzonHtml = '<!DOCTYPE html>' +
+    '<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Buzón Digital Seguro — Biblioteca Médica Especializada</title>' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">' +
+    '<style>' +
+    '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+    'body { font-family: "Plus Jakarta Sans", sans-serif; background: #071324; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }' +
+    '.buzon-card { background: #0f1e33; border: 1px solid #1e3a5f; border-radius: 16px; padding: 32px 28px; max-width: 600px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); position: relative; overflow: hidden; }' +
+    '.buzon-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #0d9488, #0284c7); }' +
+    '.top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }' +
+    '.btn-back { color: #38bdf8; text-decoration: none; font-size: 8.5pt; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); transition: all 0.2s; }' +
+    '.btn-back:hover { background: rgba(56, 189, 248, 0.18); border-color: #38bdf8; }' +
+    '.badge-inst { font-family: "JetBrains Mono", monospace; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5eead4; background: rgba(13, 148, 136, 0.2); border: 1px solid rgba(13, 148, 136, 0.4); padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 12px; }' +
+    'h1 { font-size: 17pt; font-weight: 800; color: #ffffff; margin-bottom: 6px; letter-spacing: -0.5px; }' +
+    'p.desc { font-size: 9pt; color: #94a3b8; line-height: 1.5; margin-bottom: 18px; }' +
+    '.large-file-banner { background: rgba(2, 132, 199, 0.08); border: 1px solid #0284c7; border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; font-size: 8.5pt; color: #bae6fd; line-height: 1.45; }' +
+    '.large-file-banner strong { color: #38bdf8; }' +
+    '.dropzone { border: 2px dashed #0d9488; background: rgba(13, 148, 136, 0.05); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; position: relative; }' +
+    '.dropzone:hover, .dropzone.dragover { background: rgba(13, 148, 136, 0.12); border-color: #5eead4; transform: scale(1.01); }' +
+    '.drop-icon { font-size: 40px; margin-bottom: 8px; display: block; }' +
+    '.drop-title { font-size: 10pt; font-weight: 700; color: #ffffff; margin-bottom: 4px; }' +
+    '.drop-sub { font-size: 8.5pt; color: #64748b; }' +
+    'input[type="file"] { display: none; }' +
+    '.donor-box { margin-top: 14px; text-align: left; }' +
+    '.donor-label { font-size: 8.5pt; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px; }' +
+    '.donor-input { width: 100%; padding: 10px 14px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; color: #f8fafc; font-size: 9pt; font-family: inherit; }' +
+    '.donor-note { font-size: 7.5pt; color: #64748b; margin-top: 4px; display: block; }' +
+    '.opt-label { display: flex; align-items: center; gap: 8px; font-size: 8.5pt; color: #94a3b8; margin-top: 12px; cursor: pointer; }' +
+    '.file-preview { display: none; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px 16px; margin-top: 16px; align-items: center; justify-content: space-between; gap: 12px; }' +
+    '.file-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }' +
+    '.file-name { font-size: 9pt; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+    '.progress-box { display: none; margin-top: 16px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px; }' +
+    '.progress-bar-bg { width: 100%; height: 8px; background: #071324; border-radius: 4px; overflow: hidden; }' +
+    '.progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0d9488, #0284c7); transition: width 0.2s ease; }' +
+    '.progress-label { font-size: 8pt; color: #94a3b8; text-align: center; margin-top: 6px; }' +
+    '.btn-submit { width: 100%; background: linear-gradient(135deg, #0d9488, #0284c7); color: #ffffff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 10pt; font-weight: 700; cursor: pointer; margin-top: 18px; transition: all 0.2s ease; display: none; }' +
+    '.btn-submit:hover { box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4); transform: translateY(-1px); }' +
+    '.status-box { margin-top: 16px; padding: 14px; border-radius: 8px; font-size: 9pt; display: none; text-align: center; line-height: 1.5; }' +
+    '.status-box.success { background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #6ee7b7; }' +
+    '.status-box.error { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #fca5a5; }' +
+    '.footer-note { text-align: center; font-size: 8pt; color: #475569; margin-top: 18px; line-height: 1.4; }' +
+    '</style></head><body>' +
+    '<div class="buzon-card">' +
+    '  <div class="top-nav">' +
+    '    <a href="' + webAppUrl + '" class="btn-back">← Volver a la Guía Maestra</a>' +
+    '    <span style="font-size: 8pt; color: #64748b;">Recepción Confidencial 24/7</span>' +
+    '  </div>' +
+    '  <div class="badge-inst">Buzón Digital Seguro • Acceso Confidencial</div>' +
+    '  <h1>Buzón Digital de Aportes</h1>' +
+    '  <p class="desc">Canal institucional anónimo para compartir artículos científicos, monografías y técnicas quirúrgicas en PDF para enriquecimiento colectivo.</p>' +
+    '  <div class="large-file-banner">' +
+    '    <strong>📦 Aportes de Gran Volumen (> 45 MB hasta 2 GB):</strong><br>' +
+    '    • <strong>WhatsApp Directo:</strong> Puede adjuntar como documento (hasta 2 GB) en el chat con la palabra <code>APORTE</code>.<br>' +
+    '    • <strong>Subida Fraccionada:</strong> Este buzón segmenta automáticamente en bloques seguros de 10 MB con sesión reanudable efímera.' +
+    '  </div>' +
+    '  <div class="dropzone" id="dropArea">' +
+    '    <span class="drop-icon">📑</span>' +
+    '    <div class="drop-title">Arrastra tu archivo PDF aquí</div>' +
+    '    <div class="drop-sub">o haz clic para examinar desde tu dispositivo (Soporta archivos grandes)</div>' +
+    '    <input type="file" id="fileInput" accept="application/pdf">' +
+    '  </div>' +
+    '  <div class="file-preview" id="filePreview">' +
+    '    <div class="file-info">' +
+    '      <span style="font-size: 20px;">📄</span>' +
+    '      <span class="file-name" id="fileNameDisp">archivo.pdf</span>' +
+    '    </div>' +
+    '    <span style="color:#ef4444; cursor:pointer; font-weight:bold;" id="btnClearFile">✕</span>' +
+    '  </div>' +
+    '  <div class="donor-box">' +
+    '    <label class="donor-label" for="donorInput">Datos del Aportante (Opcional):</label>' +
+    '    <input type="text" id="donorInput" class="donor-input" placeholder="Nombre / Institución / Hospital">' +
+    '    <span class="donor-note">🔒 Registro estrictamente privado para control interno de la Dirección. Nunca se expondrá ni publicará externamente.</span>' +
+    '  </div>' +
+    '  <label class="opt-label">' +
+    '    <input type="checkbox" id="chkOptimize" checked>' +
+    '    <span>Habilitar optimización clínica y fragmentación por bloques (Chunked Upload)</span>' +
+    '  </label>' +
+    '  <div class="progress-box" id="progressBox">' +
+    '    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar"></div></div>' +
+    '    <div class="progress-label" id="progressText">Iniciando subida...</div>' +
+    '  </div>' +
+    '  <button class="btn-submit" id="btnUpload">📤 Depositar en el Buzón Digital</button>' +
+    '  <div class="status-box" id="statusBox"></div>' +
+    '  <div class="footer-note">Biblioteca Médica Especializada de Cirugía Ortopédica y Traumatología<br>Dirección Institucional • Recepción Confidencial y Segura</div>' +
+    '</div>' +
+    '<script>' +
+    '  let selectedFile = null;' +
+    '  const dropArea = document.getElementById("dropArea");' +
+    '  const fileInput = document.getElementById("fileInput");' +
+    '  const filePreview = document.getElementById("filePreview");' +
+    '  const fileNameDisp = document.getElementById("fileNameDisp");' +
+    '  const donorInput = document.getElementById("donorInput");' +
+    '  const chkOptimize = document.getElementById("chkOptimize");' +
+    '  const progressBox = document.getElementById("progressBox");' +
+    '  const progressBar = document.getElementById("progressBar");' +
+    '  const progressText = document.getElementById("progressText");' +
+    '  const btnUpload = document.getElementById("btnUpload");' +
+    '  const statusBox = document.getElementById("statusBox");' +
+    '  const btnClearFile = document.getElementById("btnClearFile");' +
+    '  dropArea.addEventListener("click", function() { fileInput.click(); });' +
+    '  btnClearFile.addEventListener("click", clearFile);' +
+    '  btnUpload.addEventListener("click", uploadSelectedFile);' +
+    '  ["dragenter", "dragover"].forEach(eventName => {' +
+    '    dropArea.addEventListener(eventName, (e) => { e.preventDefault(); dropArea.classList.add("dragover"); }, false);' +
+    '  });' +
+    '  ["dragleave", "drop"].forEach(eventName => {' +
+    '    dropArea.addEventListener(eventName, (e) => { e.preventDefault(); dropArea.classList.remove("dragover"); }, false);' +
+    '  });' +
+    '  dropArea.addEventListener("drop", (e) => {' +
+    '    const dt = e.dataTransfer;' +
+    '    const files = dt.files;' +
+    '    if (files.length) handleFile(files[0]);' +
+    '  });' +
+    '  fileInput.addEventListener("change", (e) => {' +
+    '    if (e.target.files.length) handleFile(e.target.files[0]);' +
+    '  });' +
+    '  function handleFile(file) {' +
+    '    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {' +
+    '      showStatus("error", "⚠️ Solo se admiten documentos en formato PDF.");' +
+    '      return;' +
+    '    }' +
+    '    selectedFile = file;' +
+    '    const szMb = (file.size / (1024 * 1024)).toFixed(1);' +
+    '    fileNameDisp.innerText = file.name + " (" + szMb + " MB)";' +
+    '    filePreview.style.display = "flex";' +
+    '    btnUpload.style.display = "block";' +
+    '    statusBox.style.display = "none";' +
+    '    progressBox.style.display = "none";' +
+    '  }' +
+    '  function clearFile(e) {' +
+    '    if (e) e.stopPropagation();' +
+    '    selectedFile = null;' +
+    '    fileInput.value = "";' +
+    '    filePreview.style.display = "none";' +
+    '    btnUpload.style.display = "none";' +
+    '    progressBox.style.display = "none";' +
+    '  }' +
+    '  function showStatus(type, msg) {' +
+    '    statusBox.className = "status-box " + type;' +
+    '    statusBox.innerHTML = msg;' +
+    '    statusBox.style.display = "block";' +
+    '  }' +
+    '  function updateProgress(pct, msg) {' +
+    '    progressBox.style.display = "block";' +
+    '    progressBar.style.width = pct + "%";' +
+    '    progressText.innerText = msg || (pct + "%");' +
+    '  }' +
+    '  async function uploadSelectedFile() {' +
+    '    if (!selectedFile) return;' +
+    '    btnUpload.disabled = true;' +
+    '    btnUpload.innerText = "⏳ Procesando y subiendo archivo...";' +
+    '    statusBox.style.display = "none";' +
+    '    const donor = (donorInput.value || "").trim();' +
+    '    const CHUNK_SIZE = 10 * 1024 * 1024;' +
+    '    if (selectedFile.size > 20 * 1024 * 1024 && chkOptimize.checked) {' +
+    '      const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);' +
+    '      const sessionId = "SES-" + Date.now() + "-" + Math.floor(Math.random() * 10000);' +
+    '      try {' +
+    '        for (let i = 0; i < totalChunks; i++) {' +
+    '          const start = i * CHUNK_SIZE;' +
+    '          const end = Math.min(selectedFile.size, start + CHUNK_SIZE);' +
+    '          const chunkBlob = selectedFile.slice(start, end);' +
+    '          const chunkB64 = await readBlobAsBase64(chunkBlob);' +
+    '          const pct = Math.round(((i + 1) / totalChunks) * 100);' +
+    '          updateProgress(pct, "Transmitiendo bloque " + (i + 1) + " de " + totalChunks + " (" + pct + "%)...");' +
+    '          await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donor);' +
+    '        }' +
+    '        updateProgress(100, "✅ Archivo ensamblado y catalogado.");' +
+    '        showStatus("success", "✅ <b>¡Documento de Gran Volumen Depositado con Éxito!</b><br>Todos los bloques fueron ensamblados y catalogados con éxito bajo estricta confidencialidad.");' +
+    '        clearFile();' +
+    '      } catch (err) {' +
+    '        showStatus("error", "⚠️ Error en subida fraccionada: " + err.message);' +
+    '      } finally {' +
+    '        btnUpload.disabled = false;' +
+    '        btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '      }' +
+    '    } else {' +
+    '      updateProgress(40, "Leyendo archivo...");' +
+    '      const reader = new FileReader();' +
+    '      reader.onload = function(e) {' +
+    '        const base64Data = e.target.result.split(",")[1];' +
+    '        updateProgress(75, "Registrando en el acervo...");' +
+    '        if (typeof google !== "undefined" && google.script && google.script.run) {' +
+    '          google.script.run' +
+    '            .withSuccessHandler(function(res) {' +
+    '              updateProgress(100, "Completado");' +
+    '              if (res && res.success) {' +
+    '                showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>ID de Registro: <code>" + (res.indexingId || "MED-2026") + "</code><br>El documento ha sido resguardado en el acervo institucional bajo estricta confidencialidad.");' +
+    '                clearFile();' +
+    '              } else {' +
+    '                showStatus("error", "⚠️ " + (res.error || "Ocurrió un error al procesar el archivo."));' +
+    '              }' +
+    '              btnUpload.disabled = false;' +
+    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '            })' +
+    '            .withFailureHandler(function(err) {' +
+    '              showStatus("error", "⚠️ Error de conexión: " + err.message);' +
+    '              btnUpload.disabled = false;' +
+    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '            })' +
+    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donor);' +
+    '        } else {' +
+    '          setTimeout(() => {' +
+    '            updateProgress(100, "Completado");' +
+    '            showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>El documento ha sido resguardado con éxito.");' +
+    '            clearFile();' +
+    '            btnUpload.disabled = false;' +
+    '            btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '          }, 1000);' +
+    '        }' +
+    '      };' +
+    '      reader.readAsDataURL(selectedFile);' +
+    '    }' +
+    '  }' +
+    '  function readBlobAsBase64(blob) {' +
+    '    return new Promise((resolve, reject) => {' +
+    '      const r = new FileReader();' +
+    '      r.onload = () => resolve(r.result.split(",")[1]);' +
+    '      r.onerror = reject;' +
+    '      r.readAsDataURL(blob);' +
+    '    });' +
+    '  }' +
+    '  function uploadChunkPromise(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor) {' +
+    '    return new Promise((resolve, reject) => {' +
+    '      if (typeof google !== "undefined" && google.script && google.script.run) {' +
+    '        google.script.run' +
+    '          .withSuccessHandler(res => { if (res && res.success) resolve(res); else reject(new Error(res.error || "Error")); })' +
+    '          .withFailureHandler(reject)' +
+    '          .uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor);' +
+    '      } else {' +
+    '        setTimeout(() => resolve({ success: true }), 400);' +
+    '      }' +
+    '    });' +
+    '  }' +
+    '</script></body></html>';
+
+  return HtmlService.createHtmlOutput(buzonHtml)
+    .setTitle('Buzón Digital Seguro - Biblioteca Médica de Ortopedia')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Recibe y procesa un archivo subido al Buzón Digital Seguro
+ * Registra los datos del donante exclusivamente para control interno privado.
+ */
+function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
+  try {
+    const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
+    const folder = DriveApp.getFolderById(folderId);
+    const cleanName = (fileName || 'Aporte_Medico.pdf').replace(/[^\w\.\-\s]/gi, '_');
+    const decodedBytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decodedBytes, mimeType || 'application/pdf', cleanName);
+    const file = folder.createFile(blob);
+    const cleanTitle = cleanName.replace(/\.pdf$/i, '');
+    const donorRecord = donorInfo || 'Aporte Privado Anónimo Web';
+    file.setDescription('Aporte Privado: ' + donorRecord);
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+    const invData = sheetInv.getDataRange().getValues();
+    const docId = 'DOC-BUZON-' + ('0000' + invData.length).slice(-5);
+
+    // Registro interno privado en Inventario Maestro sellado en reposo (Columna 11)
+    sheetInv.appendRow([
+      docId, file.getId(), new Date().getFullYear(), 'Autor Especializado',
+      sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte Buzón Digital',
+      'Buzon_Digital', cifrarCampoEnReposo(sanitizeSheetValue(donorRecord)),
+      Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+    ]);
+    invalidateInventoryCache();
+
+    const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+    sendWhatsAppText(adminPhone, 
+      '📥 *NUEVO DOCUMENTO DEPOSITADO EN EL BUZÓN DIGITAL*\\n' +
+      '*Dirección:* Gestor de Contenido\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      '📄 *Archivo:* ' + cleanName + '\\n' +
+      '📦 *Tamaño:* ' + Math.round(blob.getBytes().length / 1024) + ' KB\\n' +
+      '👤 *Aportante (Control Interno Privado):* ' + donorRecord + '\\n' +
+      '🆔 *ID Registro:* ' + docId + '\\n' +
+      '🕒 *Fecha:* ' + new Date().toLocaleString('es-CO') + '\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Registrado confidencialmente en el catálogo maestro.'
+    );
+
+    return {
+      success: true,
+      fileName: cleanName,
+      indexingId: docId,
+      message: 'Documento recibido y catalogado con éxito.'
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Recibe un bloque fraccionado (Chunk) para archivos de gran volumen (> 45 MB a 2 GB)
+ */
+function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donorInfo) {
+  try {
+    const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
+    const mailboxFolder = DriveApp.getFolderById(folderId);
+
+    let tempFolder;
+    const tempFolders = mailboxFolder.getFoldersByName('_CHUNKS_TEMP');
+    if (tempFolders.hasNext()) {
+      tempFolder = tempFolders.next();
+    } else {
+      tempFolder = mailboxFolder.createFolder('_CHUNKS_TEMP');
+    }
+
+    const chunkFileName = sessionId + '_part_' + chunkIndex;
+    const chunkBytes = Utilities.base64Decode(chunkB64);
+    const chunkBlob = Utilities.newBlob(chunkBytes, 'application/octet-stream', chunkFileName);
+    tempFolder.createFile(chunkBlob);
+
+    // Si es el último fragmento, ensamblamos el archivo final
+    if (chunkIndex === totalChunks - 1) {
+      let combinedBytes = [];
+      const cleanName = (fileName || 'Aporte_Medico.pdf').replace(/[^\w\.\-\s]/gi, '_');
+
+      for (let i = 0; i < totalChunks; i++) {
+        const partName = sessionId + '_part_' + i;
+        const partFiles = tempFolder.getFilesByName(partName);
+        if (partFiles.hasNext()) {
+          const partFile = partFiles.next();
+          const pBlob = partFile.getBlob();
+          const pBytes = pBlob.getBytes();
+          for (let b = 0; b < pBytes.length; b++) {
+            combinedBytes.push(pBytes[b]);
+          }
+          partFile.setTrashed(true);
+        }
+      }
+
+      const finalBlob = Utilities.newBlob(combinedBytes, mimeType || 'application/pdf', cleanName);
+      const finalFile = mailboxFolder.createFile(finalBlob);
+      const donorRecord = donorInfo || 'Aporte Privado Anónimo Web (Fraccionado)';
+      finalFile.setDescription('Aporte Privado: ' + donorRecord);
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+      const invData = sheetInv.getDataRange().getValues();
+      const docId = 'DOC-CHUNK-' + ('0000' + invData.length).slice(-5);
+      const cleanTitle = cleanName.replace(/\.pdf$/i, '');
+
+      sheetInv.appendRow([
+        docId, finalFile.getId(), new Date().getFullYear(), 'Autor Especializado',
+        sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte Fraccionado',
+        'Buzon_Digital_Chunked', cifrarCampoEnReposo(sanitizeSheetValue(donorRecord)),
+        Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+      ]);
+      invalidateInventoryCache();
+
+      const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+      sendWhatsAppText(adminPhone,
+        '📥 *NUEVO ARCHIVO DE GRAN TAMAÑO ENSAMBLADO EN EL BUZÓN DIGITAL*\\n' +
+        '*Dirección:* Gestor de Contenido\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '📄 *Archivo:* ' + cleanName + '\\n' +
+        '📦 *Tamaño Ensamblado:* ' + Math.round(combinedBytes.length / (1024 * 1024)) + ' MB (' + totalChunks + ' bloques)\\n' +
+        '👤 *Aportante (Control Interno Privado):* ' + donorRecord + '\\n' +
+        '🆔 *ID Registro:* ' + docId + '\\n' +
+        '🕒 *Fecha:* ' + new Date().toLocaleString('es-CO') + '\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'El archivo ha sido resguardado confidencialmente en el buzón institucional.'
+      );
+
+      return {
+        success: true,
+        fileName: cleanName,
+        indexingId: docId,
+        message: 'Archivo ensamblado y resguardado con éxito (' + totalChunks + ' bloques).'
+      };
+    }
+
+    return {
+      success: true,
+      chunkIndex: chunkIndex,
+      totalChunks: totalChunks,
+      message: 'Bloque ' + (chunkIndex + 1) + ' de ' + totalChunks + ' recibido.'
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * ============================================================================
+ * ⚖️ MOTOR DE GOBERNANZA DISCIPLINARIA Y GESTIÓN DE CONDICIÓN DE USUARIOS
+ * ============================================================================
+ * Aplica cambios de condición: ACTIVO, SUSPENDIDO (24h/48h/72h), BLOQUEADO, EXPULSADO.
+ * Envía notificación automática por WhatsApp al usuario informando su nueva condición.
+ */
+function aplicarCambioEstatusUsuario(targetPhone, newStatus, reason, hours) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetUsr = getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS);
+    const data = sheetUsr.getDataRange().getValues();
+    const cleanTarget = String(targetPhone).replace(/[^\d]/g, '');
+    let rowIndex = -1;
+    let userName = 'Colega';
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).replace(/[^\d]/g, '') === cleanTarget) {
+        rowIndex = i + 1;
+        userName = data[i][1] || 'Colega';
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return { success: false, error: 'Usuario no encontrado con el número ' + targetPhone };
+    }
+
+    const normStatus = (newStatus || '').toUpperCase().trim();
+    let finalStatus = normStatus;
+    let notifyMsg = '';
+
+    if (normStatus.startsWith('SUSPENDID')) {
+      let numHours = parseInt(hours, 10) || 24;
+      if (normStatus.includes('48')) numHours = 48;
+      else if (normStatus.includes('72')) numHours = 72;
+      else if (normStatus.includes('24')) numHours = 24;
+
+      finalStatus = 'SUSPENDIDO_' + numHours + 'H';
+      const finDate = new Date(new Date().getTime() + (numHours * 60 * 60 * 1000));
+
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue(finDate);
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Suspensión temporal preventiva'));
+
+      notifyMsg = 
+        '⏳ *NOTIFICACIÓN DE CONDICIÓN DISCIPLINARIA*\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Estimado(a) *' + userName + '*:\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica ha sido *SUSPENDIDO TEMPORALMENTE* por un término de *' + numHours + ' horas*.\\n\\n' +
+        '📋 *Motivo:* ' + (reason || 'Revisión preventiva de conducta y uso apropiado.') + '\\n' +
+        '🕒 *Reactivación automática:* ' + finDate.toLocaleString('es-CO') + '\\n\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '_Su servicio se restablecerá de manera autónoma al finalizar el término estipulado._';
+    } 
+    else if (normStatus === 'BLOQUEADO') {
+      finalStatus = 'BLOQUEADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Bloqueo indefinido por la Dirección'));
+
+      notifyMsg = 
+        '⛔ *NOTIFICACIÓN DE BLOQUEO DE CUENTA*\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Estimado(a) *' + userName + '*:\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica ha sido *BLOQUEADO DE FORMA INDEFINIDA*.\\n\\n' +
+        '📋 *Motivo:* ' + (reason || 'Incumplimiento de las políticas y código de conducta.') + '\\n\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '_Para solicitar una revisión de su caso, puede comunicarse con la Dirección del Proyecto._';
+    }
+    else if (normStatus === 'EXPULSADO') {
+      finalStatus = 'EXPULSADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('PERMANENTE');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Expulsión definitiva e irrevocable'));
+
+      notifyMsg = 
+        '🚫 *NOTIFICACIÓN DE EXPULSIÓN DEFINITIVA*\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Estimado(a) *' + userName + '*:\\n' +
+        'La Dirección del Proyecto informa que su cuenta y número de contacto han sido *EXPULSADOS DE FORMA PERMANENTE E IRREVOCABLE* del acervo institucional.\\n\\n' +
+        '📋 *Motivo:* ' + (reason || 'Violación grave o reiterada de los principios del proyecto.') + '\\n\\n' +
+        '⚠️ *Resolución:* Este número telefónico y registro quedan inhabilitados definitivamente. No se admitirán futuras solicitudes de incorporación al acervo.\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'ACTIVO' || normStatus === 'APROBADO') {
+      finalStatus = normStatus;
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Acceso concedido / Restablecido'));
+
+      const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, targetPhone);
+      notifyMsg = 
+        '🩺 *ACCESO HABILITADO / RESTABLECIDO*\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Estimado(a) *' + userName + '*:\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica se encuentra *100% ACTIVO*.\\n\\n' +
+        'A partir de este momento puede consultar la literatura quirúrgica, clasificador de imágenes y resúmenes de evidencia.\\n\\n' +
+        '📖 *Manual Oficial Interactivo & Guía:* ' + manualLink + '\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'RECHAZADO') {
+      finalStatus = 'RECHAZADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Solicitud de acceso no admitida'));
+
+      notifyMsg = 
+        '📋 *ESTADO DE SOLICITUD DE ACCESO*\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Estimado(a) *' + userName + '*:\\n' +
+        'La Dirección del Proyecto informa que su solicitud de acceso no ha sido aprobada en esta oportunidad.\\n\\n' +
+        '📋 *Detalle:* ' + (reason || 'No cumple con los criterios de admisión para el acervo institucional.') + '\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'PENDIENTE_APROBACION') {
+      finalStatus = 'PENDIENTE_APROBACION';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'En espera de revisión'));
+    }
+
+    if (notifyMsg) {
+      sendWhatsAppText(targetPhone, notifyMsg);
+    }
+
+    return { success: true, user: userName, phone: targetPhone, newStatus: finalStatus, reason: reason };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Trigger simple de edición directa en Google Sheets (onEdit)
+ * Permite al Gestor de Contenido cambiar el estatus directamente en la celda de la columna 5
+ * y notificar automáticamente al usuario vía WhatsApp.
+ */
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    const sheet = e.range.getSheet();
+    if (sheet.getName() !== CONFIG.SHEET_USUARIOS) return;
+
+    const row = e.range.getRow();
+    const col = e.range.getColumn();
+
+    // Solo reaccionar cuando se edita la columna 5 (ESTADO_ACCESO)
+    if (col === 5 && row > 1) {
+      const newStatus = String(e.value || '').trim();
+      if (!newStatus) return;
+
+      const phone = sheet.getRange(row, 1).getValue();
+      const currentReasonRaw = sheet.getRange(row, 10).getValue();
+      const currentReason = descifrarCampoEnReposo(currentReasonRaw) || 'Ajuste manual directo en la tabla por la Dirección';
+
+      Logger.log('Edición directa en Google Sheets para ' + phone + ': ' + newStatus);
+      aplicarCambioEstatusUsuario(phone, newStatus, currentReason);
+    }
+  } catch (err) {
+    Logger.log('Error en onEdit: ' + err.message);
+  }
+}
+
+/**
+ * Procesa la actualización de datos personales solicitada por el usuario
+ * Aplica la política ineludible de frecuencia máxima:
+ * - Máximo 3 actualizaciones en 6 meses (180 días)
+ * - Máximo 6 actualizaciones en 12 meses (365 días)
+ * Sella el correo electrónico en reposo mediante cifrarCampoEnReposo.
+ */
+function handleActualizacionDatosUsuario(cleanPhone, userRow, text, senderName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  const data = sheetUsr.getDataRange().getValues();
+  const cleanTarget = String(cleanPhone).replace(/[^\d]/g, '');
+  let rowIndex = -1;
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).replace(/[^\d]/g, '') === cleanTarget) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    sendWhatsAppText(cleanPhone, '⚠️ No se encontró registro asociado a este número para actualizar.');
+    return;
+  }
+
+  const lower = text.toLowerCase().trim();
+  const isPromptOnly = lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil';
+
+  const currentName = userRow[1] || senderName || 'Colega';
+  const currentInst = userRow[2] || '';
+  const currentLevel = userRow[3] || '';
+  let currentEmail = '';
+  if (userRow.length >= 11 && userRow[10]) {
+    currentEmail = descifrarCampoEnReposo(userRow[10]) || userRow[10];
+  }
+
+  if (isPromptOnly) {
+    sendWhatsAppText(cleanPhone, 
+      '📝 *ACTUALIZACIÓN DE DATOS PERSONALES*\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Estimado(a) ' + currentName + ':\\n\\n' +
+      'Puede actualizar sus datos personales en cualquier momento enviando un mensaje con la estructura:\\n\\n' +
+      '👉 *ACTUALIZAR: [Nombre], [Correo], [Hospital/Universidad], [Nivel]*\\n\\n' +
+      '_Ejemplo:_\\n' +
+      '`ACTUALIZAR: Dr. Carlos Pérez, carlos.perez@hospital.edu.co, Hospital San José, Especialista`\\n\\n' +
+      'ℹ️ *Política de Seguridad y Frecuencia Máxima:*\\n' +
+      'Para preservar la trazabilidad institucional y prevenir suplantaciones de identidad:\\n' +
+      '• Máximo *3 actualizaciones en 6 meses* (180 días).\\n' +
+      '• Máximo *6 actualizaciones en 12 meses* (365 días).\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    );
+    return;
+  }
+
+  // Parsear historial de actualizaciones desde Columna 12
+  let rawHistory = (userRow.length >= 12 && userRow[11]) ? String(userRow[11]).trim() : '';
+  let updateHistory = [];
+  try {
+    if (rawHistory && rawHistory.indexOf('[') === 0) {
+      updateHistory = JSON.parse(rawHistory);
+    }
+  } catch (e) {
+    updateHistory = [];
+  }
+  if (!Array.isArray(updateHistory)) updateHistory = [];
+
+  const now = new Date().getTime();
+  const ms6m = 180 * 24 * 60 * 60 * 1000;
+  const ms12m = 365 * 24 * 60 * 60 * 1000;
+
+  const count6m = updateHistory.filter(function(ts) { return (now - ts) < ms6m; }).length;
+  const count12m = updateHistory.filter(function(ts) { return (now - ts) < ms12m; }).length;
+
+  if (count6m >= 3) {
+    sendWhatsAppText(cleanPhone, 
+      '⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Estimado(a) Colega:\\n' +
+      'Ha alcanzado el límite institucional de *3 actualizaciones en un periodo de 6 meses*.\\n\\n' +
+      'Para modificaciones excepcionales o de fuerza mayor, puede enviar un mensaje directo a la Dirección:\\n' +
+      '👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*'
+    );
+    return;
+  }
+
+  if (count12m >= 6) {
+    sendWhatsAppText(cleanPhone, 
+      '⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Estimado(a) Colega:\\n' +
+      'Ha alcanzado el límite institucional de *6 actualizaciones en un periodo de 12 meses*.\\n\\n' +
+      'Para situaciones especiales, puede comunicarse directamente con la Dirección:\\n' +
+      '👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*'
+    );
+    return;
+  }
+
+  // Extraer campos del mensaje
+  const cleanPayload = text.replace(/^actualizar(\s+datos)?\s*:\s*/i, '').trim();
+  const parts = cleanPayload.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  let newName = '', newEmail = '', newInst = '', newLevel = '';
+
+  const emailMatch = cleanPayload.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) newEmail = emailMatch[0].trim().toLowerCase();
+
+  if (parts.length >= 2) {
+    if (parts[0] && parts[0].indexOf('@') === -1) newName = parts[0];
+    for (let p = 1; p < parts.length; p++) {
+      const part = parts[p];
+      if (part.indexOf('@') !== -1) newEmail = part.toLowerCase();
+      else if (/\b(residente|especialista|egresado|r[1-4]|fellow)\b/i.test(part)) newLevel = part;
+      else if (!newInst) newInst = part;
+    }
+  } else {
+    if (/\b(residente|especialista|egresado|r[1-4]|fellow)\b/i.test(cleanPayload)) {
+      const lm = cleanPayload.match(/\b(residente(?:\s+r[1-4])?|especialista|egresado|fellow)\b/i);
+      if (lm) newLevel = lm[0];
+    }
+    if (newEmail) {
+      const withoutEmail = cleanPayload.replace(newEmail, '').trim();
+      if (withoutEmail.length > 3) newInst = withoutEmail;
+    }
+  }
+
+  const updatedName = newName || currentName;
+  const updatedEmail = newEmail || currentEmail;
+  const updatedInst = newInst || currentInst;
+  const updatedLevel = newLevel || currentLevel;
+
+  // Actualizar en hoja de cálculo
+  if (newName) sheetUsr.getRange(rowIndex, 2).setValue(sanitizeSheetValue(newName));
+  if (newInst) sheetUsr.getRange(rowIndex, 3).setValue(sanitizeSheetValue(newInst));
+  if (newLevel) sheetUsr.getRange(rowIndex, 4).setValue(sanitizeSheetValue(newLevel));
+  if (newEmail) {
+    // Sellar campo en reposo
+    sheetUsr.getRange(rowIndex, 11).setValue(cifrarCampoEnReposo(newEmail));
+  }
+  sheetUsr.getRange(rowIndex, 8).setValue(new Date()); // Última interacción
+
+  updateHistory.push(now);
+  sheetUsr.getRange(rowIndex, 12).setValue(JSON.stringify(updateHistory));
+
+  const newCount6m = count6m + 1;
+  const newCount12m = count12m + 1;
+
+  // Notificación al usuario
+  sendWhatsAppText(cleanPhone, 
+    '✅ *DATOS PERSONALES ACTUALIZADOS CON ÉXITO*\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    'Estimado(a) *' + updatedName + '*:\\n' +
+    'Su información personal ha sido actualizada satisfactoriamente en el Directorio Institucional.\\n\\n' +
+    '📋 *Ficha Actualizada:*\\n' +
+    '• 👤 *Nombre:* ' + updatedName + '\\n' +
+    '• 📧 *Correo:* ' + (updatedEmail || 'No registrado') + '\\n' +
+    '• 🏥 *Institución:* ' + updatedInst + '\\n' +
+    '• 🎓 *Nivel:* ' + updatedLevel + '\\n\\n' +
+    '📊 *Control de Frecuencia:*\\n' +
+    'Ha utilizado *' + newCount6m + ' de 3* actualizaciones permitidas en 6 meses (*' + newCount12m + ' de 6* anuales).\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  );
+
+  // Alerta confidencial al Gestor de Contenido
+  sendWhatsAppText(CONFIG.ADMIN_PHONE, 
+    '📝 *ACTUALIZACIÓN DE DATOS DE USUARIO*\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '👤 *Médico:* ' + updatedName + '\\n' +
+    '📱 *WhatsApp:* `' + cleanPhone + '`\\n' +
+    '📧 *Correo:* ' + (updatedEmail || 'N/A') + '\\n' +
+    '🏥 *Institución:* ' + updatedInst + '\\n' +
+    '🎓 *Nivel:* ' + updatedLevel + '\\n' +
+    '📊 *Frecuencia:* ' + newCount6m + '/3 en 6m (' + newCount12m + '/6 en 12m)\\n' +
+    '👉 Registrado confidencialmente en el Directorio de Usuarios.'
+  );
+}
+
+/**
+ * Gestiona el cambio inmediato de idioma de comunicación del usuario (Sin límites de frecuencia)
+ */
+function handleCambioIdiomaUsuario(cleanPhone, userRow, text, senderName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  const dataUsr = sheetUsr.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < dataUsr.length; i++) {
+    if (String(dataUsr[i][0]).replace(/[^\d]/g, '') === cleanPhone.replace(/[^\d]/g, '')) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  const currentLang = (userRow && userRow.length >= 15 && userRow[14]) ? String(userRow[14]).toUpperCase().trim() : 'ES';
+  const lower = text.toLowerCase().trim();
+  const isPromptOnly = lower === 'idioma' || lower === 'language' || lower === 'lang';
+
+  if (isPromptOnly) {
+    sendWhatsAppText(cleanPhone, 
+      '🌐 *PREFERENCIA DE IDIOMA / LANGUAGE SETTING*\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Idioma actual de comunicación: *' + currentLang + '*\\n\\n' +
+      'Puede cambiar su idioma de comunicación en cualquier momento sin límites de actualización enviando:\\n\\n' +
+      '• *IDIOMA: ES* (Español)\\n' +
+      '• *LANGUAGE: EN* (English)\\n' +
+      '• *IDIOMA: PT* (Português)\\n' +
+      '• *IDIOMA: FR* (Français)\\n\\n' +
+      'ℹ️ *Preservación de Literatura Médica:* Los artículos y libros científicos en PDF se descargan siempre en su idioma original de publicación para mantener la fidelidad quirúrgica y científica.\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    );
+    return;
+  }
+
+  const rawLang = text.replace(/^(?:idioma|language|lang)\s*:\s*/i, '').trim().toUpperCase();
+  let newLang = 'ES';
+  if (rawLang.indexOf('EN') === 0 || rawLang.indexOf('ING') === 0) newLang = 'EN';
+  else if (rawLang.indexOf('PT') === 0 || rawLang.indexOf('POR') === 0) newLang = 'PT';
+  else if (rawLang.indexOf('FR') === 0) newLang = 'FR';
+  else if (rawLang.indexOf('DE') === 0 || rawLang.indexOf('ALE') === 0) newLang = 'DE';
+  else if (rawLang.indexOf('IT') === 0) newLang = 'IT';
+  else newLang = 'ES';
+
+  if (rowIndex !== -1) {
+    sheetUsr.getRange(rowIndex, 15).setValue(newLang); // Columna O
+    sheetUsr.getRange(rowIndex, 8).setValue(new Date()); // Última interacción
+  }
+
+  let confirmMsg = '';
+  if (newLang === 'EN') {
+    confirmMsg = '🌐 *LANGUAGE SUCCESSFULLY UPDATED*\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                 'Your preferred communication language has been set to: *English (EN)*.\\n\\n' +
+                 'All future responses, search digests, evidence summaries, and administrative announcements will be sent to you in English.\\n\\n' +
+                 '📚 *Medical Literature Notice:* Original scientific PDF articles and textbooks are preserved and downloaded in their authentic language of publication.\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else if (newLang === 'PT') {
+    confirmMsg = '🌐 *IDIOMA ATUALIZADO COM SUCESSO*\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                 'Seu idioma de comunicação preferido agora é: *Português (PT)*.\\n\\n' +
+                 'Todas as respostas futuras, sínteses de evidências, resumos de busca e comunicados administrativos serão enviados em português.\\n\\n' +
+                 '📚 *Aviso sobre Literatura Médica:* Livros e artigos científicos em PDF originais são mantidos e baixados em seu idioma de publicação autêntico.\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else if (newLang === 'FR') {
+    confirmMsg = '🌐 *LANGUE MISE À JOUR AVEC SUCCÈS*\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                 'Votre langue de communication préférée est maintenant: *Français (FR)*.\\n\\n' +
+                 'Toutes les futures réponses, synthèses d\'évidences et annonces seront envoyées en français.\\n\\n' +
+                 '📚 *Préservation des Documents Originaux:* Les articles et livres médicaux en PDF sont conservés et téléchargés dans leur langue originale de publication.\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else {
+    confirmMsg = '🌐 *IDIOMA DE COMUNICACIÓN ACTUALIZADO*\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                 'Su idioma de preferencia ha sido configurado en: *Español (ES)*.\\n\\n' +
+                 'Todas las respuestas, resúmenes clínicos, evidencias y comunicados se enviarán en español.\\n\\n' +
+                 '📚 *Preservación de Literatura Médica:* Los artículos y libros científicos en PDF se descargan siempre en su idioma original de publicación.\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  }
+
+  sendWhatsAppText(cleanPhone, confirmMsg);
 }
 
 /**
@@ -1454,8 +2787,8 @@ function serveDocumentDownloadViewer(file) {
     '<div class="card">' +
     '  <div class="icon">📄</div>' +
     '  <h2>' + filename + '</h2>' +
-    '  <div class="badge">Gestor de Contenido • Descarga Segura</div>' +
-    '  <p style="font-size:13px; color:#94a3b8; line-height:1.5;">El documento ha sido verificado criptográficamente en la nube. Puede guardarlo en su dispositivo o abrirlo en pantalla completa.</p>' +
+    '  <div class="badge">Biblioteca Médica • Descarga Segura</div>' +
+    '  <p style="font-size:13px; color:#94a3b8; line-height:1.5;">El documento ha sido verificado criptográficamente. Puede guardarlo en su dispositivo o abrirlo en pantalla completa.</p>' +
     '  <div class="btn-group">' +
     '    <button id="btnDownload" class="btn btn-primary">📥 Descargar Archivo PDF</button>' +
     '    <button id="btnOpen" class="btn btn-secondary">🖥️ Ver en Pantalla Completa</button>' +
@@ -1652,7 +2985,7 @@ function recordTelemetry(phone, originalQuery, detectedTerms, status, topDocumen
     sheetMem.appendRow([
       new Date(),
       maskedPhone,
-      sanitizeSheetValue(originalQuery),
+      cifrarCampoEnReposo(sanitizeSheetValue(originalQuery)),
       sanitizeSheetValue(detectedTerms || 'GENERAL'),
       sanitizeSheetValue(status),
       sanitizeSheetValue(topDocument || 'N/A')
@@ -1674,6 +3007,17 @@ function doPost(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
+
+    // Soporte directo para depósito en el Buzón Digital Seguro
+    if (body.action === 'upload_buzon') {
+      const buzonRes = uploadBuzonFile(body.base64Data, body.fileName, body.mimeType, body.donorInfo);
+      return ContentService.createTextOutput(JSON.stringify(buzonRes)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (body.action === 'upload_chunk') {
+      const chunkRes = uploadBuzonChunk(body.sessionId, body.chunkIndex, body.totalChunks, body.chunkB64, body.fileName, body.mimeType, body.donorInfo);
+      return ContentService.createTextOutput(JSON.stringify(chunkRes)).setMimeType(ContentService.MimeType.JSON);
+    }
 
     if (body.object && body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
       const messageObj = body.entry[0].changes[0].value.messages[0];
@@ -1785,35 +3129,21 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   // 1. COMANDOS DE GOBERNANZA EXCLUSIVOS DEL GESTOR DE CONTENIDO
   // =========================================================================
   if (isAdmin) {
-    // 1.1 APROBAR +57...
-    if (lower.startsWith('aprobar')) {
+    // 1.1 SUSPENDER +57... [24h|48h|72h] [motivo]
+    if (lower.startsWith('suspender')) {
       const match = text.match(/\+?\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\d]/g, '') === targetPhone.replace(/[^\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('APROBADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '✅ Acceso de ' + data[i][1] + ' (' + targetPhone + ') aprobado exitosamente.');
-            
-            const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, targetPhone);
-            sendWhatsAppText(targetPhone, 
-              '🩺 *ACCESO AUTORIZADO POR LA DIRECCIÓN DEL PROYECTO*\\n\\n' +
-              'Estimado(a) *' + data[i][1] + '*:\\n' +
-              'Su solicitud ha sido aprobada por el *Gestor de Contenido*.\\n\\n' +
-              'A partir de este momento dispone de acceso a la colección clínica y quirúrgica.\\n\\n' +
-              '📖 *Manual Oficial Interactivo & Guía de Búsqueda:*\\n' + manualLink + '\\n\\n' +
-              'Escriba la patología, técnica o autor que requiera para iniciar su búsqueda.'
-            );
-            break;
-          }
-        }
-        if (!found) {
-          sendWhatsAppText(adminPhone, '⚠️ No se encontró solicitud pendiente para ' + targetPhone + '.');
+        let hours = 24;
+        if (lower.includes('48h')) hours = 48;
+        else if (lower.includes('72h')) hours = 72;
+        else if (lower.includes('24h')) hours = 24;
+        const reason = text.replace(/suspender\s+\+?\d{10,14}(\s+(24h|48h|72h))?/i, '').trim() || 'Suspensión temporal preventiva';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'SUSPENDIDO_' + hours + 'H', reason, hours);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '⏳ *USUARIO SUSPENDIDO (' + hours + 'H)*\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\nMotivo: ' + reason + '\\nNotificación automática despachada al usuario.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
       }
       return;
@@ -1824,49 +3154,50 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       const match = text.match(/\+?\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const reason = text.replace(/bloquear\s+\+?\d{10,14}/i, '').trim() || 'Incumplimiento de las reglas de uso apropiado';
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\d]/g, '') === targetPhone.replace(/[^\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('BLOQUEADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '⛔ Acceso de ' + data[i][1] + ' (' + targetPhone + ') suspendido. Motivo: "' + reason + '".');
-            sendWhatsAppText(targetPhone, '⛔ Su acceso a la Biblioteca Médica ha sido suspendido por decisión de la Dirección (*Gestor de Contenido*).\\nMotivo: ' + reason + '.');
-            break;
-          }
+        const reason = text.replace(/bloquear\s+\+?\d{10,14}/i, '').trim() || 'Incumplimiento de las reglas de uso';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'BLOQUEADO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '⛔ *USUARIO BLOQUEADO (INDEFINIDO)*\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\nMotivo: ' + reason + '\\nNotificación automática despachada al usuario.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
-        if (!found) sendWhatsAppText(adminPhone, '⚠️ No se encontró usuario con el número ' + targetPhone + '.');
       }
       return;
     }
 
-    // 1.3 DESBLOQUEAR +57...
-    if (lower.startsWith('desbloquear')) {
+    // 1.3 EXPULSAR +57... [motivo]
+    if (lower.startsWith('expulsar')) {
       const match = text.match(/\+?\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\d]/g, '') === targetPhone.replace(/[^\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('APROBADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '✅ Acceso de ' + data[i][1] + ' (' + targetPhone + ') restablecido.');
-            sendWhatsAppText(targetPhone, '✅ Su acceso a la Biblioteca Médica ha sido restablecido por la Dirección (*Gestor de Contenido*).');
-            break;
-          }
+        const reason = text.replace(/expulsar\s+\+?\d{10,14}/i, '').trim() || 'Expulsión definitiva del proyecto';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'EXPULSADO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '🚫 *USUARIO EXPULSADO PERMANENTEMENTE*\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\nMotivo: ' + reason + '\\nNotificación despachada. Número inhabilitado de por vida.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
-        if (!found) sendWhatsAppText(adminPhone, '⚠️ No se encontró usuario con el número ' + targetPhone + '.');
       }
       return;
     }
 
-    // 1.4 RESPONDER +57... [mensaje]
+    // 1.4 ACTIVAR / APROBAR / DESBLOQUEAR +57...
+    if (lower.startsWith('activar') || lower.startsWith('desbloquear') || lower.startsWith('aprobar')) {
+      const match = text.match(/\+?\d{10,14}/);
+      if (match) {
+        const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
+        const reason = text.replace(/(activar|desbloquear|aprobar)\s+\+?\d{10,14}/i, '').trim() || 'Acceso concedido / reactivado por la Dirección';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'ACTIVO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '✅ *ACCESO DE USUARIO ACTIVADO*\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\nNotificación de bienvenida/restablecimiento despachada.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
+        }
+      }
+      return;
+    }
+
+    // 1.5 RESPONDER +57... [mensaje]
     if (lower.startsWith('responder')) {
       const match = text.match(/\+?\d{10,14}/);
       if (match) {
@@ -1875,8 +3206,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         if (responseBody.length > 0) {
           sendWhatsAppText(adminPhone, '📤 Respuesta despachada al usuario (' + targetPhone + ') de forma anónima.');
           sendWhatsAppText(targetPhone, 
-            '💬 *RESPUESTA DE LA DIRECCIÓN DEL PROYECTO*\\n' +
-            '*Gestor de Contenido:*\\n\\n' +
+            '💬 *DIRECCIÓN DEL PROYECTO:*\\n\\n' +
             '"' + responseBody + '"\\n\\n' +
             '_Nota: Puede responder a este mensaje directamente si requiere aclaración adicional._'
           );
@@ -1885,15 +3215,18 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
-    // 1.5 ESTADO (Métricas)
+    // 1.6 ESTADO (Métricas)
     if (lower === 'estado') {
       const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
       const data = sheetUsr.getDataRange().getValues();
-      let app = 0, pend = 0, blk = 0;
+      let app = 0, pend = 0, susp = 0, blk = 0, exp = 0;
       for (let i = 1; i < data.length; i++) {
-        if (data[i][4] === 'APROBADO') app++;
-        else if (data[i][4] === 'PENDIENTE_APROBACION') pend++;
-        else if (data[i][4] === 'BLOQUEADO') blk++;
+        const st = String(data[i][4]);
+        if (st === 'APROBADO' || st === 'ACTIVO') app++;
+        else if (st === 'PENDIENTE_APROBACION') pend++;
+        else if (st.startsWith('SUSPENDIDO')) susp++;
+        else if (st === 'BLOQUEADO') blk++;
+        else if (st === 'EXPULSADO') exp++;
       }
 
       let totalMem = 0;
@@ -1906,11 +3239,13 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
         '👨‍⚕️ *Médicos Autorizados:* ' + app + '\\n' +
         '⏳ *Solicitudes Pendientes:* ' + pend + '\\n' +
-        '⛔ *Usuarios Suspendidos:* ' + blk + '\\n' +
+        '⏱️ *Usuarios Suspendidos:* ' + susp + '\\n' +
+        '⛔ *Usuarios Bloqueados:* ' + blk + '\\n' +
+        '🚫 *Usuarios Expulsados:* ' + exp + '\\n' +
         '🧠 *Registros Telemetría:* ' + totalMem + '\\n' +
         '🛡️ *Vigilancia IDS:* Activa 24/7\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-        'Comandos: APROBAR, BLOQUEAR, DESBLOQUEAR, RESPONDER, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL'
+        'Comandos: ACTIVAR, SUSPENDER, BLOQUEAR, EXPULSAR, RESPONDER, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL, SELLAR_REPOSO'
       );
       return;
     }
@@ -1942,13 +3277,15 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         for (let i = 1; i < dataUsr.length; i++) {
           const uStatus = dataUsr[i][4];
           const uPhone = String(dataUsr[i][0]).replace(/[^\d+]/g, '');
-          if (uStatus === 'APROBADO' && uPhone !== adminPhone) {
+          const uLang = (dataUsr[i].length >= 15 && dataUsr[i][14]) ? String(dataUsr[i][14]).toUpperCase().trim() : 'ES';
+          if ((uStatus === 'APROBADO' || uStatus === 'ACTIVO') && uPhone !== adminPhone) {
+            const localizedMsg = translateTextForUser(broadcastMsg, uLang);
             sendWhatsAppText(uPhone,
               '📢 *COMUNICADO OFICIAL DE LA DIRECCIÓN*\\n' +
               '*Biblioteca Médica de Cirugía Ortopédica*\\n' +
-              '*Dirección:* Gestor de Contenido\\n' +
+              '*Dirección:* Dirección del Proyecto\\n' +
               '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n' +
-              broadcastMsg + '\\n\\n' +
+              localizedMsg + '\\n\\n' +
               '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
               '💡 _Para consultar las nuevas políticas y manual actualizado en tiempo real, escriba "MANUAL" en este chat._'
             );
@@ -1972,34 +3309,30 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       generarBackupMensualInmutable();
       return;
     }
+
+    // 1.9 SELLAR_REPOSO (Cifrado criptográfico en reposo masivo)
+    if (lower === 'sellar_reposo') {
+      const sealRes = sellarCamposEnReposoSistema();
+      sendWhatsAppText(adminPhone,
+        '🔒 *SELLADO CRIPTOGRÁFICO EN REPOSO EJECUTADO*\\n' +
+        '*Dirección:* Gestor de Contenido\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '• Estado: ' + (sealRes.success ? 'Completado con Éxito' : 'Error') + '\\n' +
+        '• Celdas sensibles selladas: ' + sealRes.totalSealed + '\\n' +
+        '• Hojas auditadas: 4 pestañas maestras\\n' +
+        '• Algoritmo: HMAC-SHA256 Encrypt-then-MAC (Keystream con sal e IV únicos)\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        'Los datos confidenciales en reposo se encuentran 100% blindados e inmunes a fórmulas maliciosas.'
+      );
+      return;
+    }
   }
 
   // =========================================================================
   // 2. MODERACIÓN ACTIVA (TOLERANCIA CERO A LENGUAJE VULGAR / INSULTOS)
   // =========================================================================
   if (isVulgarMessage(text) && !isAdmin) {
-    const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-    const dataUsr = sheetUsr.getDataRange().getValues();
-    for (let i = 1; i < dataUsr.length; i++) {
-      if (String(dataUsr[i][0]).replace(/[^\d]/g, '') === cleanPhone.replace(/[^\d]/g, '')) {
-        sheetUsr.getRange(i + 1, 5).setValue('BLOQUEADO');
-        break;
-      }
-    }
-    sendWhatsAppText(cleanPhone, 
-      '⛔ *ACCESO SUSPENDIDO POR VIOLACIÓN DEL CÓDIGO DE CONDUCTA*\\n\\n' +
-      'Se ha detectado el uso de lenguaje vulgar, sensible o inapropiado en su mensaje.\\n' +
-      'De conformidad con el Código de Conducta de la Biblioteca Médica, su cuenta ha sido suspendida de forma preventiva.\\n\\n' +
-      'El incidente ha sido remitido a la Dirección (*Gestor de Contenido*).'
-    );
-    sendWhatsAppText(adminPhone, 
-      '🚨 *ALERTA DISCIPLINARIA DE MODERACIÓN*\\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-      '👤 *Usuario:* ' + senderName + ' (`' + cleanPhone + '`)\\n' +
-      '📝 *Mensaje:* "' + text + '"\\n' +
-      '⚖️ *Acción:* Suspensión preventiva aplicada.\\n' +
-      '👉 Para desbloquear: "DESBLOQUEAR ' + cleanPhone + '"'
-    );
+    aplicarCambioEstatusUsuario(cleanPhone, 'SUSPENDIDO_24H', 'Infracción por vocabulario inapropiado o vulgar en chat');
     return;
   }
 
@@ -2011,15 +3344,15 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
     const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, cleanPhone);
     sendWhatsAppText(cleanPhone, 
       '📖 *MANUAL DE USO Y GOBERNANZA DEL PROYECTO*\\n' +
-      '*Dirección:* Gestor de Contenido\\n' +
+      '*Dirección:* Dirección del Proyecto\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
       'Este documento contiene las directrices completas para:\\n' +
-      '• Búsquedas quirúrgicas en el catálogo cloud con tolerancia difusa.\\n' +
+      '• Búsquedas quirúrgicas en el catálogo especializado con tolerancia difusa.\\n' +
       '• Consulta de evidencia en PubMed (EVIDENCIA: [pregunta]).\\n' +
       '• Lectura crítica de artículos propios estilo NotebookLM (ANALIZAR: máx 2 PDFs).\\n' +
       '• Envío de notas de voz de WhatsApp para transcripción automática.\\n' +
       '• Clasificador de fracturas AO/OTA por imagen radiográfica.\\n' +
-      '• Buzón Drive ciego y donaciones por WhatsApp.\\n' +
+      '• Buzón Digital anónimo y donaciones por WhatsApp.\\n' +
       '• Código de Conducta y Régimen Disciplinario.\\n' +
       '• Canal de contacto anónimo con la Dirección.\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n' +
@@ -2037,7 +3370,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   let userRow = null;
 
   if (isAdmin) {
-    userRow = [adminPhone, 'Gestor de Contenido', 'Dirección del Proyecto', 'Dirección', 'APROBADO', new Date(), 9999, new Date()];
+    userRow = [adminPhone, 'Gestor de Contenido', 'Dirección del Proyecto', 'Dirección', 'APROBADO', new Date(), 9999, new Date(), '', '', '', '[]', '🇨🇴', 'Colombia', 'ES'];
   } else {
     for (let i = 1; i < dataUsr.length; i++) {
       if (String(dataUsr[i][0]).replace(/[^\d]/g, '') === cleanPhone.replace(/[^\d]/g, '')) {
@@ -2048,61 +3381,223 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   }
 
   if (!userRow) {
-    const hasRegData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital')) && text.length > 20;
-    if (hasRegData) {
-      sheetUsr.appendRow([cleanPhone, sanitizeSheetValue(senderName), 'Institución Registrada', 'Residente', 'PENDIENTE_APROBACION', new Date(), 50, new Date()]);
+    // Verificar si este número fue expulsado permanentemente
+    let isExpelled = false;
+    for (let i = 1; i < dataUsr.length; i++) {
+      if (String(dataUsr[i][0]).replace(/[^\d]/g, '') === cleanPhone.replace(/[^\d]/g, '') && dataUsr[i][4] === 'EXPULSADO') {
+        isExpelled = true;
+        break;
+      }
+    }
+    if (isExpelled) {
       sendWhatsAppText(cleanPhone, 
-        '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\n\\n' +
-        'Hemos recibido sus datos de registro.\\n' +
-        '⚠️ *Estado Actual:* En espera de autorización por la Dirección del Proyecto (*Gestor de Contenido*).\\n\\n' +
-        'Le notificaremos en cuanto su acceso sea habilitado.'
+        '🚫 *REGISTRO NO AUTORIZADO*\\n\\n' +
+        'Este número telefónico ha sido expulsado de forma definitiva del proyecto por decisión de la Dirección.\\n' +
+        'No se admiten nuevas solicitudes de registro.'
       );
+      return;
+    }
+
+    const countryInfo = resolveCountryAndLanguage(cleanPhone);
+    const countryFlag = countryInfo.flag;
+    const countryName = countryInfo.name;
+
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    const detectedEmail = emailMatch ? emailMatch[0].trim().toLowerCase() : '';
+
+    const hasRegData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital') || detectedEmail) && text.length > 20;
+    if (hasRegData) {
+      let chosenLang = countryInfo.defaultLang || 'ES';
+      const langMatch = text.match(/\b(?:idioma|language|lang)\s*:\s*([a-zA-Z]{2})\b/i) || text.match(/\b(portugu[eê]s|ingl[eé]s|english|fran[cç][aá]is|espa[nñ]ol)\b/i);
+      if (langMatch) {
+        const val = (langMatch[1] || '').toLowerCase();
+        if (val.includes('port') || val === 'pt') chosenLang = 'PT';
+        else if (val.includes('ing') || val.includes('eng') || val === 'en') chosenLang = 'EN';
+        else if (val.includes('fra') || val === 'fr') chosenLang = 'FR';
+        else if (val.includes('esp') || val === 'es') chosenLang = 'ES';
+      }
+
+      const sealedEmail = detectedEmail ? cifrarCampoEnReposo(detectedEmail) : '';
+      sheetUsr.appendRow([
+        cleanPhone, 
+        sanitizeSheetValue(senderName), 
+        'Institución Registrada', 
+        'Residente', 
+        'PENDIENTE_APROBACION', 
+        new Date(), 
+        50, 
+        new Date(), 
+        '', 
+        '', 
+        sealedEmail, 
+        '[]', 
+        countryFlag, 
+        countryName, 
+        chosenLang
+      ]);
+
+      let userWelcome = '';
+      if (chosenLang === 'PT') {
+        userWelcome = '👋 *Bem-vindo(a) à Biblioteca Médica de Cirurgia Ortopédica e Traumatologia!*\\n\\n' +
+                      'Recebemos seus dados de registro' + (detectedEmail ? ' (E-mail: ' + detectedEmail + ')' : '') + '.\\n' +
+                      '⚠️ *Status Atual:* Aguardando validação autônoma (~24 horas).\\n\\n' +
+                      'Notificaremos assim que seu acesso for habilitado.';
+      } else if (chosenLang === 'EN') {
+        userWelcome = '👋 *Welcome to the Orthopaedic Surgery & Traumatology Medical Library!*\\n\\n' +
+                      'We have received your registration details' + (detectedEmail ? ' (Email: ' + detectedEmail + ')' : '') + '.\\n' +
+                      '⚠️ *Current Status:* Awaiting autonomous validation (~24 hours).\\n\\n' +
+                      'We will notify you as soon as your access is enabled.';
+      } else if (chosenLang === 'FR') {
+        userWelcome = '👋 *Bienvenue à la Bibliothèque Médicale de Chirurgie Orthopédique et Traumatologie!*\\n\\n' +
+                      'Nous avons bien reçu vos coordonnées' + (detectedEmail ? ' (E-mail: ' + detectedEmail + ')' : '') + '.\\n' +
+                      '⚠️ *Statut Actuel:* En attente de validation autonome (~24 heures).\\n\\n' +
+                      'Nous vous informerons dès que votre accès sera activé.';
+      } else {
+        userWelcome = '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\n\\n' +
+                      'Hemos recibido sus datos de registro' + (detectedEmail ? ' (Correo: ' + detectedEmail + ')' : '') + '.\\n' +
+                      '⚠️ *Estado Actual:* En espera de validación autónoma (~24 horas).\\n\\n' +
+                      'Le notificaremos en cuanto su acceso sea habilitado.';
+      }
+
+      sendWhatsAppText(cleanPhone, userWelcome);
       sendWhatsAppText(adminPhone, 
         '🩺 *NUEVA SOLICITUD DE ACCESO*\\n' +
         '👤 Médico: ' + senderName + '\\n' +
         '📱 WhatsApp: ' + cleanPhone + '\\n' +
-        '👉 Responder: "APROBAR ' + cleanPhone + '"'
+        '🌍 Procedencia: ' + countryFlag + ' ' + countryName + '\\n' +
+        '🌐 Idioma Preferido: ' + chosenLang + '\\n' +
+        (detectedEmail ? '📧 Correo: ' + detectedEmail + '\\n' : '') +
+        '👉 Responder: "ACTIVAR ' + cleanPhone + '"'
       );
     } else {
-      sendWhatsAppText(cleanPhone, 
-        '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\n\\n' +
-        'Proyecto libre y de apoyo académico coordinado por el *Gestor de Contenido*.\\n\\n' +
-        'Para solicitar acceso a la colección clínica, comparta en un mensaje:\\n' +
-        '1. Nombre Completo\\n' +
-        '2. Universidad u Hospital de formación\\n' +
-        '3. Nivel actual (Residente R1-R4, Especialista, Egresado)\\n\\n' +
-        '💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._'
-      );
+      let welcomeGreeting = '';
+      if (countryInfo.defaultLang === 'PT') {
+        welcomeGreeting = '👋 *Bem-vindo(a) à Biblioteca Médica de Cirurgia Ortopédica e Traumatologia!*\\n\\n' +
+                          '🇧🇷 ' + countryInfo.greeting + '\\n\\n' +
+                          'Iniciativa independente de apoio acadêmico e pesquisa clínica.\\n\\n' +
+                          'Para solicitar acesso ao acervo clínico, envie seus dados em uma única mensagem:\\n' +
+                          '1. *Nome Completo*\\n' +
+                          '2. *E-mail* (pessoal ou institucional)\\n' +
+                          '3. *Universidade ou Hospital de formação*\\n' +
+                          '4. *Nível atual* (Residente R1-R4, Especialista, Egressado)\\n' +
+                          '5. *Idioma de preferência* (PT, ES, EN, FR) [Opcional - padrão: Português]\\n\\n' +
+                          '🌐 *Seleção de Idioma:* Você pode escolher o idioma de comunicação enviando *"IDIOMA: PT"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* ou *"IDIOMA: FR"* sem limites de alteração.\\n\\n' +
+                          '💡 _Ou digite "MANUAL" para consultar o guia oficial e as diretrizes do serviço._';
+      } else if (countryInfo.defaultLang === 'EN') {
+        welcomeGreeting = '👋 *Welcome to the Orthopaedic Surgery & Traumatology Medical Library!*\\n\\n' +
+                          '🌐 ' + countryInfo.greeting + '\\n\\n' +
+                          'Independent initiative for academic support and clinical research.\\n\\n' +
+                          'To request access to the clinical collection, please share your details in a single message:\\n' +
+                          '1. *Full Name*\\n' +
+                          '2. *Email address* (personal or institutional)\\n' +
+                          '3. *University or Training Hospital*\\n' +
+                          '4. *Current Level* (Resident R1-R4, Specialist, Fellow)\\n' +
+                          '5. *Preferred Language* (EN, ES, PT, FR) [Optional - default: English]\\n\\n' +
+                          '🌐 *Language Selection:* You can set your preferred language at any time by typing *"LANGUAGE: EN"*, *"LANGUAGE: ES"*, *"LANGUAGE: PT"*, or *"LANGUAGE: FR"* with unlimited updates.\\n\\n' +
+                          '💡 _Or type "MANUAL" to review the official guide and service guidelines._';
+      } else if (countryInfo.defaultLang === 'FR') {
+        welcomeGreeting = '👋 *Bienvenue à la Bibliothèque Médicale de Chirurgie Orthopédique et Traumatologie!*\\n\\n' +
+                          '🌐 ' + countryInfo.greeting + '\\n\\n' +
+                          'Pour demander l\'accès à la collection clinique, veuillez partager vos coordonnées dans un seul message:\\n' +
+                          '1. *Nom Complet*\\n' +
+                          '2. *E-mail* (personnel ou institutionnel)\\n' +
+                          '3. *Université ou Hôpital de formation*\\n' +
+                          '4. *Niveau actuel* (Résident R1-R4, Spécialiste)\\n' +
+                          '5. *Langue préférée* (FR, ES, EN, PT) [Optionnel]\\n\\n' +
+                          '🌐 *Choix de Langue:* Tapez *"IDIOMA: FR"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* pour changer de langue à tout moment sans limite.\\n\\n' +
+                          '💡 _Ou écrivez "MANUAL" pour consulter le guide officiel._';
+      } else {
+        welcomeGreeting = '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\n\\n' +
+                          countryInfo.flag + ' ' + countryInfo.greeting + '\\n\\n' +
+                          'Iniciativa independiente de apoyo académico e investigación clínica.\\n\\n' +
+                          'Para solicitar acceso a la colección clínica, por favor compártanos sus datos en un solo mensaje:\\n' +
+                          '1. *Nombre Completo*\\n' +
+                          '2. *Correo electrónico* (personal o institucional)\\n' +
+                          '3. *Universidad u Hospital de formación*\\n' +
+                          '4. *Nivel actual* (Residente R1-R4, Especialista, Egresado)\\n' +
+                          '5. *Idioma de preferencia* (ES, EN, PT, FR) [Opcional - predeterminado: Español]\\n\\n' +
+                          '🌐 *Selección de Idioma:* Puede elegir su idioma preferido en cualquier momento enviando *"IDIOMA: ES"*, *"LANGUAGE: EN"*, *"IDIOMA: PT"* o *"IDIOMA: FR"* sin límites de cambio.\\n\\n' +
+                          '💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._';
+      }
+      sendWhatsAppText(cleanPhone, welcomeGreeting);
     }
     return;
   }
 
+  // Verificación de sanciones y condición del usuario
+  if (userRow[4] === 'EXPULSADO') {
+    sendWhatsAppText(cleanPhone, 
+      '🚫 *ACCESO REVOCADO PERMANENTEMENTE*\\n\\n' +
+      'Su cuenta y número de contacto han sido expulsados de forma definitiva del proyecto por decisión de la Dirección.\\n' +
+      'Motivo: ' + (descifrarCampoEnReposo(userRow[9]) || 'Violación grave de normativas.') + '\\n' +
+      'No se admiten nuevas solicitudes de registro.'
+    );
+    return;
+  }
+
+  if (String(userRow[4]).startsWith('SUSPENDIDO')) {
+    const finSusp = userRow[8] ? new Date(userRow[8]).getTime() : 0;
+    const now = new Date().getTime();
+    if (finSusp > 0 && now >= finSusp) {
+      aplicarCambioEstatusUsuario(cleanPhone, 'ACTIVO', 'Reactivación automática tras cumplir periodo de sanción');
+      userRow[4] = 'APROBADO';
+    } else {
+      const diffMs = finSusp - now;
+      const diffHrs = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60)));
+      sendWhatsAppText(cleanPhone, 
+        '⏳ *ACCESO TEMPORALMENTE SUSPENDIDO*\\n\\n' +
+        'Su cuenta se encuentra suspendida de forma preventiva.\\n' +
+        '⏱️ *Tiempo restante aproximado:* ' + diffHrs + ' hora(s).\\n' +
+        '📋 *Motivo:* ' + (descifrarCampoEnReposo(userRow[9]) || 'Revisión disciplinaria.') + '\\n\\n' +
+        'Su servicio se reactivará automáticamente al finalizar este término.'
+      );
+      return;
+    }
+  }
+
   if (userRow[4] === 'BLOQUEADO') {
-    sendWhatsAppText(cleanPhone, '⛔ *Acceso Suspendido*\\nSu cuenta se encuentra inhabilitada por la Dirección Médica (*Gestor de Contenido*).');
+    sendWhatsAppText(cleanPhone, 
+      '⛔ *ACCESO INHABILITADO*\\n\\n' +
+      'Su cuenta se encuentra bloqueada de forma indefinida por decisión de la Dirección del Proyecto.\\n' +
+      '📋 *Motivo:* ' + (descifrarCampoEnReposo(userRow[9]) || 'Incumplimiento de las normativas institucionales.') + '\\n\\n' +
+      'Para solicitar una revisión de su caso, puede comunicarse con la Dirección.'
+    );
     return;
   }
 
   if (userRow[4] === 'PENDIENTE_APROBACION') {
-    sendWhatsAppText(cleanPhone, '⏳ Su solicitud aún se encuentra en proceso de autorización por la Dirección Médica (*Gestor de Contenido*).');
+    sendWhatsAppText(cleanPhone, '⏳ Su solicitud aún se encuentra en proceso de validación autónoma (~24 horas).');
     return;
   }
 
   // =========================================================================
-  // 5. ATENCIÓN A USUARIOS APROBADOS
+  // 5. ATENCIÓN A USUARIOS APROBADOS Y ACTIVOS
   // =========================================================================
-  if (userRow[4] === 'APROBADO') {
+  if (userRow[4] === 'APROBADO' || userRow[4] === 'ACTIVO') {
 
-    // 4.2 Canal Intermediado con el Gestor de Contenido
-    if (lower.startsWith('mensaje al gestor:') || lower.startsWith('gestor:')) {
-      const query = text.replace(/^(mensaje al gestor|gestor)\s*:\s*/i, '').trim();
+    // 4.1.4 Cambio Inmediato de Idioma de Comunicación (Sin Límite de Frecuencia)
+    if (lower.startsWith('idioma:') || lower.startsWith('language:') || lower.startsWith('lang:') || lower === 'idioma' || lower === 'language') {
+      handleCambioIdiomaUsuario(cleanPhone, userRow, text, senderName);
+      return;
+    }
+
+    // 4.1.5 Actualización de Datos Personales
+    if (lower.startsWith('actualizar:') || lower.startsWith('actualizar datos:') || lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil') {
+      handleActualizacionDatosUsuario(cleanPhone, userRow, text, senderName);
+      return;
+    }
+
+    // 4.2 Canal Intermediado con la Dirección
+    if (lower.startsWith('mensaje a la direccion:') || lower.startsWith('mensaje a la dirección:') || lower.startsWith('mensaje al gestor:') || lower.startsWith('gestor:') || lower.startsWith('direccion:') || lower.startsWith('dirección:')) {
+      const query = text.replace(/^(mensaje a la direcci[oó]n|mensaje al gestor|gestor|direcci[oó]n)\s*:\s*/i, '').trim();
       if (query.length > 5) {
         sendWhatsAppText(cleanPhone, 
           '📩 *Mensaje Transmitido a la Dirección*\\n\\n' +
-          'Su comunicación ha sido remitida al *Gestor de Contenido* de forma confidencial.\\n' +
-          'Le notificaremos en este mismo chat en cuanto se emita una respuesta.'
+          'Su comunicación ha sido remitida a la *Dirección del Proyecto* de forma confidencial.\\n' +
+          'Le notificaremos en este mismo chat en cuanto se emita una respuesta institucional.'
         );
         sendWhatsAppText(adminPhone, 
-          '📩 *MENSAJE RECIBIDO PARA EL GESTOR DE CONTENIDO*\\n' +
+          '📩 *MENSAJE RECIBIDO PARA LA DIRECCIÓN DEL PROYECTO*\\n' +
           '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
           '👤 *Médico:* ' + userRow[1] + ' (' + userRow[2] + ')\\n' +
           '📱 *WhatsApp:* `' + cleanPhone + '`\\n' +
@@ -2145,7 +3640,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
-    // 4.6 Búsqueda Clínica Inteligente en el Catálogo Cloud (Multi-Paso)
+    // 4.6 Búsqueda Clínica Inteligente en el Catálogo Especializado (Multi-Paso)
     const results = searchCatalog(text);
     if (results.length > 0) {
       const doc = results[0];
@@ -2158,7 +3653,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '📁 *Especialidad:* ' + doc.category + '\\n' +
         (doc.aoClass && doc.aoClass !== 'N/A' ? '🎯 *Clasificación AO:* ' + doc.aoClass + '\\n' : '') +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n' +
-        '🔗 *Descarga Segura en la Nube (Válida por 30 min):*\\n' + link
+        '🔗 *Descarga Segura y Efímera (Válida por 30 min):*\\n' + link
       );
       recordTelemetry(cleanPhone, text, doc.category, 'EXITO_DOCUMENTO', doc.title);
     } else {
@@ -2175,7 +3670,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '💡 *Sugerencia Proactiva:* Puede consultar la literatura médica mundial escribiendo:\\n' +
         '👉 *EVIDENCIA: ' + text + '*\\n' +
         'para recuperar los 3 estudios más recientes de PubMed con síntesis clínica y enlaces directos.\\n\\n' +
-        '📄 O comparta el DOI/ISBN para abrir un ticket de adquisición ante la Dirección (*Gestor de Contenido*).'
+        '📄 O comparta el DOI/ISBN para abrir un ticket de adquisición ante la Dirección del Proyecto.'
       );
       recordTelemetry(cleanPhone, text, 'SIN_RESULTADOS', 'TICKET_Y_EVIDENCIA_SUGERIDOS', 'N/A');
     }

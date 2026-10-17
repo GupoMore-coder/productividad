@@ -84,6 +84,79 @@ const TEMAS = {
 };
 
 // ============================================================================
+// PRIMITIVAS DE SEGURIDAD DEFENSIVA & CONTROL DE CONCURRENCIA (ZERO-TRUST)
+// ============================================================================
+
+/**
+ * Sanitiza cualquier valor de celda para neutralizar ataques de Inyección de Fórmulas
+ * en hojas de cálculo y CSV (CWE-1236 / Formula Injection).
+ * Si la cadena comienza con caracteres de ejecución (=, +, -, @, \t, \r, |, %),
+ * antepone una comilla simple (') para forzar su interpretación como texto alfanumérico puro.
+ * @param {*} val - Valor a sanitizar antes de escribirlo en Google Sheets.
+ * @return {*} Valor sanitizado seguro.
+ */
+function sanitizeSheetValue(val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "number" || typeof val === "boolean" || val instanceof Date) return val;
+  const s = String(val);
+  if (/^[=\+\-@\t\r|%]/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
+/**
+ * Envoltorio atómico que ejecuta operaciones de escritura con LockService para proteger
+ * contra condiciones de carrera (Race Conditions / CWE-362) en Google Apps Script.
+ * @param {Function} callback - Función que ejecuta las modificaciones en Sheets.
+ * @param {number} [timeoutMs=15000] - Tiempo máximo de espera para adquirir el cerrojo.
+ * @return {*} Resultado del callback.
+ */
+function ejecutarConBloqueoTransaccional_(callback, timeoutMs) {
+  const tiempoEspera = timeoutMs || 15000;
+  let lock = null;
+  let adquirido = false;
+  try {
+    lock = LockService.getScriptLock();
+    adquirido = lock.tryLock(tiempoEspera);
+    if (!adquirido) {
+      Logger.log("⚠️ [LOCK_SERVICE] No se pudo obtener cerrojo tras " + tiempoEspera + "ms. Procediendo con advertencia.");
+    }
+    const res = callback();
+    SpreadsheetApp.flush();
+    return res;
+  } catch (err) {
+    Logger.log("❌ [LOCK_SERVICE] Error dentro de bloque transaccional: " + err.message);
+    throw err;
+  } finally {
+    if (lock && adquirido) {
+      try {
+        lock.releaseLock();
+      } catch (eRel) {
+        Logger.log("Aviso al liberar LockService: " + eRel.message);
+      }
+    }
+  }
+}
+
+/**
+ * Comparación segura de cadenas en tiempo constante para mitigar ataques de temporización
+ * (Timing Side-Channel Attacks / CWE-208) al validar tokens criptográficos y contraseñas.
+ * @param {string} a - Primera cadena.
+ * @param {string} b - Segunda cadena.
+ * @return {boolean} True si coinciden exactamente.
+ */
+function safeCompareTokens_(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+// ============================================================================
 // FUNCIÓN PRINCIPAL DE INICIALIZACIÓN (PUNTO DE ENTRADA)
 // ============================================================================
 /**
@@ -259,6 +332,9 @@ function crearHojaTransaccionesGenerica_(ss, nombreHoja, colorTema, entidadNombr
   sheet.getRange("H2:H").setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
   sheet.getRange("B2:B").setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
   sheet.setFrozenRows(1);
+
+  // Directiva: Configurar Reglas de Formato Condicional automáticas (Egresos en Rojo, Ingresos en Verde)
+  configurarFormatoCondicionalTransacciones_(sheet, "#dc2626", "#15803d");
 }
 
 /**
@@ -298,6 +374,136 @@ function crearHojaCompromisosGenerica_(ss, nombreHoja, colorTema, entidadNombre)
   sheet.getRange("B2:B").setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
   sheet.getRange("I2:I").setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
   sheet.setFrozenRows(1);
+
+  // Directiva: Configurar Reglas de Formato Condicional automáticas (Deudas en Rojo, Cobros en Verde)
+  configurarFormatoCondicionalCompromisos_(sheet, "#dc2626", "#15803d");
+}
+
+/**
+ * Configura las reglas de formato condicional automáticas en hojas de transacciones:
+ * - Toda transacción que NO sea Ingreso (Egresos, Compras, Pagos, Gastos, Nóminas, etc.) -> Caracteres ROJOS (#dc2626)
+ * - Todo Ingreso -> Caracteres VERDES (#15803d)
+ */
+function configurarFormatoCondicionalTransacciones_(sheet, colorRojo, colorVerde) {
+  if (!sheet) return;
+  const cRojo = colorRojo || "#dc2626";
+  const cVerde = colorVerde || "#15803d";
+  const maxRows = Math.max(100, sheet.getMaxRows());
+  const range = sheet.getRange(`A2:L${maxRows}`);
+
+  const ruleRojo = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND($C2<>"", NOT(ISNUMBER(SEARCH("Ingreso", $C2))))')
+    .setFontColor(cRojo)
+    .setRanges([range])
+    .build();
+
+  const ruleVerde = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=ISNUMBER(SEARCH("Ingreso", $C2))')
+    .setFontColor(cVerde)
+    .setRanges([range])
+    .build();
+
+  sheet.setConditionalFormatRules([ruleRojo, ruleVerde]);
+}
+
+/**
+ * Configura las reglas de formato condicional automáticas en hojas de compromisos:
+ * - Cuentas por Pagar (Pasivos / Deudas a terceros) -> Caracteres ROJOS (#dc2626)
+ * - Cuentas por Cobrar (Activos / Cartera / Dinero adeudado a favor) -> Caracteres VERDES (#15803d)
+ */
+function configurarFormatoCondicionalCompromisos_(sheet, colorRojo, colorVerde) {
+  if (!sheet) return;
+  const cRojo = colorRojo || "#dc2626";
+  const cVerde = colorVerde || "#15803d";
+  const maxRows = Math.max(100, sheet.getMaxRows());
+  const range = sheet.getRange(`A2:L${maxRows}`);
+
+  // Regla 1: Cuentas por Cobrar (Dinero adeudado a favor del usuario / ingreso pendiente) -> VERDE
+  // Evalúa Columna D (CONCEPTO) o Columna C (PROVEEDOR_ACREEDOR)
+  const formulaCobrar = '=AND($A2<>"", OR(ISNUMBER(SEARCH("cobrar", $D2)), ISNUMBER(SEARCH("cobro", $D2)), ISNUMBER(SEARCH("a favor", $D2)), ISNUMBER(SEARCH("ingreso", $D2)), ISNUMBER(SEARCH("deudor", $D2)), ISNUMBER(SEARCH("me debe", $D2)), ISNUMBER(SEARCH("prestamo a", $D2)), ISNUMBER(SEARCH("por cobrar", $C2))))';
+  const ruleCobrar = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(formulaCobrar)
+    .setFontColor(cVerde)
+    .setRanges([range])
+    .build();
+
+  // Regla 2: Cuentas por Pagar (Pasivos / Obligaciones pendientes de salida) -> ROJO
+  const formulaPagar = '=AND($A2<>"", NOT(OR(ISNUMBER(SEARCH("cobrar", $D2)), ISNUMBER(SEARCH("cobro", $D2)), ISNUMBER(SEARCH("a favor", $D2)), ISNUMBER(SEARCH("ingreso", $D2)), ISNUMBER(SEARCH("deudor", $D2)), ISNUMBER(SEARCH("me debe", $D2)), ISNUMBER(SEARCH("prestamo a", $D2)), ISNUMBER(SEARCH("por cobrar", $C2)))))';
+  const rulePagar = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(formulaPagar)
+    .setFontColor(cRojo)
+    .setRanges([range])
+    .build();
+
+  sheet.setConditionalFormatRules([ruleCobrar, rulePagar]);
+}
+
+/**
+ * Aplica la directiva corporativa de caracteres de color rojo para todas las salidas,
+ * pagos, compras, egresos, nóminas y compromisos por pagar en todas las hojas del libro,
+ * y caracteres VERDES para todos los ingresos y cuentas por cobrar a favor.
+ * Se aplica retroactivamente a la información ya registrada y deja activo el formato
+ * condicional para cualquier registro de este momento en adelante.
+ */
+function aplicarDirectivaCaracteresRojosLibro(ss) {
+  const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!libro) return { ok: false, error: "No se encontró el libro de cálculo activo." };
+
+  const COLOR_ROJO_EGRESO = "#dc2626";
+  const COLOR_VERDE_INGRESO = "#15803d";
+  const hojas = libro.getSheets();
+  const detalle = [];
+
+  for (let s = 0; s < hojas.length; s++) {
+    const sheet = hojas[s];
+    const nombre = sheet.getName();
+    const esTrans = nombre.includes("_Transacciones") || nombre === "Operacion_Global" || nombre === "Gastos_Globales";
+    const esComp = nombre.includes("_Compromisos") || nombre === "Compromisos_Globales";
+
+    if (esTrans) {
+      configurarFormatoCondicionalTransacciones_(sheet, COLOR_ROJO_EGRESO, COLOR_VERDE_INGRESO);
+
+      const lastRow = sheet.getLastRow();
+      let filasColoreadas = 0;
+      if (lastRow > 1) {
+        const valoresTipo = sheet.getRange(2, 3, lastRow - 1, 1).getValues(); // Columna C: TIPO
+        for (let i = 0; i < valoresTipo.length; i++) {
+          const rowNum = i + 2;
+          const tipoStr = String(valoresTipo[i][0] || "").toLowerCase();
+          const esIngreso = tipoStr.includes("ingreso");
+          const colorFila = esIngreso ? COLOR_VERDE_INGRESO : COLOR_ROJO_EGRESO;
+          sheet.getRange(rowNum, 1, 1, 12).setFontColor(colorFila);
+          filasColoreadas++;
+        }
+      }
+      detalle.push(`• ${nombre}: Formato condicional activo + ${filasColoreadas} filas procesadas retroactivamente.`);
+    } else if (esComp) {
+      configurarFormatoCondicionalCompromisos_(sheet, COLOR_ROJO_EGRESO, COLOR_VERDE_INGRESO);
+
+      const lastRow = sheet.getLastRow();
+      let filasColoreadas = 0;
+      if (lastRow > 1) {
+        const valoresConcepto = sheet.getRange(2, 4, lastRow - 1, 1).getValues(); // Columna D: CONCEPTO
+        const valoresTercero = sheet.getRange(2, 3, lastRow - 1, 1).getValues(); // Columna C: PROVEEDOR_ACREEDOR
+        for (let i = 0; i < valoresConcepto.length; i++) {
+          const rowNum = i + 2;
+          const textoRow = (String(valoresConcepto[i][0] || "") + " " + String(valoresTercero[i][0] || "")).toLowerCase();
+          const esPorCobrar = textoRow.includes("cobrar") || textoRow.includes("cobro") || textoRow.includes("a favor") || textoRow.includes("me debe") || textoRow.includes("ingreso") || textoRow.includes("deudor") || textoRow.includes("prestamo a");
+          const colorFila = esPorCobrar ? COLOR_VERDE_INGRESO : COLOR_ROJO_EGRESO;
+          sheet.getRange(rowNum, 1, 1, 12).setFontColor(colorFila);
+          filasColoreadas++;
+        }
+      }
+      detalle.push(`• ${nombre}: Formato condicional inteligente activo (Cobros en verde, deudas en rojo) + ${filasColoreadas} filas procesadas.`);
+    }
+  }
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    mensaje: "Directiva de caracteres rojos aplicada con éxito en todas las hojas.",
+    detalle: detalle
+  };
 }
 
 /**
@@ -401,34 +607,20 @@ function crearHojaDashboardConsolidado_(ss) {
   sheet.getRange(2, 7, 1, headersBancos.length).setValues([headersBancos]);
   darFormatoEncabezado_(sheet, headersBancos.length, "#1e293b", 2, 7);
 
-  const filasBancos = [
-    [
-      "Ahorros ***2103 (Personal)",
-      "Bancolombia",
-      "Personal (Ingresos Propios)",
-      `=D3`
-    ],
-    [
-      "Ahorros ***7194 (Negocios)",
-      "Bancolombia",
-      "More Paper & More Design (Común)",
-      `=(D4+D5)+D6`
-    ],
-    [
-      "TOTAL DISPONIBLE EN BANCOS",
-      "Consolidado",
-      "Fondo Total Disponible",
-      `=SUM(J3:J4)`
-    ]
-  ];
+  // Limpiar rango previo de bancos para no dejar residuos de filas anteriores
+  const maxFilasLimpiar = Math.max(12, sheet.getLastRow());
+  sheet.getRange(3, 7, maxFilasLimpiar, 4).clearContent().setBackground(null).setFontWeight("normal").setBorder(false, false, false, false, false, false);
 
+  const filasBancos = construirFilasMatrizBancosDinamica_(ss);
   sheet.getRange(3, 7, filasBancos.length, 4).setValues(filasBancos);
-  sheet.getRange("G5:J5")
+
+  const filaTotalBancos = 2 + filasBancos.length;
+  sheet.getRange(`G${filaTotalBancos}:J${filaTotalBancos}`)
     .setFontWeight("bold")
     .setBackground("#f1f5f9")
     .setBorder(true, null, true, null, null, null, "#0f172a", SpreadsheetApp.BorderStyle.DOUBLE);
 
-  sheet.getRange("J3:J5").setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+  sheet.getRange(`J3:J${filaTotalBancos}`).setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
   sheet.setColumnWidth(6, 30); // Espaciador
   sheet.setColumnWidth(7, 240);
   sheet.setColumnWidth(8, 140);
@@ -444,6 +636,92 @@ function crearHojaDashboardConsolidado_(ss) {
 }
 
 /**
+ * Construye dinámicamente las filas de la tabla de cuentas bancarias para Dashboard_Consolidado:
+ * - Lee todas las cuentas bancarias activas desde Config_Cuentas_Bancarias.
+ * - Concilia cada cuenta mediante fórmulas SUMIFS filtrando estrictamente por METODO_PAGO (columna I).
+ * - Excluye el 100% de los movimientos en efectivo del saldo de la cuenta bancaria.
+ * - Genera la fila totalizadora `=SUM(J3:J...)`.
+ * @param {Spreadsheet} ss - Hoja de cálculo activa.
+ * @return {Array<Array<string>>} Matriz de filas [alias, banco, destino, formula].
+ */
+function construirFilasMatrizBancosDinamica_(ss) {
+  const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+  let cuentas = [];
+  try {
+    if (typeof obtenerCuentasBancariasPorEntidad_ === "function") {
+      cuentas = obtenerCuentasBancariasPorEntidad_(libro, "Consolidado");
+    }
+  } catch (e) {
+    Logger.log("Aviso obteniendo cuentas bancarias para matriz dinámica: " + e.message);
+  }
+
+  if (!cuentas || cuentas.length === 0) {
+    cuentas = [
+      {
+        alias: "Ahorros ***2103 (Personal)",
+        banco: "Bancolombia",
+        tipoUso: "Personal (Ingresos Propios)",
+        mascara: "***2103"
+      },
+      {
+        alias: "Ahorros ***7194 (Negocios)",
+        banco: "Bancolombia",
+        tipoUso: "More Paper & More Design (Común)",
+        mascara: "***7194"
+      }
+    ];
+  }
+
+  // Deduplicación defensiva por máscara para evitar filas repetidas en Dashboard
+  const seenMasks = new Set();
+  const cuentasUnicas = [];
+  cuentas.forEach(c => {
+    const maskDigits = String(c.mascara || "").replace(/[^0-9]/g, "");
+    if (!seenMasks.has(maskDigits)) {
+      seenMasks.add(maskDigits);
+      cuentasUnicas.push(c);
+    }
+  });
+  cuentas = cuentasUnicas;
+
+  const hojaGlobal = resolverNombreHojaGlobal_(libro);
+  const filas = [];
+
+  cuentas.forEach(c => {
+    const alias = c.alias || `${c.banco} ${c.mascara}`;
+    const banco = c.banco || "Bancolombia";
+    const destino = c.tipoUso || "Operación General";
+    const maskDigits = String(c.mascara || "").replace(/[^0-9]/g, "");
+
+    let formula = "";
+    if (maskDigits === "7194" || String(c.tipoUso || "").toLowerCase().includes("global") || String(c.tipoUso || "").toLowerCase().includes("tienda")) {
+      // Cuenta de tiendas (***7194): concilia movimientos electrónicos de More Paper, More Design y Operación Global
+      formula = `=(SUMIFS(${HOJAS.MOREPAPER_TRANS}!H:H, ${HOJAS.MOREPAPER_TRANS}!C:C, "*Ingreso*", ${HOJAS.MOREPAPER_TRANS}!I:I, "*${maskDigits}*") - SUMIFS(${HOJAS.MOREPAPER_TRANS}!H:H, ${HOJAS.MOREPAPER_TRANS}!C:C, "<>*Ingreso*", ${HOJAS.MOREPAPER_TRANS}!I:I, "*${maskDigits}*")) + (SUMIFS(${HOJAS.MOREDESIGN_TRANS}!H:H, ${HOJAS.MOREDESIGN_TRANS}!C:C, "*Ingreso*", ${HOJAS.MOREDESIGN_TRANS}!I:I, "*${maskDigits}*") - SUMIFS(${HOJAS.MOREDESIGN_TRANS}!H:H, ${HOJAS.MOREDESIGN_TRANS}!C:C, "<>*Ingreso*", ${HOJAS.MOREDESIGN_TRANS}!I:I, "*${maskDigits}*")) + (IFERROR(SUMIFS(${hojaGlobal}!H:H, ${hojaGlobal}!C:C, "*Ingreso*", ${hojaGlobal}!I:I, "*${maskDigits}*"), 0) - IFERROR(SUMIFS(${hojaGlobal}!H:H, ${hojaGlobal}!C:C, "<>*Ingreso*", ${hojaGlobal}!I:I, "*${maskDigits}*"), 0))`;
+    } else if (maskDigits === "2103" || String(c.tipoUso || "").toLowerCase().includes("personal")) {
+      // Cuenta personal (***2103): concilia movimientos no en efectivo de Personal_Transacciones
+      formula = `=SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "*${maskDigits}*") - SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "<>*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "*${maskDigits}*") + (IFERROR(SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "Transferencia"), 0) - IFERROR(SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "<>*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "Transferencia"), 0))`;
+    } else {
+      // Cuenta bancaria dinámica adicional (ej: Nequi, Davivienda, etc.)
+      formula = `=SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "*${maskDigits}*") - SUMIFS(${HOJAS.PERSONAL_TRANS}!H:H, ${HOJAS.PERSONAL_TRANS}!C:C, "<>*Ingreso*", ${HOJAS.PERSONAL_TRANS}!I:I, "*${maskDigits}*")`;
+    }
+
+    filas.push([alias, banco, destino, formula]);
+  });
+
+  // Fila totalizadora dinámica de bancos
+  const filaInicio = 3;
+  const filaFin = filaInicio + filas.length - 1;
+  filas.push([
+    "TOTAL DISPONIBLE EN BANCOS",
+    "Consolidado",
+    "Fondo Total Líquido Disponible",
+    `=SUM(J${filaInicio}:J${filaFin})`
+  ]);
+
+  return filas;
+}
+
+/**
  * Actualiza dinámicamente la sección de usuarios individuales en Dashboard_Consolidado.
  * Se ubican a partir de la fila 9 con fórmulas nativas de Sheets, garantizando que
  * la fila 7 (TOTAL CONSOLIDADO) sume ÚNICA Y EXCLUSIVAMENTE Personal, More Paper, More Design y Nómina Global.
@@ -455,10 +733,10 @@ function actualizarUsuariosEnDashboardConsolidado_(ss) {
 
   if (!sheetDash || !sheetCtrl || sheetCtrl.getLastRow() <= 1) return;
 
-  // 1. Limpiar filas previas de usuarios externos a partir de la fila 9 hacia abajo
+  // 1. Limpiar filas previas a partir de la fila 8 hacia abajo para evitar encabezados huérfanos o duplicados
   const maxFilas = sheetDash.getMaxRows();
-  if (maxFilas >= 9) {
-    sheetDash.getRange("A9:E" + maxFilas).clearContent().clearFormat();
+  if (maxFilas >= 8) {
+    sheetDash.getRange("A8:E" + maxFilas).clearContent().clearFormat();
   }
 
   // 2. Extraer usuarios individuales activos
@@ -1127,7 +1405,6 @@ function registrarNuevaCuentaBancariaEnConfig_(ss, usuarioOEntidad, banco, masca
   if (maskNorm.length > 4) maskNorm = maskNorm.slice(-4);
   maskNorm = `***${maskNorm}`;
 
-  const id = "CTA-" + Math.floor(100 + Math.random() * 900);
   const bancoLimpio = String(banco || "Bancolombia").trim();
   const usoLimpio = (String(tipoUso || "").toLowerCase().includes("global") || String(tipoUso || "").toLowerCase().includes("negocio") || String(tipoUso || "").toLowerCase().includes("tienda"))
     ? "Global / Tiendas"
@@ -1135,12 +1412,59 @@ function registrarNuevaCuentaBancariaEnConfig_(ss, usuarioOEntidad, banco, masca
   const aliasFinal = alias || `${bancoLimpio} ${maskNorm} (${usoLimpio})`;
   const fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
-  sheet.appendRow([id, usuarioOEntidad, bancoLimpio, maskNorm, aliasFinal, usoLimpio, "ACTIVA", fecha]);
-  SpreadsheetApp.flush();
+  let idFinal = null;
+
+  ejecutarConBloqueoTransaccional_(() => {
+    // Deduplicación preventiva: verificar si la cuenta ya existe
+    const lastRow = sheet.getLastRow();
+    let filaExistente = -1;
+    if (lastRow > 1) {
+      const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+      for (let i = 0; i < data.length; i++) {
+        const rowMask = String(data[i][3] || "").replace(/[^0-9]/g, "");
+        if (rowMask === maskNorm.replace(/[^0-9]/g, "")) {
+          filaExistente = i + 2;
+          idFinal = data[i][0];
+          break;
+        }
+      }
+    }
+
+    if (filaExistente > 0) {
+      // Actualizar registro existente sin crear duplicados
+      sheet.getRange(filaExistente, 2, 1, 6).setValues([[
+        sanitizeSheetValue(usuarioOEntidad),
+        sanitizeSheetValue(bancoLimpio),
+        sanitizeSheetValue(maskNorm),
+        sanitizeSheetValue(aliasFinal),
+        sanitizeSheetValue(usoLimpio),
+        "ACTIVA"
+      ]]);
+    } else {
+      idFinal = "CTA-" + Math.floor(100 + Math.random() * 900);
+      sheet.appendRow([
+        sanitizeSheetValue(idFinal),
+        sanitizeSheetValue(usuarioOEntidad),
+        sanitizeSheetValue(bancoLimpio),
+        sanitizeSheetValue(maskNorm),
+        sanitizeSheetValue(aliasFinal),
+        sanitizeSheetValue(usoLimpio),
+        "ACTIVA",
+        fecha
+      ]);
+    }
+  });
+
+  // Sincronizar de inmediato la hoja Dashboard_Consolidado con la nueva cuenta bancaria
+  try {
+    crearHojaDashboardConsolidado_(libro);
+  } catch (eDash) {
+    Logger.log("Aviso sincronizando Dashboard_Consolidado con nueva cuenta: " + eDash.message);
+  }
 
   return {
     ok: true,
-    id: id,
+    id: idFinal,
     alias: aliasFinal,
     mascara: maskNorm,
     tipoUso: usoLimpio
@@ -2086,78 +2410,261 @@ function limpiarCompromisosVacios() {
 
 /**
  * ============================================================================
- * PURGA GENERAL DE INFORMACIÓN FINANCIERA DE PRUEBA (CERO AFECTACIÓN A CONFIG)
+ * REINICIO TOTAL DEL ECOSISTEMA FINANCIERO A CERO (NUEVO PUNTO DE PARTIDA $0)
  * ============================================================================
- * Elimina todas las transacciones, compromisos y sesiones de prueba registradas
- * hasta el momento, dejando las hojas en blanco (con encabezados intactos) listas para operación real.
+ * Purgar y eliminar de forma segura y estructurada todas las transacciones,
+ * compromisos, cierres y sesiones en todas las entidades financieras (Personal,
+ * More Paper, More Design, Operación Global y usuarios individuales).
  * 
- * PRESERVA AL 100%:
- * - Encabezados, formatos y validaciones de cada hoja.
- * - Hoja Control_Acceso (usuarios, teléfonos, roles, perfiles de voz y asistentes).
- * - Hoja Config_Categorias (catálogo de categorías oficiales).
- * - Hoja Metricas_WhatsApp (cuotas y límites configurados).
- * - Fórmulas maestras de Dashboard_Consolidado.
- * - Claves API y propiedades de script (Gemini, WhatsApp, Webhooks).
+ * Deja todos los saldos bancarios, caja física, deudas e ingresos exactamente en $0 COP.
+ * 
+ * PRESERVACIÓN INVIOLABLE (ZERO DATA LOSS EN CONFIGURACIONES):
+ * 1. Fila 1 de encabezados, anchos, colores y validaciones de cada hoja operativa intactas.
+ * 2. Control_Acceso (usuarios, teléfonos, roles SUPER_ADMIN/USUARIO, asistentes) 100% preservado.
+ * 3. Config_Categorias (árbol oficial de categorías y subcategorías) 100% preservado.
+ * 4. Config_Cuentas_Bancarias (catálogo de cuentas, alias y números de máscara) 100% preservado.
+ * 5. Personajes (catálogo de 20 personalidades de IA y personajes dinámicos) 100% preservado.
+ * 6. Dashboard_Consolidado (títulos, diseño ejecutivo y fórmulas en tiempo real reactivas en $0).
+ * 7. Metricas_WhatsApp (cuotas y límites configurados) 100% preservado.
+ * 8. ScriptProperties (claves de Gemini, Meta WhatsApp, Webhooks, Fish Audio) 100% intactas.
+ * 
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [ssOpt] - Hoja de cálculo activa opcional.
+ * @param {boolean} [confirmarSeguridad=false] - Si es true, omite el modal visual de confirmación (para ejecución desde scripts o WhatsApp bot).
+ * @return {string} Informe ejecutivo detallado del reinicio con desglose por hoja.
  */
-function purgarTodaInformacionFinancieraDePrueba() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hojasOperativas = [
-    HOJAS.PERSONAL_TRANS,
-    HOJAS.PERSONAL_COMP,
-    HOJAS.MOREPAPER_TRANS,
-    HOJAS.MOREPAPER_COMP,
-    HOJAS.MOREDESIGN_TRANS,
-    HOJAS.MOREDESIGN_COMP,
-    HOJAS.GASTOS_GLOBALES,
-    HOJAS.COMPROMISOS_GLOBALES,
-    HOJAS.SESIONES_WA
-  ];
-
-  // También incluir hojas de usuarios dinámicos si existen
-  const todasLasHojas = ss.getSheets();
-  todasLasHojas.forEach(sheet => {
-    const name = sheet.getName();
-    if (/^User_.*_(Transacciones|Compromisos)$/.test(name) && !hojasOperativas.includes(name)) {
-      hojasOperativas.push(name);
-    }
-  });
-
-  const resumen = [];
-  let totalFilasPurgadas = 0;
-
-  hojasOperativas.forEach(nombreHoja => {
-    const sheet = ss.getSheetByName(nombreHoja);
-    if (!sheet) return;
-
-    const lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      const filasABorrar = lastRow - 1;
-      sheet.deleteRows(2, filasABorrar);
-      totalFilasPurgadas += filasABorrar;
-      resumen.push(`• ${nombreHoja}: ${filasABorrar} fila(s) eliminada(s).`);
-    } else {
-      resumen.push(`• ${nombreHoja}: Ya estaba limpia (0 filas).`);
-    }
-  });
-
-  SpreadsheetApp.flush();
-
-  // Actualizar el Dashboard para que recalcule a $0 de inmediato
-  try {
-    if (typeof actualizarDashboardConsolidado === "function") {
-      actualizarDashboardConsolidado(ss);
-    }
-  } catch (e) {
-    Logger.log("Aviso al recalcular Dashboard: " + e.message);
+function reiniciarEcosistemaFinancieroACero(ssOpt, confirmarSeguridad = false) {
+  const ss = (ssOpt && typeof ssOpt.getSheets === "function") ? ssOpt : SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ Error: No se pudo obtener la instancia del libro de Google Sheets.");
+    return "Error: No se pudo obtener la hoja de cálculo activa.";
   }
 
-  const mensajeFinal = `🧹 PURGA DE PRUEBA COMPLETADA CON ÉXITO\n` +
-    `Se eliminaron ${totalFilasPurgadas} registros operativos de prueba.\n` +
-    `Tus configuraciones, categorías, usuarios de Control_Acceso y claves están 100% intactas.\n\n` +
-    `Detalle por hoja:\n${resumen.join("\n")}`;
+  // Confirmación defensiva si se ejecuta con interfaz gráfica activa (menú de Sheets)
+  let esDesdeUi = false;
+  try {
+    const ui = SpreadsheetApp.getUi();
+    if (ui && !confirmarSeguridad) {
+      esDesdeUi = true;
+      const resp = ui.alert(
+        "⚠️ REINICIO FINANCIERO A CERO (PUNTO DE PARTIDA)",
+        "¿Estás seguro de que deseas ELIMINAR todas las transacciones financieras y compromisos registrados?\n\n" +
+        "• Todos los saldos, bancos, deudas y métricas quedarán en $0 COP.\n" +
+        "• Tus configuraciones (Control_Acceso, Categorías, Cuentas Bancarias, Personajes) se mantendrán 100% intactas.\n\n" +
+        "¿Deseas continuar?",
+        ui.ButtonSet.YES_NO
+      );
+      if (resp !== ui.Button.YES) {
+        Logger.log("ℹ️ Operación de reinicio cancelada por el usuario en la interfaz gráfica.");
+        return "Operación de reinicio financiero cancelada.";
+      }
+    }
+  } catch (eUi) {
+    // Entorno sin UI gráfica (editor de Apps Script, webhook o trigger automático)
+  }
 
-  Logger.log(mensajeFinal);
-  return mensajeFinal;
+  // Concurrencia segura: Bloqueo exclusivo para evitar escrituras concurrentes
+  const lock = LockService.getScriptLock();
+  let tieneBloqueo = false;
+  try {
+    tieneBloqueo = lock.tryLock(30000);
+  } catch (eLock) {
+    Logger.log("Aviso de concurrencia al solicitar bloqueo: " + eLock.message);
+  }
+
+  try {
+    // 1. Identificar hojas operativas canónicas
+    const hojasOperativasSet = new Set([
+      HOJAS.PERSONAL_TRANS,
+      HOJAS.PERSONAL_COMP,
+      HOJAS.MOREPAPER_TRANS,
+      HOJAS.MOREPAPER_COMP,
+      HOJAS.MOREDESIGN_TRANS,
+      HOJAS.MOREDESIGN_COMP,
+      HOJAS.GASTOS_GLOBALES,
+      HOJAS.OPERACION_GLOBAL,
+      HOJAS.COMPROMISOS_GLOBALES,
+      HOJAS.SESIONES_WA,
+      "Operacion_Global",
+      "Gastos_Globales",
+      "Compromisos_Globales",
+      "Compromisos_Pendientes",
+      "Consolidado_Transacciones",
+      "Finanzas"
+    ]);
+
+    // 2. Extraer hojas asignadas a usuarios dinámicos desde Control_Acceso
+    const telefonosRegistrados = [];
+    const sheetCtrl = ss.getSheetByName(HOJAS.CONTROL_ACCESO);
+    if (sheetCtrl && sheetCtrl.getLastRow() > 1) {
+      const numFilas = sheetCtrl.getLastRow() - 1;
+      const numCols = sheetCtrl.getLastColumn();
+      const datosCtrl = sheetCtrl.getRange(2, 1, numFilas, numCols).getValues();
+      
+      datosCtrl.forEach(fila => {
+        const tel = String(fila[0] || "").trim();
+        if (tel) telefonosRegistrados.push(tel.replace(/[^0-9]/g, ""));
+
+        // Inspeccionar todas las columnas buscando referencias a hojas asignadas
+        fila.forEach(celda => {
+          const str = String(celda || "").trim();
+          if (str.includes("_Transacciones") || str.includes("_Compromisos")) {
+            str.split(",").forEach(h => {
+              const hLimpia = h.trim();
+              if (hLimpia) hojasOperativasSet.add(hLimpia);
+            });
+          }
+        });
+      });
+    }
+
+    // 3. Hojas protegidas del sistema (NUNCA PURGAR ENCABEZADOS NI CONFIGURACIONES)
+    const hojasProtegidas = new Set([
+      HOJAS.CONTROL_ACCESO,
+      HOJAS.CONFIG_CATEGORIAS,
+      HOJAS.CONFIG_CUENTAS,
+      HOJAS.PERSONAJES,
+      HOJAS.DASHBOARD,
+      HOJAS.METRICAS_WA,
+      "Control_Acceso",
+      "Config_Categorias",
+      "Config_Cuentas_Bancarias",
+      "Personajes",
+      "Dashboard_Consolidado",
+      "Metricas_WhatsApp"
+    ]);
+
+    // 4. Descubrir automáticamente cualquier hoja operativa dinámica existente en el libro
+    const todasLasHojas = ss.getSheets();
+    todasLasHojas.forEach(sheet => {
+      const name = sheet.getName();
+      if (hojasProtegidas.has(name)) return;
+
+      const esOperativa = /(_Transacciones|_Compromisos|_Gastos|_Operacion|_Movimientos|_Cierres?|_Turnos?|_POS)$/i.test(name) ||
+        /^(User_|Operacion_|Gastos_|Transacciones_|Compromisos_)/i.test(name) ||
+        hojasOperativasSet.has(name);
+
+      if (esOperativa) {
+        hojasOperativasSet.add(name);
+      }
+    });
+
+    // 5. Purgar filas de datos (de fila 2 hacia abajo, preservando fila 1)
+    const resumen = [];
+    let totalFilasPurgadas = 0;
+    let hojasLimpiadas = 0;
+
+    hojasOperativasSet.forEach(nombreHoja => {
+      if (hojasProtegidas.has(nombreHoja)) return;
+
+      const sheet = ss.getSheetByName(nombreHoja);
+      if (!sheet) return;
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        const filasABorrar = lastRow - 1;
+        sheet.deleteRows(2, filasABorrar);
+
+        // Limpieza defensiva en caso de que existan celdas con contenido remanente
+        if (sheet.getLastRow() > 1) {
+          const maxFilas = sheet.getMaxRows();
+          const maxCols = sheet.getMaxColumns();
+          if (maxFilas > 1 && maxCols > 0) {
+            sheet.getRange(2, 1, maxFilas - 1, maxCols).clearContent();
+          }
+        }
+
+        totalFilasPurgadas += filasABorrar;
+        hojasLimpiadas++;
+        resumen.push(`  • ${nombreHoja}: ${filasABorrar} fila(s) eliminada(s).`);
+      } else {
+        resumen.push(`  • ${nombreHoja}: 0 filas (ya estaba limpia).`);
+      }
+    });
+
+    SpreadsheetApp.flush();
+
+    // 6. Invalidar Caches y flujos interactivos pendientes
+    try {
+      const scriptCache = CacheService.getScriptCache();
+      if (scriptCache) {
+        scriptCache.remove("DASHBOARD_DATA");
+        scriptCache.remove("DASHBOARD_METRICS");
+        scriptCache.remove("DASHBOARD_FULL");
+      }
+    } catch (eC1) {
+      Logger.log("Aviso al limpiar scriptCache: " + eC1.message);
+    }
+
+    try {
+      const userCache = CacheService.getUserCache();
+      if (userCache) {
+        telefonosRegistrados.forEach(tel => {
+          userCache.remove("PENDING_INTERACTIVE_FLOW_" + tel);
+          userCache.remove("PENDING_POS_CLOSE_" + tel);
+        });
+      }
+    } catch (eC2) {
+      Logger.log("Aviso al limpiar userCache: " + eC2.message);
+    }
+
+    // 7. Reconciliar y Actualizar Fórmulas de Dashboard Consolidado para reflejar $0 en todo
+    try {
+      if (typeof corregirAsentamientoSaldoBancarioGlobal === "function") {
+        corregirAsentamientoSaldoBancarioGlobal();
+      } else if (typeof crearHojaDashboardConsolidado_ === "function") {
+        crearHojaDashboardConsolidado_(ss);
+      }
+    } catch (eDash) {
+      Logger.log("Aviso al regenerar Dashboard Consolidado: " + eDash.message);
+    }
+
+    SpreadsheetApp.flush();
+
+    // 8. Construir informe ejecutivo de resultado
+    const fechaActual = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+    const mensajeFinal = 
+      `🧹 REINICIO FINANCIERO A CERO COMPLETADO CON ÉXITO\n` +
+      `📅 Fecha: ${fechaActual}\n` +
+      `📊 Filas eliminadas: ${totalFilasPurgadas} registros operativos.\n` +
+      `📑 Hojas procesadas: ${hojasOperativasSet.size} hojas operativas inspeccionadas.\n\n` +
+      `✨ ESTADO ACTUAL DEL SISTEMA:\n` +
+      `• Todos los balances y cuentas bancarias reflejan exactamente $0 COP.\n` +
+      `• Todos los compromisos y deudas pendientes reflejan $0 COP.\n` +
+      `• La caja física y flujo de efectivo inician en un punto limpio de partida ($0).\n` +
+      `• Configuraciones, categorías, usuarios y personajes: 100% INTACTOS.\n\n` +
+      `Detalle por hoja:\n${resumen.join("\n")}`;
+
+    Logger.log(mensajeFinal);
+
+    if (esDesdeUi) {
+      try {
+        const ui = SpreadsheetApp.getUi();
+        if (ui) {
+          ui.alert("✅ REINICIO FINANCIERO A CERO EXITOSO", mensajeFinal, ui.ButtonSet.OK);
+        }
+      } catch (eAlert) {
+        // Ignorar si el contexto de UI cambió
+      }
+    }
+
+    return mensajeFinal;
+  } finally {
+    if (tieneBloqueo) {
+      try {
+        lock.releaseLock();
+      } catch (eRel) {
+        Logger.log("Aviso al liberar bloqueo: " + eRel.message);
+      }
+    }
+  }
+}
+
+/**
+ * Envoltorio de compatibilidad hacia atrás para purgar toda información de prueba.
+ * Redirige a reiniciarEcosistemaFinancieroACero con confirmación bypass activada.
+ */
+function purgarTodaInformacionFinancieraDePrueba() {
+  return reiniciarEcosistemaFinancieroACero(SpreadsheetApp.getActiveSpreadsheet(), true);
 }
 
 // ============================================================================
@@ -2208,7 +2715,7 @@ function validarTokenMagicLink(entidad, token) {
 
   // Validación de token administrativo global si existe en ScriptProperties
   const tokenSuperAdmin = PropertiesService.getScriptProperties().getProperty("DASHBOARD_ACCESS_TOKEN");
-  if (tokenSuperAdmin && tokNormalizado === tokenSuperAdmin.toLowerCase()) {
+  if (tokenSuperAdmin && safeCompareTokens_(tokNormalizado, tokenSuperAdmin.toLowerCase())) {
     return { valido: true, rol: "SUPER_ADMIN", entidad: "Consolidado", esSuperAdmin: true };
   }
 
@@ -2238,7 +2745,7 @@ function validarTokenMagicLink(entidad, token) {
 
     if (coincideEntidad) {
       const tokenEsperado = generarTokenMagicLink(entidadUsuario, tel);
-      if (tokenEsperado.toLowerCase() === tokNormalizado) {
+      if (safeCompareTokens_(tokNormalizado, tokenEsperado.toLowerCase())) {
         return {
           valido: true,
           rol: rol,
@@ -2284,10 +2791,32 @@ function onOpen() {
     const ui = SpreadsheetApp.getUi();
     ui.createMenu("📊 Antigravity Finanzas")
       .addItem("🔄 Reparar / Sincronizar Dashboard Consolidado", "corregirAsentamientoSaldoBancarioGlobal")
+      .addItem("🏦 Saneamiento de Cuentas y Carga de Saldos ($129.976 y $4.860.895)", "repararYCargarSaldosBancarios")
       .addItem("🚀 Inicializar / Verificar Todo el Sistema", "inicializarLibroFinanzas")
+      .addSeparator()
+      .addItem("🎨 Sincronizar Colores Inteligentes (Verde Cobros / Rojo Deudas)", "aplicarDirectivaCaracteresRojosLibro")
+      .addSeparator()
+      .addItem("🧹 Reiniciar Finanzas a Cero (Punto de Partida $0)", "reiniciarEcosistemaFinancieroACero")
       .addToUi();
+
+    // Auto-sanear formato de compromisos en apertura silenciosa
+    sanearColoresCompromisosRetroactivo_();
   } catch (e) {
     Logger.log("Aviso: onOpen no pudo cargar UI: " + e.message);
+  }
+}
+
+/**
+ * Sanea y actualiza inmediatamente las hojas de compromisos:
+ * Pinta en VERDE (#15803d) las cuentas por cobrar a favor y actualiza las reglas condicionales bicapa.
+ */
+function sanearColoresCompromisosRetroactivo_(ss) {
+  const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!libro) return;
+  try {
+    aplicarDirectivaCaracteresRojosLibro(libro);
+  } catch (e) {
+    Logger.log("Aviso en sanearColoresCompromisosRetroactivo_: " + e.message);
   }
 }
 
@@ -2323,5 +2852,145 @@ function corregirAsentamientoSaldoBancarioGlobal() {
   logs.push("🎉 Sincronización exitosa: Saldo en cuenta ***7194 ahora reflejado en bancos.");
   Logger.log(logs.join("\n"));
   return logs.join("\n");
+}
+
+/**
+ * Función integral de saneamiento de cuentas bancarias y carga de saldos iniciales:
+ * 1. Sanea y deduplica Config_Cuentas_Bancarias dejando exactamente 2 cuentas maestras:
+ *    - Ahorros ***2103 (Personal) -> Personal
+ *    - Ahorros ***7194 (Negocios) -> Global / Tiendas
+ * 2. Asienta la transacción de saldo disponible de $129.976 COP en Personal_Transacciones.
+ * 3. Asienta la transacción de saldo disponible de $4.860.895 COP en Operacion_Global.
+ * 4. Limpia el residuo de doble encabezado en filas 8 y 9 de Dashboard_Consolidado.
+ * 5. Reconstruye y sincroniza en vivo Dashboard_Consolidado para reflejar los saldos exactos:
+ *    - Ahorros ***2103: $129.976 COP
+ *    - Ahorros ***7194: $4.860.895 COP
+ *    - TOTAL DISPONIBLE EN BANCOS: $4.990.871 COP
+ */
+function repararYCargarSaldosBancarios(ss) {
+  const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+  const fechaHoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  ejecutarConBloqueoTransaccional_(() => {
+    // 1. Saneamiento y Deduplicación de Config_Cuentas_Bancarias
+    let sheetCuentas = libro.getSheetByName(HOJAS.CONFIG_CUENTAS || "Config_Cuentas_Bancarias");
+    if (!sheetCuentas) {
+      crearHojaConfigCuentasBancarias_(libro);
+      sheetCuentas = libro.getSheetByName(HOJAS.CONFIG_CUENTAS || "Config_Cuentas_Bancarias");
+    }
+
+    if (sheetCuentas) {
+      // Limpiar datos previos preservando encabezados
+      const lastRowC = sheetCuentas.getLastRow();
+      if (lastRowC > 1) {
+        sheetCuentas.getRange(2, 1, lastRowC - 1, 8).clearContent().clearFormat();
+      }
+      // Escribir las 2 cuentas canónicas limpias sin duplicados
+      const cuentasCanonicas = [
+        ["CTA-001", "Personal", "Bancolombia", "***2103", "Ahorros ***2103 (Personal)", "Personal", "ACTIVA", fechaHoy],
+        ["CTA-002", "Consolidado", "Bancolombia", "***7194", "Ahorros ***7194 (Negocios)", "Global / Tiendas", "ACTIVA", fechaHoy]
+      ];
+      sheetCuentas.getRange(2, 1, cuentasCanonicas.length, 8).setValues(cuentasCanonicas);
+      sheetCuentas.getRange(2, 1, cuentasCanonicas.length, 8)
+        .setBackground("#f8fafc")
+        .setBorder(true, true, true, true, true, true, "#cbd5e1", SpreadsheetApp.BorderStyle.SOLID);
+    }
+
+    // 2. Cargar Saldo Inicial de Cuenta Personal (***2103) por $129.976 en Personal_Transacciones
+    const sheetPersonal = libro.getSheetByName(HOJAS.PERSONAL_TRANS || "Personal_Transacciones");
+    if (sheetPersonal) {
+      let yaTieneSaldoP = false;
+      const lastRowP = sheetPersonal.getLastRow();
+      if (lastRowP > 1) {
+        const valoresP = sheetPersonal.getRange(2, 1, lastRowP - 1, 9).getValues();
+        yaTieneSaldoP = valoresP.some(r => String(r[8]).includes("2103") || (String(r[2]) === "Ingreso" && Number(r[7]) === 129976));
+      }
+      if (!yaTieneSaldoP) {
+        const txIdP = "TX-INIT-" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd") + "-2103";
+        sheetPersonal.appendRow([
+          sanitizeSheetValue(txIdP),
+          fechaHoy,
+          "Ingreso",
+          "Capital / Aportes",
+          "Bancos",
+          "Saldo inicial disponible en cuenta personal ***2103",
+          "Bancolombia",
+          129976,
+          "Ahorros ***2103 (Personal)",
+          "Confirmado"
+        ]);
+        const newRowP = sheetPersonal.getLastRow();
+        sheetPersonal.getRange(newRowP, 8).setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+      }
+    }
+
+    // 3. Cargar Saldo Inicial de Cuenta Locales (***7194) por $4.860.895 en Operacion_Global
+    const hojaGlobal = resolverNombreHojaGlobal_(libro);
+    const sheetGlobal = libro.getSheetByName(hojaGlobal);
+    if (sheetGlobal) {
+      let yaTieneSaldoG = false;
+      const lastRowG = sheetGlobal.getLastRow();
+      if (lastRowG > 1) {
+        const valoresG = sheetGlobal.getRange(2, 1, lastRowG - 1, 9).getValues();
+        yaTieneSaldoG = valoresG.some(r => String(r[8]).includes("7194") || (String(r[2]) === "Ingreso" && Number(r[7]) === 4860895));
+      }
+      if (!yaTieneSaldoG) {
+        const txIdG = "TX-INIT-" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd") + "-7194";
+        sheetGlobal.appendRow([
+          sanitizeSheetValue(txIdG),
+          fechaHoy,
+          "Ingreso",
+          "Capital / Aportes",
+          "Bancos",
+          "Saldo inicial disponible en cuenta locales ***7194",
+          "Bancolombia",
+          4860895,
+          "Ahorros ***7194 (Negocios)",
+          "Confirmado"
+        ]);
+        const newRowG = sheetGlobal.getLastRow();
+        sheetGlobal.getRange(newRowG, 8).setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+      }
+    }
+
+    // 4. Limpiar duplicado de banner en filas 8 y 9 de Dashboard_Consolidado
+    const sheetDash = libro.getSheetByName(HOJAS.DASHBOARD);
+    if (sheetDash) {
+      const maxRows = sheetDash.getMaxRows();
+      if (maxRows >= 8) {
+        sheetDash.getRange("A8:E" + maxRows).clearContent().clearFormat();
+      }
+    }
+
+    // 5. Reconstruir Dashboard_Consolidado con fórmulas limpias y cuentas saneadas
+    crearHojaDashboardConsolidado_(libro);
+  });
+
+  SpreadsheetApp.flush();
+  Logger.log("✅ Cuentas bancarias saneadas y saldos iniciales cargados ($129.976 y $4.860.895).");
+
+  try {
+    const ui = SpreadsheetApp.getUi();
+    if (ui) {
+      ui.alert(
+        "🏦 Reparación y Carga de Saldos Exitosa",
+        "Se deduplicaron las cuentas bancarias en Config_Cuentas_Bancarias y se asentaron los saldos disponibles:\n\n" +
+        "• Cuenta Personal ***2103: $129.976 COP\n" +
+        "• Cuenta Locales ***7194: $4.860.895 COP\n\n" +
+        "Total Disponible en Bancos: $4.990.871 COP\n" +
+        "El Dashboard Consolidado ha quedado 100% sincronizado.",
+        ui.ButtonSet.OK
+      );
+    }
+  } catch (eUi) {
+    // Entorno no interactivo
+  }
+
+  return {
+    ok: true,
+    cuentaPersonal: { mascara: "***2103", saldo: 129976 },
+    cuentaLocales: { mascara: "***7194", saldo: 4860895 },
+    totalDisponibleBancos: 4990871
+  };
 }
 

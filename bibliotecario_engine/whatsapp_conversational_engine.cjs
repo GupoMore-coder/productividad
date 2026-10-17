@@ -12,9 +12,23 @@
 
 const fs = require('fs');
 const path = require('path');
-const { searchClinicalLiterature, createLiteratureTicket, formatGerenteAlertMessage } = require('./ticketing_and_intermediary.cjs');
-const { registerUser, approveUser, blockUser, unblockUser, deleteUser, loadUsers } = require('./governance_and_bulletin.cjs');
+const {
+  registerUser,
+  updateUserProfile,
+  updateUserLanguage,
+  resolveCountryAndLanguage,
+  COUNTRY_DIAL_MAP,
+  translateAnnouncement,
+  approveUser,
+  blockUser,
+  unblockUser,
+  suspendUser,
+  expelUser,
+  deleteUser,
+  loadUsers
+} = require('./governance_and_bulletin.cjs');
 const { buildAnonymousDownloadUrl, LIVE_WEBAPP_URL } = require('./anonymous_proxy.cjs');
+const { searchClinicalLiterature, createLiteratureTicket, formatGerenteAlertMessage } = require('./ticketing_and_intermediary.cjs');
 
 const ADMIN_PHONE = '+573008880001';
 const MANUAL_DRIVE_ID = 'MANUAL_DE_USO_BIBLIOTECA_PDF'; // Token para descarga del manual oficial
@@ -46,8 +60,8 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
   const isAdmin = cleanPhone === ADMIN_PHONE.replace(/[^\d+]/g, '') || cleanPhone === '573008880001';
 
   if (isAdmin) {
-    // 1.1 Comando: APROBAR +57...
-    if (lower.startsWith('aprobar')) {
+    // 1.1 Comando: APROBAR / ACTIVAR +57...
+    if (lower.startsWith('aprobar') || lower.startsWith('activar')) {
       const targetPhoneMatch = text.match(/\+?\d{10,14}/);
       if (targetPhoneMatch) {
         const targetPhone = targetPhoneMatch[0];
@@ -69,7 +83,33 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
       return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`APROBAR +57XXXXXXXXXX\`` };
     }
 
-    // 1.2 Comando: BLOQUEAR +57... [motivo]
+    // 1.2 Comando: SUSPENDER +57... [24h|48h|72h] [motivo]
+    if (lower.startsWith('suspender')) {
+      const targetPhoneMatch = text.match(/\+?\d{10,14}/);
+      if (targetPhoneMatch) {
+        const targetPhone = targetPhoneMatch[0];
+        let hours = 24;
+        if (lower.includes('48h')) hours = 48;
+        else if (lower.includes('72h')) hours = 72;
+        else if (lower.includes('24h')) hours = 24;
+        const reason = text.replace(/suspender\s+\+?\d{10,14}(\s+(24h|48h|72h))?/i, '').trim() || 'Suspensión preventiva de conducta';
+        const res = suspendUser(targetPhone, hours, reason);
+        if (res.success) {
+          return {
+            recipientPhone: ADMIN_PHONE,
+            replyText: `⏳ *Usuario Suspendido (${hours}h)*\nEl acceso de ${res.user.name} (${targetPhone}) ha sido suspendido por ${hours} horas.\nMotivo: "${reason}".\nNotificación enviada al usuario.`,
+            notifyUser: {
+              phone: targetPhone,
+              message: res.messageForUser
+            }
+          };
+        }
+        return { recipientPhone: ADMIN_PHONE, replyText: `⚠️ No se encontró usuario con el número ${targetPhone}.` };
+      }
+      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`SUSPENDER +57XXXXXXXXXX 24h|48h|72h [motivo]\`` };
+    }
+
+    // 1.3 Comando: BLOQUEAR +57... [motivo]
     if (lower.startsWith('bloquear')) {
       const targetPhoneMatch = text.match(/\+?\d{10,14}/);
       if (targetPhoneMatch) {
@@ -79,7 +119,7 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
         if (res.success) {
           return {
             recipientPhone: ADMIN_PHONE,
-            replyText: `⛔ *Usuario Bloqueado*\nEl acceso de ${res.user.name} (${targetPhone}) ha sido suspendido.\nMotivo: "${reason}".`,
+            replyText: `⛔ *Usuario Bloqueado (Indefinido)*\nEl acceso de ${res.user.name} (${targetPhone}) ha sido suspendido.\nMotivo: "${reason}".`,
             notifyUser: {
               phone: targetPhone,
               message: res.messageForUser
@@ -91,7 +131,29 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
       return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`BLOQUEAR +57XXXXXXXXXX [motivo opcional]\`` };
     }
 
-    // 1.3 Comando: DESBLOQUEAR +57...
+    // 1.4 Comando: EXPULSAR +57... [motivo]
+    if (lower.startsWith('expulsar')) {
+      const targetPhoneMatch = text.match(/\+?\d{10,14}/);
+      if (targetPhoneMatch) {
+        const targetPhone = targetPhoneMatch[0];
+        const reason = text.replace(/expulsar\s+\+?\d{10,14}/i, '').trim() || 'Expulsión definitiva e irrevocable';
+        const res = expelUser(targetPhone, reason);
+        if (res.success) {
+          return {
+            recipientPhone: ADMIN_PHONE,
+            replyText: `🚫 *Usuario Expulsado Permanentemente*\nEl registro de ${res.user.name} (${targetPhone}) ha sido inhabilitado de por vida.\nMotivo: "${reason}".`,
+            notifyUser: {
+              phone: targetPhone,
+              message: res.messageForUser
+            }
+          };
+        }
+        return { recipientPhone: ADMIN_PHONE, replyText: `⚠️ No se encontró usuario con el número ${targetPhone}.` };
+      }
+      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`EXPULSAR +57XXXXXXXXXX [motivo]\`` };
+    }
+
+    // 1.5 Comando: DESBLOQUEAR +57...
     if (lower.startsWith('desbloquear')) {
       const targetPhoneMatch = text.match(/\+?\d{10,14}/);
       if (targetPhoneMatch) {
@@ -140,8 +202,7 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
             replyText: `📤 *Mensaje Despachado al Usuario (${targetPhone})* de forma 100% anónima.`,
             notifyUser: {
               phone: targetPhone,
-              message: `💬 *RESPUESTA DE LA DIRECCIÓN DEL PROYECTO*\n` +
-                       `*Gestor de Contenido:*\n\n` +
+              message: `💬 *DIRECCIÓN DEL PROYECTO:*\n\n` +
                        `"${responseBody}"\n\n` +
                        `_Nota: Puede responder a este mensaje directamente en este chat si requiere aclaración adicional._`
             }
@@ -154,7 +215,7 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
     // 1.6 Comando: REPORTE / ESTADO
     if (lower.includes('estado') || lower.includes('reporte') || lower.includes('resumen')) {
       const users = loadUsers();
-      const approvedCount = users.filter(u => u.status === 'APROBADO').length;
+      const approvedCount = users.filter(u => u.status === 'APROBADO' || u.status === 'ACTIVO').length;
       const pendingCount = users.filter(u => u.status === 'PENDIENTE_APROBACION').length;
       const blockedCount = users.filter(u => u.status === 'BLOQUEADO').length;
       return {
@@ -170,7 +231,31 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                    `💡 *Comandos disponibles:*\n` +
                    `• \`APROBAR +57...\` | \`BLOQUEAR +57... [motivo]\`\n` +
-                   `• \`RESPONDER +57... [msg]\` | \`ELIMINAR +57...\``
+                   `• \`RESPONDER +57... [msg]\` | \`COMUNICADO: [mensaje]\``
+      };
+    }
+
+    // 1.7 Comando: COMUNICADO / COMUNICADO_POLITICAS (Despacho multilingüe)
+    if (lower.startsWith('comunicado:') || lower.startsWith('comunicado_politicas:') || lower === 'comunicado_politicas') {
+      const msgBody = text.replace(/^comunicado(?:_politicas)?\s*:\s*/i, '').trim();
+      const users = loadUsers();
+      const approvedUsers = users.filter(u => (u.status === 'APROBADO' || u.status === 'ACTIVO') && u.phone !== ADMIN_PHONE);
+      const recipientDispatches = [];
+
+      for (const u of approvedUsers) {
+        const uLang = u.preferredLanguage || 'ES';
+        const localized = translateAnnouncement(msgBody, uLang);
+        recipientDispatches.push({
+          phone: u.phone,
+          language: uLang,
+          message: localized
+        });
+      }
+
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: `📢 *COMUNICADO MASIVO DESPACHADO*\n\nSu mensaje fue transmitido exitosamente a ${approvedUsers.length} médico(s) autorizados en sus respectivos idiomas preferidos.`,
+        broadcastDispatches: recipientDispatches
       };
     }
   }
@@ -188,14 +273,14 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
     const offendingUser = users.find(u => u.phone === cleanPhone);
     const offenderName = offendingUser ? offendingUser.name : (senderName || 'Usuario Desconocido');
 
-    // Suspender preventivamente
-    blockUser(cleanPhone, 'Uso de lenguaje obsceno, vulgar o inapropiado', offenderName);
+    // Suspender temporalmente por 24 horas
+    suspendUser(cleanPhone, 24, 'Uso de lenguaje obsceno, vulgar o inapropiado');
 
     return {
       recipientPhone: cleanPhone,
       replyText: `⛔ *ACCESO SUSPENDIDO POR VIOLACIÓN DEL CÓDIGO DE CONDUCTA*\n\n` +
                  `Se ha detectado el uso de lenguaje vulgar, sensible o inapropiado en su mensaje.\n` +
-                 `De conformidad con el Código de Conducta de la Biblioteca Médica, su cuenta ha sido suspendida de forma preventiva.\n\n` +
+                 `De conformidad con el Código de Conducta de la Biblioteca Médica, su cuenta ha sido suspendida de forma preventiva por 24 horas.\n\n` +
                  `El incidente ha sido remitido a la Dirección (*Gestor de Contenido*).`,
       alertToGerente: {
         phone: ADMIN_PHONE,
@@ -203,9 +288,9 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
                  `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                  `👤 *Usuario:* ${offenderName} (\`${cleanPhone}\`)\n` +
                  `📝 *Mensaje:* "${text}"\n` +
-                 `⚖️ *Acción Aplicada:* Cuenta suspendida preventivamente.\n` +
+                 `⚖️ *Acción Aplicada:* Cuenta suspendida preventivamente (24 horas).\n` +
                  `👉 Para desbloquear: \`DESBLOQUEAR ${cleanPhone}\`\n` +
-                 `👉 Para eliminar: \`ELIMINAR ${cleanPhone}\``
+                 `👉 Para expulsar: \`EXPULSAR ${cleanPhone}\``
       }
     };
   }
@@ -235,15 +320,40 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
   const users = loadUsers();
   const existingUser = users.find(u => u.phone === cleanPhone);
 
+  // Verificación de expulsión definitiva previa
+  const expelledUser = users.find(u => u.phone === cleanPhone && u.status === 'EXPULSADO');
+  if (expelledUser && !isAdmin) {
+    return {
+      recipientPhone: cleanPhone,
+      replyText: `🚫 *ACCESO REVOCADO PERMANENTEMENTE*\n\nSu cuenta y número telefónico han sido expulsados de forma definitiva del proyecto por decisión de la Dirección.\nMotivo: ${expelledUser.blockReason || 'Violación grave o reiterada de normativas'}.\nNo se admiten nuevas solicitudes de registro.`
+    };
+  }
+
   if (!existingUser && !isAdmin) {
-    const hasRegistrationData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital')) && text.length > 20;
+    const countryInfo = resolveCountryAndLanguage(cleanPhone);
+    const hasRegistrationData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital') || text.includes('@')) && text.length > 20;
 
     if (hasRegistrationData) {
+      const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const email = emailMatch ? emailMatch[0] : '';
+
+      const langMatch = text.match(/\b(?:idioma|language|lang)\s*:\s*([a-zA-Z]{2})\b/i) || text.match(/\b(portugu[eê]s|ingl[eé]s|english|fran[cç][aá]is|espa[nñ]ol)\b/i);
+      let detectedLang = countryInfo.defaultLang;
+      if (langMatch) {
+        const val = (langMatch[1] || '').toLowerCase();
+        if (val.includes('port') || val === 'pt') detectedLang = 'PT';
+        else if (val.includes('ing') || val.includes('eng') || val === 'en') detectedLang = 'EN';
+        else if (val.includes('fra') || val === 'fr') detectedLang = 'FR';
+        else if (val.includes('esp') || val === 'es') detectedLang = 'ES';
+      }
+
       const reg = registerUser({
         phone: cleanPhone,
         fullName: senderName || 'Dr. Solicitante',
+        email: email,
         university: extractUniversity(text) || 'Institución Hospitalaria',
-        level: extractLevel(text) || 'Residente en Ortopedia'
+        level: extractLevel(text) || 'Residente en Ortopedia',
+        preferredLanguage: detectedLang
       });
 
       return {
@@ -255,15 +365,88 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
         }
       };
     } else {
+      let welcomeGreeting = '';
+      if (countryInfo.defaultLang === 'PT') {
+        welcomeGreeting = `👋 *Bem-vindo(a) à Biblioteca Médica de Cirurgia Ortopédica e Traumatologia!*\n\n` +
+                          `🇧🇷 ${countryInfo.greeting}\n\n` +
+                          `Iniciativa independente de apoio acadêmico e pesquisa clínica.\n\n` +
+                          `Para solicitar acesso ao acervo clínico, envie seus dados em uma única mensagem:\n` +
+                          `1. *Nome Completo*\n` +
+                          `2. *E-mail* (pessoal ou institucional)\n` +
+                          `3. *Universidade ou Hospital de formação*\n` +
+                          `4. *Nível atual* (Residente R1-R4, Especialista, Egressado)\n` +
+                          `5. *Idioma de preferência* (PT, ES, EN, FR) [Opcional - padrão: Português]\n\n` +
+                          `🌐 *Seleção de Idioma:* Você pode escolher o idioma de comunicação enviando *"IDIOMA: PT"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* ou *"IDIOMA: FR"* sem limites de alteração.\n\n` +
+                          `💡 _Ou digite "MANUAL" para consultar o guia oficial e as diretrizes do serviço._`;
+      } else if (countryInfo.defaultLang === 'EN') {
+        welcomeGreeting = `👋 *Welcome to the Orthopaedic Surgery & Traumatology Medical Library!*\n\n` +
+                          `🌐 ${countryInfo.greeting}\n\n` +
+                          `Independent initiative for academic support and clinical research.\n\n` +
+                          `To request access to the clinical collection, please share your details in a single message:\n` +
+                          `1. *Full Name*\n` +
+                          `2. *Email address* (personal or institutional)\n` +
+                          `3. *University or Training Hospital*\n` +
+                          `4. *Current Level* (Resident R1-R4, Specialist, Fellow)\n` +
+                          `5. *Preferred Language* (EN, ES, PT, FR) [Optional - default: English]\n\n` +
+                          `🌐 *Language Selection:* You can set your preferred language at any time by typing *"LANGUAGE: EN"*, *"LANGUAGE: ES"*, *"LANGUAGE: PT"*, or *"LANGUAGE: FR"* with unlimited updates.\n\n` +
+                          `💡 _Or type "MANUAL" to review the official guide and service guidelines._`;
+      } else if (countryInfo.defaultLang === 'FR') {
+        welcomeGreeting = `👋 *Bienvenue à la Bibliothèque Médicale de Chirurgie Orthopédique et Traumatologie!*\n\n` +
+                          `🌐 ${countryInfo.greeting}\n\n` +
+                          `Pour demander l'accès à la collection clinique, veuillez partager vos coordonnées dans un seul message:\n` +
+                          `1. *Nom Complet*\n` +
+                          `2. *E-mail* (personnel ou institutionnel)\n` +
+                          `3. *Université ou Hôpital de formation*\n` +
+                          `4. *Niveau actuel* (Résident R1-R4, Spécialiste)\n` +
+                          `5. *Langue préférée* (FR, ES, EN, PT) [Optionnel]\n\n` +
+                          `🌐 *Choix de Langue:* Tapez *"IDIOMA: FR"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* pour changer de langue à tout moment sans limite.\n\n` +
+                          `💡 _Ou écrivez "MANUAL" pour consulter le guide officiel._`;
+      } else {
+        welcomeGreeting = `👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\n\n` +
+                          `${countryInfo.flag} ${countryInfo.greeting}\n\n` +
+                          `Iniciativa independiente de apoyo académico e investigación clínica.\n\n` +
+                          `Para solicitar acceso a la colección clínica, por favor compártanos sus datos en un solo mensaje:\n` +
+                          `1. *Nombre Completo*\n` +
+                          `2. *Correo electrónico* (personal o institucional)\n` +
+                          `3. *Universidad u Hospital de formación*\n` +
+                          `4. *Nivel actual* (Residente R1-R4, Especialista, Egresado)\n` +
+                          `5. *Idioma preferido* (ES, EN, PT, FR) [Opcional - predeterminado: Español]\n\n` +
+                          `🌐 *Selección de Idioma:* Puede elegir su idioma preferido en cualquier momento enviando *"IDIOMA: ES"*, *"LANGUAGE: EN"*, *"IDIOMA: PT"* o *"IDIOMA: FR"* sin límites de cambio.\n\n` +
+                          `💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._`;
+      }
+
       return {
         recipientPhone: cleanPhone,
-        replyText: `👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\n\n` +
-                   `Este es un proyecto libre y de apoyo académico coordinado por el *Gestor de Contenido*.\n\n` +
-                   `Para solicitar acceso a la colección clínica, por favor compártanos sus datos en un solo mensaje:\n` +
-                   `1. *Nombre Completo*\n` +
-                   `2. *Universidad u Hospital de formación*\n` +
-                   `3. *Nivel actual* (Residente R1-R4, Especialista, Egresado)\n\n` +
-                   `💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._`
+        replyText: welcomeGreeting
+      };
+    }
+  }
+
+  // Si está SUSPENDIDO (24h, 48h, 72h)
+  if (existingUser && existingUser.status && existingUser.status.startsWith('SUSPENDIDO') && !isAdmin) {
+    const finSusp = existingUser.suspensionEnd ? new Date(existingUser.suspensionEnd).getTime() : 0;
+    const now = Date.now();
+    if (finSusp > 0 && now >= finSusp) {
+      // Suspensión cumplida -> Reactivación autónoma
+      existingUser.status = 'APROBADO';
+      existingUser.unblockedAt = new Date().toISOString();
+      const usersList = loadUsers();
+      const uIdx = usersList.findIndex(u => u.phone === cleanPhone);
+      if (uIdx !== -1) {
+        usersList[uIdx].status = 'APROBADO';
+        const { saveUsers } = require('./governance_and_bulletin.cjs');
+        saveUsers(usersList);
+      }
+    } else {
+      const diffMs = finSusp - now;
+      const diffHrs = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60)));
+      return {
+        recipientPhone: cleanPhone,
+        replyText: `⏳ *ACCESO TEMPORALMENTE SUSPENDIDO*\n\n` +
+                   `Su cuenta se encuentra suspendida de forma preventiva.\n` +
+                   `⏱️ *Tiempo restante aproximado:* ${diffHrs} hora(s).\n` +
+                   `📋 *Motivo:* ${existingUser.blockReason || 'Revisión disciplinaria.'}\n\n` +
+                   `Su servicio se reactivará automáticamente al finalizar este término.`
       };
     }
   }
@@ -273,7 +456,7 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
     return {
       recipientPhone: cleanPhone,
       replyText: `⏳ *Solicitud en Proceso de Autorización*\n\n` +
-                 `Estimado(a) ${existingUser.name}: Su solicitud se encuentra a la espera de aprobación por parte de la Dirección Médica (*Gestor de Contenido*).\n\n` +
+                 `Estimado(a) ${existingUser.name}: Su solicitud se encuentra en proceso de validación autónoma conforme a los lineamientos del proyecto (~24 horas).\n\n` +
                  `Le notificaremos en cuanto su acceso sea habilitado.`
     };
   }
@@ -283,7 +466,7 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
     return {
       recipientPhone: cleanPhone,
       replyText: `⛔ *Acceso Suspendido*\n\n` +
-                 `Su cuenta se encuentra inhabilitada por decisión de la Dirección Médica (*Gestor de Contenido*).\n` +
+                 `Su cuenta se encuentra inhabilitada por decisión de la Dirección Médica.\n` +
                  `Motivo: ${existingUser.blockReason || 'Incumplimiento de las reglas de uso'}.`
     };
   }
@@ -292,18 +475,195 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
   // 5. ATENCIÓN A USUARIOS AUTORIZADOS (Y SUPERUSUARIO GESTOR DE CONTENIDO)
   // =========================================================================
 
-  // 4.2 Canal Intermediado con el Gestor de Contenido (Zero-Contact Directo)
-  if (lower.startsWith('mensaje al gestor:') || lower.startsWith('contactar gestor:') || lower.startsWith('gestor:')) {
-    const userQuery = text.replace(/^(mensaje al gestor|contactar gestor|gestor)\s*:\s*/i, '').trim();
+  // 4.1.4 Cambio Inmediato de Idioma de Comunicación (Sin Límite de Frecuencia)
+  if (lower.startsWith('idioma:') || lower.startsWith('language:') || lower.startsWith('lang:') || lower === 'idioma' || lower === 'language') {
+    const isPromptOnly = lower === 'idioma' || lower === 'language';
+    const currentLang = existingUser ? (existingUser.preferredLanguage || 'ES') : 'ES';
+
+    if (isPromptOnly) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: `🌐 *PREFERENCIA DE IDIOMA / LANGUAGE SETTING*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Idioma actual de comunicación: *${currentLang}*\n\n` +
+                   `Puede cambiar su idioma de comunicación en cualquier momento sin límites de actualización enviando:\n\n` +
+                   `• *IDIOMA: ES* (Español)\n` +
+                   `• *LANGUAGE: EN* (English)\n` +
+                   `• *IDIOMA: PT* (Português)\n` +
+                   `• *IDIOMA: FR* (Français)\n\n` +
+                   `ℹ️ *Preservación de Literatura Médica:* Los artículos y libros científicos en PDF se descargan siempre en su idioma original de publicación para mantener la fidelidad quirúrgica y científica.\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      };
+    }
+
+    const cleanLangCode = text.replace(/^(?:idioma|language|lang)\s*:\s*/i, '').trim();
+    const langRes = updateUserLanguage(cleanPhone, cleanLangCode);
+
+    if (!langRes.success) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: `⚠️ No se encontró registro para actualizar el idioma de comunicación.`
+      };
+    }
+
+    const nL = langRes.newLanguage;
+    let confirmMsg = '';
+    if (nL === 'EN') {
+      confirmMsg = `🌐 *LANGUAGE SUCCESSFULLY UPDATED*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Your preferred communication language has been set to: *English (EN)*.\n\n` +
+                   `All future responses, search digests, evidence summaries, and administrative announcements will be sent to you in English.\n\n` +
+                   `📚 *Medical Literature Notice:* Original scientific PDF articles and textbooks are preserved and downloaded in their authentic language of publication.\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    } else if (nL === 'PT') {
+      confirmMsg = `🌐 *IDIOMA ATUALIZADO COM SUCESSO*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Seu idioma de comunicação preferido agora é: *Português (PT)*.\n\n` +
+                   `Todas as respostas futuras, sínteses de evidências, resumos de busca e comunicados administrativos serão enviados em português.\n\n` +
+                   `📚 *Aviso sobre Literatura Médica:* Livros e artigos científicos em PDF originais são mantidos e baixados em seu idioma de publicação autêntico.\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    } else if (nL === 'FR') {
+      confirmMsg = `🌐 *LANGUE MISE À JOUR AVEC SUCCÈS*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Votre langue de communication préférée est maintenant: *Français (FR)*.\n\n` +
+                   `Toutes les futures réponses, synthèses d'évidences et annonces seront envoyées en français.\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    } else {
+      confirmMsg = `🌐 *IDIOMA DE COMUNICACIÓN ACTUALIZADO*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Su idioma de comunicación ha sido configurado en: *Español (ES)*.\n\n` +
+                   `Todas las respuestas futuras, síntesis de evidencia clínica, fichas y comunicados de la Dirección le serán entregados en español.\n\n` +
+                   `📚 *Nota de Literatura Médica:* Los artículos y libros científicos en PDF conservan su idioma original de publicación para salvaguardar la fidelidad diagnóstica y quirúrgica.\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    }
+
+    return {
+      recipientPhone: cleanPhone,
+      replyText: confirmMsg
+    };
+  }
+
+  // 4.1.5 Actualización de Datos Personales
+  if (lower.startsWith('actualizar:') || lower.startsWith('actualizar datos:') || lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil') {
+    const isPromptOnly = lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil';
+    if (isPromptOnly) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: `📝 *ACTUALIZACIÓN DE DATOS PERSONALES*\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                   `Estimado(a) ${existingUser ? existingUser.name : 'Colega'}:\n\n` +
+                   `Puede actualizar sus datos personales en cualquier momento enviando un mensaje con la estructura:\n\n` +
+                   `👉 *ACTUALIZAR: [Nombre], [Correo], [Hospital/Universidad], [Nivel]*\n\n` +
+                   `_Ejemplo:_\n` +
+                   `\`ACTUALIZAR: Dr. Carlos Pérez, carlos.perez@hospital.edu.co, Hospital San José, Especialista\`\n\n` +
+                   `ℹ️ *Política de Seguridad y Frecuencia Máxima:*\n` +
+                   `Para preservar la trazabilidad institucional y prevenir suplantaciones de identidad:\n` +
+                   `• Máximo *3 actualizaciones en 6 meses* (180 días).\n` +
+                   `• Máximo *6 actualizaciones en 12 meses* (365 días).\n` +
+                   `━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      };
+    }
+
+    const cleanPayload = text.replace(/^actualizar(\s+datos)?\s*:\s*/i, '').trim();
+    const parts = cleanPayload.split(',').map(s => s.trim()).filter(Boolean);
+    let newName = '', newEmail = '', newInst = '', newLevel = '';
+
+    const emailMatch = cleanPayload.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) newEmail = emailMatch[0];
+
+    if (parts.length >= 2) {
+      if (parts[0] && !parts[0].includes('@')) newName = parts[0];
+      for (let p = 1; p < parts.length; p++) {
+        const part = parts[p];
+        if (part.includes('@')) newEmail = part;
+        else if (/\b(residente|especialista|egresado|r[1-4]|fellow)\b/i.test(part)) newLevel = part;
+        else if (!newInst) newInst = part;
+      }
+    } else {
+      if (/\b(residente|especialista|egresado|r[1-4])\b/i.test(cleanPayload)) {
+        const lm = cleanPayload.match(/\b(residente(?:\s+r[1-4])?|especialista|egresado|fellow)\b/i);
+        if (lm) newLevel = lm[0];
+      }
+      if (newEmail) {
+        const withoutEmail = cleanPayload.replace(newEmail, '').trim();
+        if (withoutEmail.length > 3) newInst = withoutEmail;
+      }
+    }
+
+    const updateRes = updateUserProfile(cleanPhone, {
+      name: newName,
+      email: newEmail,
+      university: newInst,
+      level: newLevel
+    });
+
+    if (!updateRes.success) {
+      if (updateRes.error === 'LIMIT_6M_EXCEEDED') {
+        return {
+          recipientPhone: cleanPhone,
+          replyText: `⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                     `Estimado(a) Colega:\n` +
+                     `Ha alcanzado el límite institucional de *3 actualizaciones en un periodo de 6 meses*.\n\n` +
+                     `Para modificaciones excepcionales o de fuerza mayor, puede enviar un mensaje directo a la Dirección:\n` +
+                     `👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*`
+        };
+      }
+      if (updateRes.error === 'LIMIT_12M_EXCEEDED') {
+        return {
+          recipientPhone: cleanPhone,
+          replyText: `⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\n` +
+                     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                     `Estimado(a) Colega:\n` +
+                     `Ha alcanzado el límite institucional de *6 actualizaciones en un periodo de 12 meses*.\n\n` +
+                     `Para situaciones especiales, puede comunicarse directamente con la Dirección:\n` +
+                     `👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*`
+        };
+      }
+    }
+
+    const u = updateRes.user;
+    return {
+      recipientPhone: cleanPhone,
+      replyText: `✅ *DATOS PERSONALES ACTUALIZADOS CON ÉXITO*\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `Estimado(a) *${u.name}*:\n` +
+                 `Su información personal ha sido actualizada satisfactoriamente en el Directorio Institucional.\n\n` +
+                 `📋 *Ficha Actualizada:*\n` +
+                 `• 👤 *Nombre:* ${u.name}\n` +
+                 `• 📧 *Correo:* ${u.email || 'No registrado'}\n` +
+                 `• 🏥 *Institución:* ${u.university}\n` +
+                 `• 🎓 *Nivel:* ${u.level}\n\n` +
+                 `📊 *Control de Frecuencia:*\n` +
+                 `Ha utilizado *${updateRes.count6m} de 3* actualizaciones permitidas en 6 meses (*${updateRes.count12m} de 6* anuales).\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      alertToGerente: {
+        phone: ADMIN_PHONE,
+        message: `📝 *ACTUALIZACIÓN DE DATOS DE USUARIO*\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `👤 *Médico:* ${u.name}\n` +
+                 `📱 *WhatsApp:* \`${cleanPhone}\`\n` +
+                 `📧 *Correo:* ${u.email || 'N/A'}\n` +
+                 `🏥 *Institución:* ${u.university}\n` +
+                 `🎓 *Nivel:* ${u.level}\n` +
+                 `📊 *Frecuencia:* ${updateRes.count6m}/3 en 6m (${updateRes.count12m}/6 en 12m)\n` +
+                 `👉 Registrado confidencialmente en el Directorio de Usuarios.`
+      }
+    };
+  }
+
+  // 4.2 Canal Intermediado con la Dirección
+  if (lower.startsWith('mensaje a la direccion:') || lower.startsWith('mensaje a la dirección:') || lower.startsWith('mensaje al gestor:') || lower.startsWith('contactar gestor:') || lower.startsWith('gestor:') || lower.startsWith('direccion:') || lower.startsWith('dirección:')) {
+    const userQuery = text.replace(/^(mensaje a la direcci[oó]n|mensaje al gestor|contactar gestor|gestor|direcci[oó]n)\s*:\s*/i, '').trim();
     if (userQuery.length > 5) {
       return {
         recipientPhone: cleanPhone,
         replyText: `📩 *Mensaje Transmitido a la Dirección*\n\n` +
-                   `Estimado(a) ${existingUser ? existingUser.name : 'Colega'}: Su comunicación ha sido enviada al *Gestor de Contenido* de forma confidencial.\n` +
-                   `Le notificaremos en este mismo chat en cuanto se emita una respuesta.`,
+                   `Estimado(a) ${existingUser ? existingUser.name : 'Colega'}: Su comunicación ha sido enviada a la *Dirección del Proyecto* de forma confidencial.\n` +
+                   `Le notificaremos en este mismo chat en cuanto se emita una respuesta institucional.`,
         alertToGerente: {
           phone: ADMIN_PHONE,
-          message: `📩 *MENSAJE RECIBIDO PARA EL GESTOR DE CONTENIDO*\n` +
+          message: `📩 *MENSAJE RECIBIDO PARA LA DIRECCIÓN DEL PROYECTO*\n` +
                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                    `👤 *Médico:* ${existingUser ? existingUser.name : 'Usuario'} (${existingUser ? existingUser.university : 'N/A'})\n` +
                    `📱 *WhatsApp:* \`${cleanPhone}\`\n` +

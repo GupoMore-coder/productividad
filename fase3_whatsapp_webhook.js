@@ -88,6 +88,56 @@ function aplicarTokenPermanenteMeta(token) {
 }
 
 /**
+ * Detecta automáticamente el ID real de tu Google Sheet y lo guarda en SPREADSHEET_ID
+ */
+function vincularSpreadsheetIdAutomatico() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ No se pudo detectar el libro activo.");
+    return "Error: Ejecuta esta función desde el proyecto vinculado a tu Google Sheet.";
+  }
+  const realId = ss.getId();
+  PropertiesService.getScriptProperties().setProperty("SPREADSHEET_ID", realId);
+  Logger.log("✅ SPREADSHEET_ID real detectado y guardado con éxito en Script Properties: " + realId);
+  return "✅ SPREADSHEET_ID real guardado con éxito: " + realId;
+}
+
+/**
+ * Guarda y blinda automáticamente todas las Propiedades del Script en el servidor de Google
+ * con un solo clic, sin necesidad de escribirlas a mano ni de lidiar con el formulario visual.
+ */
+function blindarPropiedadesDelScript() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const idReal = ss ? ss.getId() : "";
+  const props = PropertiesService.getScriptProperties();
+
+  const propiedadesParaGuardar = {
+    "META_PHONE_NUMBER_ID": "1050275638171147",
+    "META_VERIFY_TOKEN": "antigravity_finanzas_token_2026",
+    "FISH_AUDIO_API_KEY": "sk-fish-YuWIPhPGRELFPNImRI3eEz_rZ7PmB_LOIoO96MoFVlc",
+    "DRIVE_SHARING_POLICY": "PUBLIC_LINK"
+  };
+
+  if (idReal) {
+    propiedadesParaGuardar["SPREADSHEET_ID"] = idReal;
+  }
+
+  props.setProperties(propiedadesParaGuardar);
+
+  const todas = props.getProperties();
+  Logger.log("=================================================");
+  Logger.log("✅ PROPIEDADES BLINDADAS Y GUARDADAS EN GOOGLE:");
+  Logger.log("=================================================");
+  Object.keys(todas).forEach(k => {
+    const val = todas[k];
+    const preview = (k.includes("KEY") || k.includes("TOKEN")) ? val.substring(0, 12) + "..." : val;
+    Logger.log(`• ${k} = ${preview}`);
+  });
+
+  return "🎉 ¡Todas las propiedades han sido guardadas y blindadas con éxito en Script Properties!";
+}
+
+/**
  * Prueba la conexión directa a WhatsApp enviando un mensaje al teléfono del Administrador
  */
 function probarConexionWhatsApp() {
@@ -160,6 +210,20 @@ function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
       return ContentService.createTextOutput("NO_DATA").setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    // Blindaje perimetral Zero-Trust: Validación de secreto compartido si está configurado en ScriptProperties
+    const props = PropertiesService.getScriptProperties();
+    const webhookSecretEsperado = props.getProperty("WEBHOOK_SECRET_KEY") || props.getProperty("META_WEBHOOK_SECRET");
+    if (webhookSecretEsperado) {
+      const paramSecret = e.parameter ? (e.parameter.secret || e.parameter.webhook_secret || e.parameter.token || "") : "";
+      const coincide = (typeof safeCompareTokens_ === "function") 
+        ? safeCompareTokens_(paramSecret, webhookSecretEsperado) 
+        : paramSecret === webhookSecretEsperado;
+      if (!coincide) {
+        Logger.log("⛔ [WEBHOOK_SPOOFING] Rechazado POST no autenticado sin secreto válido.");
+        return ContentService.createTextOutput("UNAUTHORIZED").setMimeType(ContentService.MimeType.TEXT);
+      }
     }
 
     const payload = JSON.parse(e.postData.contents);
@@ -238,6 +302,35 @@ function marcarMensajeComoProcesado_(idMensaje) {
 }
 
 /**
+ * Control de mensajes en vuelo para evitar condiciones de carrera o procesamientos duplicados simultáneos
+ */
+function esMensajeEnVuelo_(idMensaje) {
+  if (!idMensaje) return false;
+  try {
+    const cache = CacheService.getScriptCache();
+    return Boolean(cache && cache.get("INFLIGHT_" + idMensaje));
+  } catch (e) {
+    return false;
+  }
+}
+
+function bloquearMensajeEnVuelo_(idMensaje) {
+  if (!idMensaje) return;
+  try {
+    const cache = CacheService.getScriptCache();
+    if (cache) cache.put("INFLIGHT_" + idMensaje, "1", 30);
+  } catch (e) {}
+}
+
+function liberarMensajeEnVuelo_(idMensaje) {
+  if (!idMensaje) return;
+  try {
+    const cache = CacheService.getScriptCache();
+    if (cache) cache.remove("INFLIGHT_" + idMensaje);
+  } catch (e) {}
+}
+
+/**
  * Deserializa el mensaje, extrae texto/imagen y despacha hacia el Cerebro de IA
  */
 function procesarEventoMensajeEntrante_(msg, metadata) {
@@ -254,84 +347,137 @@ function procesarEventoMensajeEntrante_(msg, metadata) {
     return;
   }
 
-  // 2. Deduplicación persistente bicapa (Caché ScriptCache + PropertiesService)
-  if (esMensajeYaProcesado_(idMensaje)) {
-    Logger.log(`🔁 Mensaje duplicado o reintentado ignorado: ${idMensaje}`);
+  // 2. Deduplicación persistente bicapa y control de mensajes en vuelo
+  if (esMensajeYaProcesado_(idMensaje) || esMensajeEnVuelo_(idMensaje)) {
+    Logger.log(`🔁 Mensaje duplicado o actualmente en procesamiento ignorado: ${idMensaje}`);
     return;
   }
-  marcarMensajeComoProcesado_(idMensaje);
+  bloquearMensajeEnVuelo_(idMensaje);
 
-  let respuestaAgente = null;
+  try {
+    let respuestaAgente = null;
 
-  // Caso 1: Mensaje de Texto
-  if (tipo === "text" && msg.text) {
-    const textoUsuario = msg.text.body;
-    Logger.log(`📩 Mensaje de [${remitente}]: "${textoUsuario}"`);
-    respuestaAgente = procesarMensajeTexto(remitente, textoUsuario);
-  }
-
-  // Caso 2: Imagen (Comprobante / Factura)
-  else if (tipo === "image" && msg.image) {
-    Logger.log(`📷 Imagen recibida de [${remitente}]: ${msg.image.id}`);
-    const token = obtenerMetaToken_();
-    
-    if (token) {
-      const imgData = descargarMediaWhatsApp_(msg.image.id, token);
-      if (imgData) {
-        respuestaAgente = procesarImagenComprobante(remitente, imgData.base64, imgData.mimeType, msg.image.caption || "");
-      }
-    } else {
-      respuestaAgente = {
-        tipo: "aviso",
-        texto: "📸 He recibido tu imagen de comprobante. Para procesarla automáticamente con visión artificial en producción, se requiere configurar el META_ACCESS_TOKEN."
-      };
+    // Caso 1: Mensaje de Texto
+    if (tipo === "text" && msg.text) {
+      const textoUsuario = msg.text.body;
+      Logger.log(`📩 Mensaje de [${remitente}]: "${textoUsuario}"`);
+      respuestaAgente = procesarMensajeTexto(remitente, textoUsuario);
     }
-  }
 
-  // Caso 3: Nota de Voz / Audio Entrante
-  else if ((tipo === "audio" || tipo === "voice") && (msg.audio || msg.voice)) {
-    const audioObj = msg.audio || msg.voice;
-    Logger.log(`🎙️ Nota de voz recibida de [${remitente}]: ${audioObj.id}`);
-    const token = obtenerMetaToken_();
-    if (token) {
-      const audioData = descargarMediaWhatsApp_(audioObj.id, token);
-      if (audioData && audioData.base64) {
-        if (typeof procesarAudioNotaVoz === "function") {
-          let cleanMime = String(audioData.mimeType || audioObj.mime_type || "audio/ogg").split(";")[0].trim().toLowerCase();
-          if (cleanMime === "audio/opus" || cleanMime.includes("ogg") || cleanMime.includes("opus")) cleanMime = "audio/ogg";
-          respuestaAgente = procesarAudioNotaVoz(remitente, audioData.base64, cleanMime);
-        } else {
-          respuestaAgente = {
-            tipo: "aviso",
-            texto: "🎙️ He recibido tu nota de voz, pero la función de transcripción no está disponible."
-          };
+    // Caso 2: Imagen (Comprobante / Factura)
+    else if (tipo === "image" && msg.image) {
+      Logger.log(`📷 Imagen recibida de [${remitente}]: ${msg.image.id}`);
+      const token = obtenerMetaToken_();
+      
+      if (token) {
+        const imgData = descargarMediaWhatsApp_(msg.image.id, token);
+        if (imgData) {
+          respuestaAgente = procesarImagenComprobante(remitente, imgData.base64, imgData.mimeType, msg.image.caption || "");
         }
+      } else {
+        respuestaAgente = {
+          tipo: "aviso",
+          texto: "📸 He recibido tu imagen de comprobante. Para procesarla automáticamente con visión artificial en producción, se requiere configurar el META_ACCESS_TOKEN."
+        };
       }
-    } else {
-      respuestaAgente = {
-        tipo: "aviso",
-        texto: "🎙️ He recibido tu nota de voz. Para transcribirla automáticamente con IA en producción, se requiere configurar el META_ACCESS_TOKEN."
-      };
     }
+
+    // Caso 3: Nota de Voz / Audio Entrante
+    else if ((tipo === "audio" || tipo === "voice") && (msg.audio || msg.voice)) {
+      const audioObj = msg.audio || msg.voice;
+      Logger.log(`🎙️ Nota de voz recibida de [${remitente}]: ${audioObj.id}`);
+      const token = obtenerMetaToken_();
+      if (token) {
+        const audioData = descargarMediaWhatsApp_(audioObj.id, token);
+        if (audioData && audioData.base64) {
+          if (typeof procesarAudioNotaVoz === "function") {
+            let cleanMime = String(audioData.mimeType || audioObj.mime_type || "audio/ogg").split(";")[0].trim().toLowerCase();
+            if (cleanMime === "audio/opus" || cleanMime.includes("ogg") || cleanMime.includes("opus")) cleanMime = "audio/ogg";
+            respuestaAgente = procesarAudioNotaVoz(remitente, audioData.base64, cleanMime);
+          } else {
+            respuestaAgente = {
+              tipo: "aviso",
+              texto: "🎙️ He recibido tu nota de voz, pero la función de transcripción no está disponible."
+            };
+          }
+        }
+      } else {
+        respuestaAgente = {
+          tipo: "aviso",
+          texto: "🎙️ He recibido tu nota de voz. Para transcribirla automáticamente con IA en producción, se requiere configurar el META_ACCESS_TOKEN."
+        };
+      }
+    }
+
+    // Despachar la respuesta al chat de WhatsApp y confirmar procesamiento exitoso
+    if (respuestaAgente) {
+      despacharRespuestaWhatsApp_(remitente, respuestaAgente);
+      marcarMensajeComoProcesado_(idMensaje);
+    }
+  } catch (errLoop) {
+    Logger.log(`❌ Error procesando evento de mensaje ${idMensaje}: ` + errLoop.message);
+  } finally {
+    liberarMensajeEnVuelo_(idMensaje);
+  }
+}
+
+/**
+ * Despachador universal de respuestas hacia WhatsApp con soporte estricto para el flujo
+ * de 3 burbujas (Sticker 3D -> Texto de personalidad -> Nota de voz Fish Audio)
+ *
+ * @param {string} remitente Número de teléfono destino
+ * @param {Object} respuestaAgente Estructura de respuesta del agente
+ */
+function despacharRespuestaWhatsApp_(remitente, respuestaAgente) {
+  if (!respuestaAgente) return;
+  if (respuestaAgente.yaDespachadoPorWebhook) {
+    Logger.log(`ℹ️ Respuesta de tipo '${respuestaAgente.tipo}' ya despachada directamente al chat. Omitiendo mensaje de texto redundante.`);
+    return;
   }
 
-  // Despachar la respuesta al chat de WhatsApp
-  if (respuestaAgente) {
-    if (respuestaAgente.yaDespachadoPorWebhook) {
-      Logger.log(`ℹ️ Respuesta de tipo '${respuestaAgente.tipo}' ya despachada directamente al chat. Omitiendo mensaje de texto redundante.`);
-      return;
+  // Verificar propuesta periódica de inmersión personalizada (cada 14 días)
+  if (respuestaAgente.texto && typeof verificarYAdjuntarPropuestaInmersion_ === "function") {
+    respuestaAgente.texto = verificarYAdjuntarPropuestaInmersion_(remitente, respuestaAgente.texto, respuestaAgente.tipo);
+  }
+
+  // SOLUCIÓN DE FLUJO EXCLUSIVO DE CAMBIO DE PERSONAJE / STICKER 3D:
+  // Burbuja 1: El Sticker 3D (alternando entre pose fija y sticker animado con movimiento sutil) con fondo transparente.
+  // Burbuja 2: El texto de confirmación con la personalidad del personaje.
+  // Burbuja 3: La nota de voz oficial generada por Fish Audio.
+  if (respuestaAgente.urlSticker || respuestaAgente.urlImagen) {
+    const urlStickerTarget = respuestaAgente.urlSticker || respuestaAgente.urlImagen;
+    try {
+      if (typeof enviarStickerWhatsApp === "function" && (respuestaAgente.urlSticker || urlStickerTarget.includes(".webp"))) {
+        enviarStickerWhatsApp(remitente, urlStickerTarget);
+      } else if (typeof enviarImagenWhatsApp === "function") {
+        enviarImagenWhatsApp(remitente, urlStickerTarget, respuestaAgente.captionImagen || "");
+      }
+      Utilities.sleep(1000); // Pausa estratégica: Garantiza que Burbuja 1 (Sticker 3D) llegue primero
+    } catch (eSticker) {
+      Logger.log("Aviso al despachar sticker 3D de personaje: " + eSticker.message);
     }
 
-    // Verificar propuesta periódica de inmersión personalizada (cada 14 días)
-    if (respuestaAgente.texto && typeof verificarYAdjuntarPropuestaInmersion_ === "function") {
-      respuestaAgente.texto = verificarYAdjuntarPropuestaInmersion_(remitente, respuestaAgente.texto, respuestaAgente.tipo);
-    }
-
-    if (respuestaAgente.requiereAudio && (respuestaAgente.textoVoz || respuestaAgente.texto)) {
-      enviarRespuestaVozWhatsApp(remitente, respuestaAgente.texto, respuestaAgente.perfilVoz, respuestaAgente.textoVoz);
-    } else if (respuestaAgente.texto) {
+    // Burbuja 2: Texto de confirmación con la personalidad del personaje
+    if (respuestaAgente.texto) {
       enviarMensajeWhatsApp(remitente, respuestaAgente.texto);
+      Utilities.sleep(800); // Pausa estratégica: Garantiza que Burbuja 2 llegue en segundo lugar
     }
+
+    // Burbuja 3: Nota de voz oficial generada por Fish Audio
+    if (respuestaAgente.requiereAudio && (respuestaAgente.textoVoz || respuestaAgente.texto)) {
+      if (typeof despacharSoloAudioWhatsApp_ === "function") {
+        despacharSoloAudioWhatsApp_(remitente, respuestaAgente.textoVoz || respuestaAgente.texto, respuestaAgente.perfilVoz);
+      } else {
+        enviarRespuestaVozWhatsApp(remitente, null, respuestaAgente.perfilVoz, respuestaAgente.textoVoz || respuestaAgente.texto);
+      }
+    }
+    return;
+  }
+
+  if (respuestaAgente.requiereAudio && (respuestaAgente.textoVoz || respuestaAgente.texto)) {
+    enviarRespuestaVozWhatsApp(remitente, respuestaAgente.texto, respuestaAgente.perfilVoz, respuestaAgente.textoVoz);
+  } else if (respuestaAgente.texto) {
+    enviarMensajeWhatsApp(remitente, respuestaAgente.texto);
   }
 }
 
@@ -759,6 +905,303 @@ function enviarAudioWhatsApp(telefonoDestino, audioFuente, textoAcompanante) {
 }
 
 /**
+ * Despacha una imagen al usuario por Meta WhatsApp Graph API
+ * con soporte de caption sanitizado y fallback a Logger en caso de error.
+ * 
+ * @param {string} telefonoDestino Número de teléfono de destino
+ * @param {string} urlImagen URL directa y pública HTTPS de la imagen
+ * @param {string} [captionTexto] Texto descriptivo opcional que acompaña la imagen
+ * @returns {Object} Resultado del despacho { enviado: boolean, idMensaje?: string, error?: string }
+ */
+
+/**
+ * Despacha un Sticker 3D oficial con fondo transparente (WebP 512x512, estático o animado)
+ * a través de la API oficial de Meta WhatsApp Cloud.
+ * Soporta precarga obligatoria como Blob nativo a Meta /media (MIME: image/webp) y fallback a link.
+ * 
+ * @param {string} telefonoDestino Número de teléfono de destino
+ * @param {string} urlSticker URL directa HTTPS del archivo .webp
+ * @returns {Object} Resultado del despacho { enviado: boolean, idMensaje?: string, error?: string }
+ */
+function enviarStickerWhatsApp(telefonoDestino, urlSticker) {
+  const telDestino = telefonoDestino || CONFIG_FINANZAS.TELEFONO_ADMIN_DEFAULT;
+  const telNormalizado = normalizarTelefono_(telDestino);
+  const token = obtenerMetaToken_();
+  const phoneId = obtenerMetaPhoneId_();
+  const linkUrl = String(urlSticker || "").trim();
+
+  if (!linkUrl) {
+    Logger.log("Aviso: URL de sticker vacía en enviarStickerWhatsApp");
+    return { enviado: false, error: "URL de sticker vacía" };
+  }
+
+  if (!token || !phoneId) {
+    Logger.log("[SIMULACIÓN STICKER WHATSAPP] Para: " + telNormalizado + " -> URL: " + linkUrl);
+    return { simulado: true, enviado: true, destino: telNormalizado };
+  }
+
+  const baseUrl = META_CONFIG.URL_BASE_GRAPH || "https://graph.facebook.com/";
+  const graphVer = META_CONFIG.GRAPH_VERSION || META_CONFIG.VERSION || "v21.0";
+  const urlMensajes = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + graphVer + "/" + phoneId + "/messages";
+  const urlMedia = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + graphVer + "/" + phoneId + "/media";
+
+  // 1. Verificar si ya tenemos un mediaId pre-almacenado en caché para este archivo de sticker (Vigencia 30 días en Meta)
+  const urlHash = "STICKER_MID_" + linkUrl.split("/").pop().replace(/[^a-zA-Z0-9_]/g, "");
+  let mediaId = null;
+  try {
+    const props = PropertiesService.getScriptProperties();
+    mediaId = props.getProperty(urlHash);
+  } catch (eCache) {}
+
+  // 2. Si no está en caché, descargarlo y precargarlo en Meta /media con nombre y tipo explícitos
+  if (!mediaId) {
+    try {
+      const resSticker = UrlFetchApp.fetch(linkUrl, { muteHttpExceptions: true });
+      if (resSticker.getResponseCode() === 200) {
+        const blob = resSticker.getBlob();
+        blob.setName("sticker.webp");
+        blob.setContentType("image/webp");
+
+        const mediaPayload = {
+          messaging_product: "whatsapp",
+          type: "image/webp",
+          file: blob
+        };
+        const resMedia = UrlFetchApp.fetch(urlMedia, {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          payload: mediaPayload,
+          muteHttpExceptions: true
+        });
+        const mediaJson = JSON.parse(resMedia.getContentText());
+        if (mediaJson && mediaJson.id) {
+          mediaId = mediaJson.id;
+          Logger.log("✅ Sticker 3D precargado en Meta /media (ID: " + mediaId + ")");
+          try {
+            PropertiesService.getScriptProperties().setProperty(urlHash, mediaId);
+          } catch(eSet) {}
+        } else {
+          Logger.log("Aviso Meta /media al subir sticker: " + resMedia.getContentText());
+        }
+      } else {
+        Logger.log("Aviso al descargar sticker de URL (" + resSticker.getResponseCode() + "): " + linkUrl);
+      }
+    } catch (errBlob) {
+      Logger.log("Excepción al precargar sticker en Meta: " + errBlob.message);
+    }
+  }
+
+  // 3. Despachar el sticker mediante el Media ID validado
+  if (mediaId) {
+    const payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: telNormalizado,
+      type: "sticker",
+      sticker: { id: mediaId }
+    };
+
+    try {
+      const res = UrlFetchApp.fetch(urlMensajes, {
+        method: "POST",
+        contentType: "application/json",
+        headers: { Authorization: "Bearer " + token },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      const code = res.getResponseCode();
+      const json = JSON.parse(res.getContentText());
+      if (code === 200 || code === 201) {
+        Logger.log("✅ Sticker 3D despachado con éxito a " + telNormalizado + ". ID: " + (json.messages ? json.messages[0].id : "OK"));
+        return { enviado: true, idMensaje: json.messages ? json.messages[0].id : null, mediaId: mediaId };
+      } else {
+        Logger.log("Aviso al despachar sticker por mediaId (" + code + "): " + JSON.stringify(json));
+        try {
+          PropertiesService.getScriptProperties().deleteProperty(urlHash);
+        } catch (eDel) {}
+      }
+    } catch (err) {
+      Logger.log("Excepción al enviar sticker WhatsApp: " + err.message);
+      try {
+        PropertiesService.getScriptProperties().deleteProperty(urlHash);
+      } catch (eDel) {}
+    }
+  }
+
+  // 4. FALLBACK 1: Despacho directo por LINK en caso de que la precarga de mediaId haya fallado
+  try {
+    const payloadLink = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: telNormalizado,
+      type: "sticker",
+      sticker: { link: linkUrl }
+    };
+    const resLink = UrlFetchApp.fetch(urlMensajes, {
+      method: "POST",
+      contentType: "application/json",
+      headers: { Authorization: "Bearer " + token },
+      payload: JSON.stringify(payloadLink),
+      muteHttpExceptions: true
+    });
+    const codeLink = resLink.getResponseCode();
+    const jsonLink = JSON.parse(resLink.getContentText());
+    if (codeLink === 200 || codeLink === 201) {
+      Logger.log("✅ Sticker 3D despachado por LINK directo a " + telNormalizado + ". ID: " + (jsonLink.messages ? jsonLink.messages[0].id : "OK"));
+      return { enviado: true, idMensaje: jsonLink.messages ? jsonLink.messages[0].id : null };
+    } else {
+      Logger.log("Aviso al despachar sticker por link (" + codeLink + "): " + JSON.stringify(jsonLink));
+    }
+  } catch (errLink) {
+    Logger.log("Excepción al despachar sticker por link: " + errLink.message);
+  }
+
+  Logger.log("⚠️ No fue posible despachar el sticker tras reintentos a " + telNormalizado);
+  return { enviado: false, error: "Fallo entrega de sticker en Meta" };
+}
+
+/**
+ * Purga de caché de stickers en PropertiesService (garantiza regeneración limpia de IDs en Meta)
+ */
+function purgarCacheStickersMeta() {
+  const props = PropertiesService.getScriptProperties();
+  const allProps = props.getProperties();
+  let count = 0;
+  for (const k in allProps) {
+    if (k.startsWith("STICKER_MID_") || k.startsWith("STICKER_MODO_")) {
+      props.deleteProperty(k);
+      count++;
+    }
+  }
+  Logger.log("✅ Caché de stickers purgada: " + count + " propiedades eliminadas.");
+  return "Se eliminaron " + count + " entradas de caché de stickers.";
+}
+
+/**
+ * Despacha exclusivamente la nota de voz neural de Fish Audio al usuario
+ * sin enviar mensajes de texto acompañantes redundantes.
+ */
+function despacharSoloAudioWhatsApp_(telefonoDestino, textoAudio, perfilVoz) {
+  let perfil = perfilVoz;
+  let nombreUsuario = "Fernando";
+  if (typeof validarPermisoUsuario === "function") {
+    try {
+      const perm = validarPermisoUsuario(telefonoDestino);
+      if (perm && perm.perfilVoz && !perfil) perfil = perm.perfilVoz;
+      if (perm && perm.nombre) nombreUsuario = perm.nombre;
+    } catch (e) {}
+  }
+  const baseTexto = textoAudio || "Saludo oficial del copiloto financiero.";
+  const textoParaAudio = enriquecerTextoVozSegunPerfilYHorario_(baseTexto, perfil, nombreUsuario);
+  const textoParaAudioCorto = podarTextoParaVozCorta_(textoParaAudio, perfil, 46);
+  const audio = sintetizarVozNeural_(textoParaAudioCorto, perfil);
+  return enviarAudioWhatsApp(telefonoDestino, audio, null);
+}
+
+function enviarImagenWhatsApp(telefonoDestino, urlImagen, captionTexto) {
+  const telDestino = telefonoDestino || CONFIG_FINANZAS.TELEFONO_ADMIN_DEFAULT;
+  const telNormalizado = normalizarTelefono_(telDestino);
+  const token = obtenerMetaToken_();
+  const phoneId = obtenerMetaPhoneId_();
+  const linkUrl = String(urlImagen || "").trim();
+
+  if (!linkUrl) {
+    Logger.log("Aviso: URL de imagen vacía en enviarImagenWhatsApp");
+    return { enviado: false, error: "URL de imagen vacía" };
+  }
+
+  if (!token || !phoneId) {
+    Logger.log(`[SIMULACIÓN IMAGEN WHATSAPP] Para: ${telNormalizado} -> URL: ${linkUrl} | Caption: ${captionTexto || ""}`);
+    return { simulado: true, enviado: true, destino: telNormalizado };
+  }
+
+  const baseUrl = META_CONFIG.URL_BASE_GRAPH || "https://graph.facebook.com/";
+  const graphVer = META_CONFIG.GRAPH_VERSION || META_CONFIG.VERSION || "v21.0";
+  const urlMensajes = `${baseUrl.endsWith("/") ? baseUrl : baseUrl + "/"}${graphVer}/${phoneId}/messages`;
+  const urlMedia = `${baseUrl.endsWith("/") ? baseUrl : baseUrl + "/"}${graphVer}/${phoneId}/media`;
+
+  // 1. Pre-carga obligatoria como Blob nativo hacia Meta /media (Mismo mecanismo robusto de notas de voz)
+  // Esto previene al 100% que Meta falle al descargar URLs externas de forma asíncrona
+  let mediaId = null;
+  try {
+    const resImg = UrlFetchApp.fetch(linkUrl, {
+      method: "GET",
+      muteHttpExceptions: true,
+      headers: {
+        "User-Agent": "AntigravityFinancialBot/1.0 (admin@grupomore.com)"
+      }
+    });
+    const codeImg = resImg.getResponseCode();
+    if (codeImg === 200) {
+      const blob = resImg.getBlob();
+      let mime = blob.getContentType() || "image/jpeg";
+      if (!mime.startsWith("image/")) mime = "image/jpeg";
+      blob.setContentType(mime);
+
+      const mediaPayload = {
+        messaging_product: "whatsapp",
+        type: mime,
+        file: blob
+      };
+      const resMedia = UrlFetchApp.fetch(urlMedia, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+        payload: mediaPayload,
+        muteHttpExceptions: true
+      });
+      const mediaJson = JSON.parse(resMedia.getContentText());
+      if (mediaJson && mediaJson.id) {
+        mediaId = mediaJson.id;
+        Logger.log(`✅ Imagen de personaje precargada en Meta /media (ID: ${mediaId})`);
+      } else {
+        Logger.log(`Aviso al subir imagen a Meta Media (${resMedia.getResponseCode()}): ` + JSON.stringify(mediaJson));
+      }
+    } else {
+      Logger.log(`Aviso: No se pudo descargar la imagen (${codeImg}) desde ${linkUrl}`);
+    }
+  } catch (errBlob) {
+    Logger.log("Excepción al precargar blob de imagen a Meta: " + errBlob.message);
+  }
+
+  // 2. Construir payload: Si logramos obtener ID nativo en Meta, se despacha por ID; si no, por link directo
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: telNormalizado,
+    type: "image",
+    image: mediaId ? { id: mediaId } : { link: linkUrl }
+  };
+
+  if (captionTexto) {
+    payload.image.caption = typeof sanitizarTextoParaWhatsApp_ === "function" 
+      ? sanitizarTextoParaWhatsApp_(captionTexto) 
+      : String(captionTexto);
+  }
+
+  try {
+    const res = UrlFetchApp.fetch(urlMensajes, {
+      method: "POST",
+      contentType: "application/json",
+      headers: { Authorization: "Bearer " + token },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    const code = res.getResponseCode();
+    const json = JSON.parse(res.getContentText());
+    if (code === 200 || code === 201) {
+      Logger.log(`✅ Imagen de personaje despachada a ${telNormalizado}. ID: ${json.messages ? json.messages[0].id : "OK"}`);
+      return { enviado: true, idMensaje: json.messages ? json.messages[0].id : null };
+    } else {
+      Logger.log(`Aviso al despachar imagen (${code}): ` + JSON.stringify(json));
+      return { enviado: false, error: json };
+    }
+  } catch (err) {
+    Logger.log("Excepción al enviar imagen WhatsApp: " + err.message);
+    return { enviado: false, error: err.message };
+  }
+}
+
+/**
  * Enriquece dinámicamente el guion de audio con saludos según la hora del día,
  * empatía humana (¿cómo amaneciste?, buen descanso, tanto tiempo) y frases sello/lemas según el personaje.
  */
@@ -858,6 +1301,26 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
         `¡Hola, ${nombre}! Patrullando tus cuentas a estas horas. Que descanses.`
       ]
     },
+    GATO_CON_BOTAS: {
+      manana: [
+        `¡Buenos días, mi noble amigo ${nombre}! El Gato con Botas desenvaina su espada para proteger tu fortuna en este nuevo día.`,
+        `¡Hola, ${nombre}! Una gloriosa mañana para conquistar los números y hacer crecer el tesoro.`,
+        `¡Por mis botas, ${nombre}! Despierta el día y estamos listos para defender cada moneda con honor.`
+      ],
+      tarde: [
+        `¡Buenas tardes, ${nombre}! Tu fiel espadachín vigila las arcas en plena faena.`,
+        `¡Saludos, mi señor ${nombre}! El sol avanza y tus finanzas marchan con audacia y distinción.`,
+        `¡Hola, ${nombre}! Aquí el Gato, manteniendo a raya cualquier fuga de capital.`
+      ],
+      noche: [
+        `¡Buenas noches, ${nombre}! Una jornada heroica. Tus cuentas quedan a buen recaudo para que descanses con gloria.`,
+        `¡Descansa con tranquilidad, ${nombre}! Por mi sombrero y mi espada, tus arcas duermen protegidas.`,
+        `Buenas noches, ${nombre}. Misión cumplida por hoy; mañana cabalgaremos hacia mayores ganancias.`
+      ],
+      madrugada: [
+        `¡Silencio en la noche, ${nombre}! El Gato patrulla tus finanzas en las sombras. Descansa tranquilo.`
+      ]
+    },
     FEMENINO_DULCE: {
       manana: [
         `¡Buenos días, ${nombre}! Qué gusto saludarte, espero que hayas amanecido de maravilla.`,
@@ -897,6 +1360,12 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
 
   // 4. Catálogo de Outros / Lemas de cierre según personaje
   const outrosPorPerfil = {
+    GATO_CON_BOTAS: [
+      "¡Por mi sombrero y mi espada, tus finanzas están a salvo!",
+      "La audacia y la disciplina hacen la verdadera riqueza.",
+      "Nunca temas, ¡el Gato cuida tus monedas con honor!",
+      "Elegancia y precisión contable, ¡siempre a tu servicio!"
+    ],
     BATMAN: [
       "En las sombras o a plena luz, tu patrimonio está protegido.",
       "Disciplina implacable, cero fugas de capital.",
@@ -927,24 +1396,44 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
   };
 
   // Determinar clave de personaje
-  let clave = "BATMAN";
-  if (perfil.includes("IRON_MAN") || perfil.includes("STARK")) clave = "IRON_MAN";
+  let clave = "GATO_CON_BOTAS";
+  if (perfil.includes("GATO") || perfil.includes("BOTAS") || perfil.includes("PUSS")) clave = "GATO_CON_BOTAS";
+  else if (perfil.includes("BATMAN") || perfil.includes("BRUCE")) clave = "BATMAN";
+  else if (perfil.includes("IRON_MAN") || perfil.includes("STARK")) clave = "IRON_MAN";
   else if (perfil.includes("SPIDERMAN") || perfil.includes("PETER")) clave = "SPIDERMAN";
   else if (perfil.includes("ALEXA") || perfil.includes("ROBOT")) clave = "ALEXA";
   else if (perfil.includes("FEMENINO") || perfil.includes("AURA") || perfil.includes("DULCE")) clave = "FEMENINO_DULCE";
+
+  const def = (typeof obtenerDefinicionPersonajeCompleta_ === "function")
+    ? obtenerDefinicionPersonajeCompleta_(perfilVoz)
+    : null;
 
   // Selección rotativa basada en la longitud del texto y el minuto actual
   const minuto = new Date().getMinutes();
   const seed = (t.length + minuto);
 
   let introElegida = "";
-  if (!yaTieneSaludo && introsPorPerfil[clave] && introsPorPerfil[clave][franja]) {
-    const listaIntros = introsPorPerfil[clave][franja];
-    introElegida = listaIntros[seed % listaIntros.length];
+  if (!yaTieneSaludo) {
+    if (def) {
+      if (franja === "manana") {
+        introElegida = `¡Buenos días, ${nombre}! Aquí ${def.alias}. ${def.lema || "Cuentas blindadas y capital en orden."}`;
+      } else if (franja === "tarde") {
+        introElegida = `Buenas tardes, ${nombre}. Aquí ${def.alias}, manteniendo el orden estricto de tu patrimonio.`;
+      } else if (franja === "noche") {
+        introElegida = `Buenas noches, ${nombre}. ${def.alias} reportándose con cuentas claras para tu descanso.`;
+      } else {
+        introElegida = `Hola ${nombre}, patrullando tus cuentas a estas horas silenciosas.`;
+      }
+    } else if (introsPorPerfil[clave] && introsPorPerfil[clave][franja]) {
+      const listaIntros = introsPorPerfil[clave][franja];
+      introElegida = listaIntros[seed % listaIntros.length];
+    }
   }
 
   let outroElegido = "";
-  if (outrosPorPerfil[clave] && !t.includes("En las sombras") && !t.includes("Flujo de caja en verde") && !t.includes("blindado")) {
+  if (def && def.frasesCelebres && def.frasesCelebres.length > 0) {
+    outroElegido = def.frasesCelebres[(seed + 1) % def.frasesCelebres.length];
+  } else if (outrosPorPerfil[clave]) {
     const listaOutros = outrosPorPerfil[clave];
     outroElegido = listaOutros[(seed + 1) % listaOutros.length];
   }
@@ -963,7 +1452,97 @@ function enriquecerTextoVozSegunPerfilYHorario_(textoBase, perfilVoz, nombreUsua
 }
 
 /**
- * Convierte texto en nota de voz neural de alta fidelidad con tono, género y personalidad según el perfil
+ * Poda inteligente de guiones para notas de voz (< 25 segundos, máximo 46 palabras).
+ * Preserva la coherencia sintáctica, el saludo, el dato central y el lema célebre del personaje.
+ */
+function podarTextoParaVozCorta_(texto, perfilVoz, maxPalabras) {
+  const limite = maxPalabras || 46;
+  let t = String(texto || "").trim();
+  if (!t) return t;
+
+  const palabras = t.split(/\s+/);
+  if (palabras.length <= limite) return t;
+
+  // Segmentar por oraciones
+  const oraciones = t.match(/[^.!?]+[.!?]+/g) || [t];
+  let acumulado = [];
+  let conteo = 0;
+
+  for (let i = 0; i < oraciones.length; i++) {
+    const o = oraciones[i].trim();
+    const cant = o.split(/\s+/).length;
+    if (conteo + cant <= limite - 6) {
+      acumulado.push(o);
+      conteo += cant;
+    } else {
+      break;
+    }
+  }
+
+  if (acumulado.length === 0) {
+    return palabras.slice(0, limite).join(" ") + "...";
+  }
+
+  // Lema final concentrado según personaje
+  const def = (typeof obtenerDefinicionPersonajeCompleta_ === "function")
+    ? obtenerDefinicionPersonajeCompleta_(perfilVoz)
+    : null;
+  const lemaCierre = (def && def.lemaCierreCorto) ? def.lemaCierreCorto : " Cuentas claras y al día.";
+
+  return acumulado.join(" ") + lemaCierre;
+}
+
+/**
+ * Formatea el texto de respaldo visual en WhatsApp con diseño estructurado,
+ * iconos atractivos y divisores ejecutivos (Estilo Imagen 1 y 2).
+ */
+function formatearTarjetaVisualAcompanante_(textoOriginal, perfilVoz, nombreUsuario) {
+  let t = String(textoOriginal || "").trim();
+  if (!t) return t;
+
+  // Si ya tiene formato de tarjeta o divisores, mantener intacto
+  if (t.includes("━━━━━━━━") || t.includes("━━━━━━")) return t;
+
+  const def = (typeof obtenerDefinicionPersonajeCompleta_ === "function") 
+    ? obtenerDefinicionPersonajeCompleta_(perfilVoz)
+    : (typeof DICCIONARIO_MAESTRO_PERSONAJES_ !== "undefined" && DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilVoz || "").toUpperCase()]
+        ? DICCIONARIO_MAESTRO_PERSONAJES_[String(perfilVoz || "").toUpperCase()]
+        : { emoji: "🐾", alias: "El Gato con Botas", titulo: "Copiloto Financiero", frasesCelebres: ["¡Por mi sombrero y mi espada, tus finanzas están a salvo!"] });
+
+  const banner = `${def.emoji} *${def.alias.toUpperCase()}* | _${def.titulo}_`;
+  const frases = (def.frasesCelebres && def.frasesCelebres.length > 0) ? def.frasesCelebres : [(def.lema || "Cuentas claras y al día.")];
+  const seed = (t.length + new Date().getMinutes() + new Date().getSeconds());
+  const fraseAleatoria = frases[seed % frases.length];
+  const firma = `${def.emoji} _«${fraseAleatoria.replace(/^«|»$/g, "")}»_`;
+
+  // 1. Reestructurar confirmación de movimiento contable
+  if (t.toLowerCase().includes("movimiento") && (t.toLowerCase().includes("registrado") || t.toLowerCase().includes("éxito") || t.toLowerCase().includes("anotado"))) {
+    let cuerpoLimpio = t;
+    const bulletIdx = t.indexOf("•");
+    if (bulletIdx !== -1) {
+      cuerpoLimpio = t.substring(bulletIdx).trim();
+    } else {
+      cuerpoLimpio = t.replace(/^(?:¡Listo!\s*)?✅?\s*\*?Movimiento(?:\(s\)|s)?\s+registrado(?:\(s\)|s)?\s+con\s+éxito:\*?\s*/i, "").trim();
+    }
+    return `${banner}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `✨ *MOVIMIENTO ASENTADO CON ÉXITO*\n` +
+      `${cuerpoLimpio}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${firma}`;
+  }
+
+  // 2. Formato estructurado general
+  return `${banner}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `${t}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `${firma}`;
+}
+
+/**
+ * Convierte texto en nota de voz neural de alta fidelidad con tono, género y personalidad según el perfil.
+ * Garantiza duración menor a 25 segundos y acompaña el mensaje de texto estructurado con diseño enriquecido.
  */
 function enviarRespuestaVozWhatsApp(telefonoDestino, texto, perfilVozForzado, textoVozEspecifico) {
   let perfil = perfilVozForzado;
@@ -980,8 +1559,15 @@ function enviarRespuestaVozWhatsApp(telefonoDestino, texto, perfilVozForzado, te
 
   const baseTextoAudio = textoVozEspecifico || texto;
   const textoParaAudio = enriquecerTextoVozSegunPerfilYHorario_(baseTextoAudio, perfil, nombreUsuario);
-  const audio = sintetizarVozNeural_(textoParaAudio, perfil);
-  return enviarAudioWhatsApp(telefonoDestino, audio, texto);
+  
+  // DIRECTIVA OBLIGATORIA: Poda a menos de 25 segundos (máximo 46 palabras)
+  const textoParaAudioCorto = podarTextoParaVozCorta_(textoParaAudio, perfil, 46);
+  const audio = sintetizarVozNeural_(textoParaAudioCorto, perfil);
+
+  // Formatear texto acompañante como tarjeta visual estructurada con emojis y divisores (Estilo Imagen 1 y 2)
+  const textoVisualAcompanante = formatearTarjetaVisualAcompanante_(texto, perfil, nombreUsuario);
+
+  return enviarAudioWhatsApp(telefonoDestino, audio, textoVisualAcompanante);
 }
 
 // ============================================================================
@@ -1409,8 +1995,11 @@ function sintetizarVozNeural_(texto, perfilVoz) {
   const perfil = String(perfilVoz || "FEMENINO_DULCE").toUpperCase();
   let textoLimpio = limpiarTextoParaVozHabla_(texto);
 
-  if (textoLimpio.length > 700) {
-    textoLimpio = textoLimpio.substring(0, 695) + "...";
+  // DIRECTIVA OBLIGATORIA: Poda a menos de 25 segundos (máximo 46 palabras)
+  textoLimpio = podarTextoParaVozCorta_(textoLimpio, perfil, 46);
+
+  if (textoLimpio.length > 500) {
+    textoLimpio = textoLimpio.substring(0, 495) + "...";
   }
 
   if (!textoLimpio) {
@@ -2081,11 +2670,26 @@ function difundirNuevoPersonajeWhatsApp_(personaje) {
 
 /**
  * Escaneo diario a las 8:00 PM:
- * Si un usuario activo no registró ningún movimiento en todo el día, le envía un recordatorio.
+ * Si un usuario activo no registró ningún movimiento en todo el día, le envía un recordatorio estructurado
+ * acompañado de nota de voz corta (< 25s) del personaje activo.
  */
 function ejecutarEscaneoInactividad8PM() {
   Logger.log("🌙 Ejecutando escaneo de inactividad financiera (8:00 PM)...");
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    try {
+      const propId = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+      if (propId) ss = SpreadsheetApp.openById(propId);
+    } catch (eOpen) {
+      Logger.log("Aviso abriendo libro por ID en 8PM: " + eOpen.message);
+    }
+  }
+
+  if (!ss) {
+    Logger.log("❌ Error crítico en 8:00 PM: No se pudo obtener acceso a la hoja de cálculo.");
+    return;
+  }
+
   const sheetCtrl = ss.getSheetByName(HOJAS.CONTROL_ACCESO);
   if (!sheetCtrl || sheetCtrl.getLastRow() <= 1) return;
 
@@ -2098,7 +2702,7 @@ function ejecutarEscaneoInactividad8PM() {
     const estado = String(u[3]).trim().toUpperCase();
     const hojas = String(u[4]);
 
-    if (estado !== "ACTIVO") return;
+    if (estado !== "ACTIVO" || !telefono) return;
 
     let hojaTrans = HOJAS.PERSONAL_TRANS;
     if (u[2] !== "SUPER_ADMIN") {
@@ -2124,27 +2728,49 @@ function ejecutarEscaneoInactividad8PM() {
     // Solo si no registró NINGÚN movimiento en todo el día
     if (movimientosHoy === 0) {
       const nombreLimpio = typeof sanitizarNombreParaVoz_ === "function" ? sanitizarNombreParaVoz_(nombre) : "Fernando";
-      const mensajes8PM = [
-        `🌙 *Buenas noches, ${nombreLimpio}.* ¿Cómo estuvo tu día?\n\n` +
-        `Estuve revisando tus cuentas y hoy no anotamos ningún movimiento en tus finanzas personales. Si tuviste alguna compra, pago o entrada de dinero que se te haya pasado, cuéntame por aquí y te lo dejo organizado de una vez para que descanses tranquilo.`,
+      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "GATO_CON_BOTAS" : "FEMENINO_DULCE";
+      if (typeof validarPermisoUsuario === "function") {
+        try {
+          const perm = validarPermisoUsuario(telefono);
+          if (perm && perm.perfilVoz) perfilUsuario = perm.perfilVoz;
+        } catch (ePerm) {}
+      }
 
-        `🌙 *Hola ${nombreLimpio}, espero que hayas tenido un excelente día.*\n\n` +
-        `Paso a saludarte antes de cerrar la jornada: hoy tus registros personales quedaron en blanco. Si hiciste algún gasto o recibiste algún pago hoy, déjamelo por aquí y lo dejamos cuadrado en un minuto.`,
+      const defUsuario = (typeof obtenerDefinicionPersonajeCompleta_ === "function")
+        ? obtenerDefinicionPersonajeCompleta_(perfilUsuario)
+        : null;
+      const frasesCierre = (defUsuario && defUsuario.frasesCelebres && defUsuario.frasesCelebres.length > 0)
+        ? defUsuario.frasesCelebres
+        : ["Disciplina implacable. Cero fugas de capital en las sombras."];
+      const frase8PM = frasesCierre[Math.floor(Math.random() * frasesCierre.length)];
+      const firma8PM = defUsuario 
+        ? `${defUsuario.emoji} _«${frase8PM.replace(/^«|»$/g, "")}»_`
+        : `🦇 _«Disciplina implacable. Cero fugas de capital en las sombras.»_`;
 
-        `🌙 *Buenas noches, ${nombreLimpio}.*\n\n` +
-        `Cerrando el día, veo que no registramos movimientos en tus finanzas personales hoy. Si hubo algún cafecito, almuerzo, compra o ingreso que quieras asentar, solo dime el valor y concepto y me encargo. ¡Un abrazo y feliz descanso!`
-      ];
-      const mensaje8PM = mensajes8PM[Math.floor(Math.random() * mensajes8PM.length)];
-      
-      enviarMensajeWhatsApp(telefono, mensaje8PM);
-      Logger.log(`🌙 Recordatorio de inactividad 8:00 PM enviado a ${nombreLimpio} (${telefono}).`);
+      const mensaje8PMCard = `🌙 *CIERRE FINANCIERO Y CONTROL NOCTURNO*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Titular:* ${nombreLimpio}\n` +
+        `📅 *Fecha:* ${hoyStr}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `${mensaje8PMTexto}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `${firma8PM}`;
+
+      let audioScript8PM = `Buenas noches, ${nombreLimpio}. Hoy no anotamos movimientos en tus cuentas. Si te quedó alguna compra o ingreso por registrar, dímelo y lo asiento al instante. ¡Descansa tranquilo!`;
+      if (defUsuario) {
+        audioScript8PM = `Buenas noches, ${nombreLimpio}. Aquí ${defUsuario.alias}. Hoy las arcas estuvieron en calma sin nuevos movimientos. Si tuviste alguna compra antes de dormir, dímelo y lo anoto para que descanses en paz.`;
+      }
+
+      enviarRespuestaVozWhatsApp(telefono, mensaje8PMCard, perfilUsuario, audioScript8PM);
+      Logger.log(`🌙 Recordatorio estructurado y audio 8:00 PM enviado a ${nombreLimpio} (${telefono}).`);
     }
   });
 }
 
 /**
  * Control Diario Matutino a las 8:00 AM:
- * Saludo humano y proactivo para validar si quedaron registros pendientes de anoche o la madrugada.
+ * Saludo humano y proactivo para validar si quedaron registros pendientes de anoche o la madrugada,
+ * acompañado de tarjeta estructurada y nota de voz corta (< 25s) del personaje activo.
  */
 function ejecutarControlEstricto8AM() {
   Logger.log("☀️ Ejecutando Control Matutino Humano (8:00 AM)...");
@@ -2214,51 +2840,48 @@ function ejecutarControlEstricto8AM() {
       }
 
       const nombreLimpio = typeof sanitizarNombreParaVoz_ === "function" ? sanitizarNombreParaVoz_(nombre) : "Fernando";
-      let mensaje8AM = "";
+      let perfilUsuario = (u[2] === "SUPER_ADMIN") ? "GATO_CON_BOTAS" : "FEMENINO_DULCE";
+      if (typeof validarPermisoUsuario === "function") {
+        try {
+          const perm = validarPermisoUsuario(telefono);
+          if (perm && perm.perfilVoz) perfilUsuario = perm.perfilVoz;
+        } catch (ePerm) {}
+      }
+
+      let mensaje8AMCuerpo = "";
       if (movimientosAyer > 0) {
-        const opcionesConMov = [
-          `☀️ *¡Buenos días, ${nombreLimpio}!* Espero que hayas descansado muy bien.\n\n` +
-          `Ayer dejamos varios movimientos organizados en tus cuentas. ¿Te quedó de pronto algún pago de anoche o compra de primera hora por anotar? Si es así, me avisas y lo dejamos al día. ¡Muchos éxitos en la jornada de hoy!`,
-
-          `☀️ *¡Feliz mañana, ${nombreLimpio}!* Arrancamos un nuevo día con las cuentas en orden.\n\n` +
-          `Tus números de ayer quedaron muy bien registrados. Si hiciste algún pago adicional anoche o esta madrugada, dímelo por acá y lo sumamos de una vez. ¡A darle con toda!`
-        ];
-        mensaje8AM = opcionesConMov[Math.floor(Math.random() * opcionesConMov.length)];
+        mensaje8AMCuerpo = `Ayer dejamos varios movimientos organizados en tus cuentas. ¿Te quedó de pronto algún pago de anoche o compra de primera hora por anotar? Si es así, me avisas y lo dejamos al día. ¡Muchos éxitos en la jornada de hoy!`;
       } else {
-        const opcionesSinMov = [
-          `☀️ *¡Buenos días, ${nombreLimpio}!* Espero que hayas tenido una excelente noche.\n\n` +
-          `Arrancamos hoy con tus cuentas listas. Quería preguntarte si de pronto te quedó algún gasto o ingreso de ayer pendiente por anotar, o si la jornada estuvo completamente tranquila. Me cuentas y lo dejamos listo. ¡Que tengas un gran día!`,
-
-          `☀️ *¡Hola ${nombreLimpio}, feliz día!*\n\n` +
-          `Paso a saludarte al iniciar el día. Veo que ayer no tuvimos movimientos registrados; si se te quedó algo en el tintero de anoche o de esta mañana, solo escríbemelo o envíame un audio y lo asiento de inmediato. ¡Éxitos hoy!`
-        ];
-        mensaje8AM = opcionesSinMov[Math.floor(Math.random() * opcionesSinMov.length)];
+        mensaje8AMCuerpo = `Arrancamos hoy con tus cuentas listas. Quería preguntarte si de pronto te quedó algún gasto o ingreso de ayer pendiente por anotar, o si la jornada estuvo completamente tranquila. Me cuentas y lo dejamos listo. ¡Que tengas un gran día!`;
       }
 
-      // Soporte para Fallback a Plantilla Meta de Utilidad si la ventana de 24h está cerrada
-      let plantilla8AM = "recordatorio_matutino";
-      let idiomaPlantilla = "es_CO";
-      try {
-        const props = PropertiesService.getScriptProperties();
-        plantilla8AM = props.getProperty("META_TEMPLATE_RECORDATORIO_8AM") || "recordatorio_matutino";
-        idiomaPlantilla = props.getProperty("META_TEMPLATE_LANGUAGE") || "es_CO";
-      } catch (eProps8AM) {}
+      const defUsuario8AM = (typeof obtenerDefinicionPersonajeCompleta_ === "function")
+        ? obtenerDefinicionPersonajeCompleta_(perfilUsuario)
+        : null;
+      const frases8AM = (defUsuario8AM && defUsuario8AM.frasesCelebres && defUsuario8AM.frasesCelebres.length > 0)
+        ? defUsuario8AM.frasesCelebres
+        : ["Vigilancia permanente y radar limpio para un nuevo día."];
+      const frase8AM = frases8AM[Math.floor(Math.random() * frases8AM.length)];
+      const firma8AM = defUsuario8AM
+        ? `${defUsuario8AM.emoji} _«${frase8AM.replace(/^«|»$/g, "")}»_`
+        : `🦇 _«Vigilancia permanente y radar limpio para un nuevo día.»_`;
 
-      const resEnvio = enviarMensajeWhatsApp(telefono, mensaje8AM, {
-        nombrePlantilla: plantilla8AM,
-        idioma: idiomaPlantilla,
-        parametros: [nombreLimpio]
-      });
+      const mensaje8AMCard = `☀️ *CONTROL FINANCIERO MATUTINO*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Titular:* ${nombreLimpio}\n` +
+        `📅 *Fecha:* ${ayerStr} (Cierre) ➔ Hoy\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `${mensaje8AMCuerpo}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `${firma8AM}`;
 
-      if (resEnvio && resEnvio.enviado) {
-        if (resEnvio.plantilla) {
-          Logger.log(`☀️ [8:00 AM OK VÍA PLANTILLA '${resEnvio.plantilla}'] Entregado proactivamente fuera de ventana 24h a ${nombreLimpio} (${telefono}).`);
-        } else {
-          Logger.log(`☀️ [8:00 AM OK - TEXTO LIBRE] Despachado a ${nombreLimpio} (${telefono}).`);
-        }
-      } else {
-        Logger.log(`⚠️ [8:00 AM AVISO] No entregado a ${nombreLimpio} (${telefono}): ${resEnvio ? resEnvio.error : 'Sin respuesta'}`);
+      let audioScript8AM = `Buenos días, ${nombreLimpio}. Arrancamos la jornada. Si quedó algún gasto o venta de anoche o la madrugada pendiente, dímelo por aquí y lo sumamos de una vez. ¡Muchos éxitos hoy!`;
+      if (defUsuario8AM) {
+        audioScript8AM = `¡Buenos días, ${nombreLimpio}! ${defUsuario8AM.alias} a tu servicio. ¿Ayer quedó algún gasto o venta pendiente por registrar? Dímelo y lo dejo anotado de una vez. ¡Que tengas un día victorioso!`;
       }
+
+      enviarRespuestaVozWhatsApp(telefono, mensaje8AMCard, perfilUsuario, audioScript8AM);
+      Logger.log(`☀️ [8:00 AM OK] Tarjeta visual y nota de voz despachadas a ${nombreLimpio} (${telefono}).`);
     } catch(errUser) {
       Logger.log(`❌ Error procesando control 8:00 AM para usuario #${idx + 1}: ${errUser.message}`);
     }
@@ -2277,6 +2900,7 @@ function probarDespachoControl8AM() {
 
 /**
  * Instala automáticamente ambos disparadores de Apps Script (8:00 AM y 8:00 PM)
+ * Asegura compatibilidad con testRunnerFase3 y la ejecución diaria de alertas.
  */
 function instalarDisparadoresHorariosCompletos() {
   const triggers = ScriptApp.getProjectTriggers();
@@ -2287,23 +2911,31 @@ function instalarDisparadoresHorariosCompletos() {
     }
   });
 
-  // Disparador 8:00 AM
+  // Disparador 8:00 AM (Alertas y compromisos financieros - requerido por testRunnerFase3)
+  const tAlertas = ScriptApp.newTrigger("ejecutarDisparoDiarioAlertas")
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .create();
+
+  // Disparador 8:00 AM (Control Estricto matutino y seguimiento proactivo)
   const t8AM = ScriptApp.newTrigger("ejecutarControlEstricto8AM")
     .timeBased()
     .everyDays(1)
     .atHour(8)
     .create();
 
-  // Disparador 8:00 PM
+  // Disparador 8:00 PM (Escaneo de Inactividad y cierre nocturno)
   const t8PM = ScriptApp.newTrigger("ejecutarEscaneoInactividad8PM")
     .timeBased()
     .everyDays(1)
     .atHour(20)
     .create();
 
-  Logger.log("⏰ Disparadores instalados con éxito: 8:00 AM (Control Estricto) y 8:00 PM (Verificación Inactividad).");
+  Logger.log("⏰ Disparadores instalados con éxito: 8:00 AM (Alertas & Control Estricto) y 8:00 PM (Verificación Inactividad).");
   return {
     ok: true,
+    tAlertas: tAlertas.getUniqueId(),
     t8AM: t8AM.getUniqueId(),
     t8PM: t8PM.getUniqueId(),
     mensaje: "Disparadores de 8:00 AM y 8:00 PM programados con éxito."
@@ -2315,6 +2947,55 @@ function instalarDisparadorAlertasDiarias() {
 }
 
 /**
+ * Verifica y autotura la existencia de los disparadores horarios obligatorios (8:00 AM y 8:00 PM).
+ * Si por alguna razón fueron eliminados manualmente o por reinicio de Apps Script, se recrean sin intervención.
+ */
+function asegurarDisparadoresHorariosAutocurativos_() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    let tiene8AM = false;
+    let tiene8PM = false;
+    let tieneAlertas = false;
+
+    triggers.forEach(t => {
+      const fn = t.getHandlerFunction();
+      if (fn === "ejecutarControlEstricto8AM") tiene8AM = true;
+      if (fn === "ejecutarEscaneoInactividad8PM") tiene8PM = true;
+      if (fn === "ejecutarDisparoDiarioAlertas") tieneAlertas = true;
+    });
+
+    if (!tieneAlertas) {
+      ScriptApp.newTrigger("ejecutarDisparoDiarioAlertas")
+        .timeBased()
+        .everyDays(1)
+        .atHour(8)
+        .create();
+      Logger.log("⏰ [AUTOCURACIÓN] Disparador ejecutarDisparoDiarioAlertas (8:00 AM) reinstalado.");
+    }
+
+    if (!tiene8AM) {
+      ScriptApp.newTrigger("ejecutarControlEstricto8AM")
+        .timeBased()
+        .everyDays(1)
+        .atHour(8)
+        .create();
+      Logger.log("⏰ [AUTOCURACIÓN] Disparador ejecutarControlEstricto8AM (8:00 AM) reinstalado.");
+    }
+
+    if (!tiene8PM) {
+      ScriptApp.newTrigger("ejecutarEscaneoInactividad8PM")
+        .timeBased()
+        .everyDays(1)
+        .atHour(20)
+        .create();
+      Logger.log("⏰ [AUTOCURACIÓN] Disparador ejecutarEscaneoInactividad8PM (8:00 PM) reinstalado.");
+    }
+  } catch (errTrig) {
+    Logger.log("Aviso en asegurarDisparadoresHorariosAutocurativos_: " + errTrig.message);
+  }
+}
+
+/**
  * Elimina cualquier disparador automático huérfano, residual o de pruebas instalado en el proyecto
  */
 function purgarTodosLosDisparadoresHuerfanos() {
@@ -2322,7 +3003,7 @@ function purgarTodosLosDisparadoresHuerfanos() {
   let eliminados = 0;
   triggers.forEach(t => {
     const fn = t.getHandlerFunction();
-    const esPermitido = fn === "ejecutarControlEstricto8AM" || fn === "ejecutarEscaneoInactividad8PM";
+    const esPermitido = fn === "ejecutarControlEstricto8AM" || fn === "ejecutarEscaneoInactividad8PM" || fn === "ejecutarDisparoDiarioAlertas";
     if (!esPermitido) {
       ScriptApp.deleteTrigger(t);
       eliminados++;
@@ -2334,11 +3015,25 @@ function purgarTodosLosDisparadoresHuerfanos() {
 }
 
 /**
- * Función de compatibilidad para escáner matutino de deudas
+ * Escáner matutino de deudas y compromisos financieros por vencer
  */
 function ejecutarDisparoDiarioAlertas() {
   Logger.log("🌅 Ejecutando escáner matutino de compromisos financieros (8:00 AM)...");
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    try {
+      const propId = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
+      if (propId) ss = SpreadsheetApp.openById(propId);
+    } catch(eOpen) {
+      Logger.log("Aviso abriendo libro por ID en alertas: " + eOpen.message);
+    }
+  }
+
+  if (!ss) {
+    Logger.log("❌ Error crítico en escáner de alertas: No se pudo obtener acceso a la hoja de cálculo.");
+    return { totalAlertas: 0, alertasEnviadas: 0 };
+  }
+
   let totalAlertas = 0;
   let enviadas = 0;
 
@@ -2351,7 +3046,8 @@ function ejecutarDisparoDiarioAlertas() {
   if (alertasAdmin && alertasAdmin.length) {
     totalAlertas += alertasAdmin.length;
     alertasAdmin.forEach(alerta => {
-      const resultado = enviarMensajeWhatsApp(telAdmin, alerta.mensajeWhatsApp);
+      const cardAlerta = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, "GATO_CON_BOTAS", "Fernando");
+      const resultado = enviarMensajeWhatsApp(telAdmin, cardAlerta);
       if (resultado && resultado.enviado) enviadas++;
     });
   }
@@ -2376,7 +3072,8 @@ function ejecutarDisparoDiarioAlertas() {
           if (alertasUser && alertasUser.length) {
             totalAlertas += alertasUser.length;
             alertasUser.forEach(alerta => {
-              const resUser = enviarMensajeWhatsApp(telUsuario, alerta.mensajeWhatsApp);
+              const cardUser = formatearTarjetaVisualAcompanante_(alerta.mensajeWhatsApp, "FEMENINO_DULCE", u[1]);
+              const resUser = enviarMensajeWhatsApp(telUsuario, cardUser);
               if (resUser && resUser.enviado) enviadas++;
             });
           }

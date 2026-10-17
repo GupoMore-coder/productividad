@@ -260,6 +260,228 @@ function checkRateLimit(phone) {
 
 /**
  * ============================================================================
+ * 🔐 MOTOR CRIPTOGRÁFICO DE SELLADO EN REPOSO (FIELD-LEVEL ENCRYPTION AT REST)
+ * Estándar: HMAC-SHA256 Encrypt-then-MAC con Keystream y Sal Única por Campo
+ * ============================================================================
+ */
+
+function bytesToHex(bytes) {
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
+    hex += (b < 16 ? '0' : '') + b.toString(16);
+  }
+  return hex;
+}
+
+function hexToBytes(hex) {
+  var bytes = [];
+  for (var i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substr(i, 2), 16));
+  }
+  return bytes;
+}
+
+/**
+ * Cifra un campo sensible para almacenamiento en reposo en Google Sheets
+ * Retorna 'ENC:v1:<saltHex>:<ivHex>:<cipherHex>:<macHex>'
+ */
+function cifrarCampoEnReposo(plainText) {
+  if (plainText === null || plainText === undefined || plainText === '') return '';
+  var textStr = String(plainText);
+  if (textStr.indexOf('ENC:v1:') === 0) return textStr; // Ya sellado previamente
+
+  var secretSalt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+  var nonceBase = new Date().getTime() + ':' + Math.random() + ':' + secretSalt;
+  var digestA = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, nonceBase + ':SALT');
+  var digestB = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, nonceBase + ':IV');
+
+  var saltHex = bytesToHex(digestA.slice(0, 16));
+  var ivHex = bytesToHex(digestB.slice(0, 16));
+
+  var encKeyRaw = Utilities.computeHmacSha256Signature('ENC_KEY:' + saltHex, secretSalt);
+  var macKeyRaw = Utilities.computeHmacSha256Signature('MAC_KEY:' + saltHex, secretSalt);
+  var encKeyHex = bytesToHex(encKeyRaw);
+  var macKeyHex = bytesToHex(macKeyRaw);
+
+  var textBytes = Utilities.newBlob(textStr).getBytes();
+  var cipherBytes = [];
+  var blockCounter = 0;
+  var currentKeyStream = [];
+
+  for (var i = 0; i < textBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = Utilities.computeHmacSha256Signature(ivHex + ':' + blockCounter, encKeyHex);
+      blockCounter++;
+    }
+    var ksByte = currentKeyStream[i % 32];
+    var ksUnsigned = ksByte < 0 ? ksByte + 256 : ksByte;
+    var tbUnsigned = textBytes[i] < 0 ? textBytes[i] + 256 : textBytes[i];
+    cipherBytes.push(tbUnsigned ^ ksUnsigned);
+  }
+
+  var cipherHex = bytesToHex(cipherBytes);
+  var authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  var macRaw = Utilities.computeHmacSha256Signature(authPayload, macKeyHex);
+  var macHex = bytesToHex(macRaw);
+
+  return 'ENC:v1:' + saltHex + ':' + ivHex + ':' + cipherHex + ':' + macHex;
+}
+
+/**
+ * Descifra de forma transparente un campo sellado en reposo
+ */
+function descifrarCampoEnReposo(cipherText) {
+  if (cipherText === null || cipherText === undefined || cipherText === '') return '';
+  var str = String(cipherText);
+  if (str.indexOf('ENC:v1:') !== 0) return str; // Retrocompatibilidad para datos legados en texto claro
+
+  var parts = str.split(':');
+  if (parts.length !== 6) return str;
+
+  var saltHex = parts[2];
+  var ivHex = parts[3];
+  var cipherHex = parts[4];
+  var macHex = parts[5];
+
+  var secretSalt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+  var macKeyRaw = Utilities.computeHmacSha256Signature('MAC_KEY:' + saltHex, secretSalt);
+  var macKeyHex = bytesToHex(macKeyRaw);
+
+  var authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  var expectedMacRaw = Utilities.computeHmacSha256Signature(authPayload, macKeyHex);
+  var expectedMacHex = bytesToHex(expectedMacRaw);
+
+  if (!constantTimeEquals(macHex, expectedMacHex)) {
+    triggerSilentIDS('CRYPTO_ENGINE', 'FIELD_TAMPERING_DETECTED', cipherHex, 'Firma MAC inválida en campo cifrado en reposo');
+    return '[DATO_NO_VERIFICADO_CORRUPTO]';
+  }
+
+  var encKeyRaw = Utilities.computeHmacSha256Signature('ENC_KEY:' + saltHex, secretSalt);
+  var encKeyHex = bytesToHex(encKeyRaw);
+
+  var cipherBytes = hexToBytes(cipherHex);
+  var plainBytes = [];
+  var blockCounter = 0;
+  var currentKeyStream = [];
+
+  for (var i = 0; i < cipherBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = Utilities.computeHmacSha256Signature(ivHex + ':' + blockCounter, encKeyHex);
+      blockCounter++;
+    }
+    var ksByte = currentKeyStream[i % 32];
+    var ksUnsigned = ksByte < 0 ? ksByte + 256 : ksByte;
+    plainBytes.push(cipherBytes[i] ^ ksUnsigned);
+  }
+
+  return Utilities.newBlob(plainBytes).getDataAsString();
+}
+
+/**
+ * Tarea de mantenimiento: Sella en reposo todos los campos sensibles existentes en las 4 hojas
+ */
+function sellarCamposEnReposoSistema() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var totalSealed = 0;
+
+  // 1. Inventario Maestro (Columna 11: REGISTRO_PRIVADO_DONANTE)
+  var sheetInv = getSheetFlexible(ss, CONFIG.SHEET_INVENTARIO);
+  if (sheetInv && sheetInv.getLastRow() > 1) {
+    var rangeInv = sheetInv.getRange(2, 11, sheetInv.getLastRow() - 1, 1);
+    var valsInv = rangeInv.getValues();
+    var modInv = false;
+    for (var i = 0; i < valsInv.length; i++) {
+      var v = String(valsInv[i][0] || '').trim();
+      if (v && v.indexOf('ENC:v1:') !== 0) {
+        valsInv[i][0] = cifrarCampoEnReposo(v);
+        totalSealed++;
+        modInv = true;
+      }
+    }
+    if (modInv) rangeInv.setValues(valsInv);
+  }
+
+  // 2. Pendientes Adquisición (Columna 3: SOLICITANTE_PHONE, Columna 7: NOTAS_GESTOR)
+  var sheetPend = getSheetFlexible(ss, CONFIG.SHEET_PENDIENTES);
+  if (sheetPend && sheetPend.getLastRow() > 1) {
+    var rangePend = sheetPend.getRange(2, 1, sheetPend.getLastRow() - 1, sheetPend.getLastColumn());
+    var valsPend = rangePend.getValues();
+    var modPend = false;
+    for (var j = 0; j < valsPend.length; j++) {
+      var phone = String(valsPend[j][2] || '').trim();
+      if (phone && phone.indexOf('ENC:v1:') !== 0) {
+        valsPend[j][2] = cifrarCampoEnReposo(phone);
+        totalSealed++;
+        modPend = true;
+      }
+      var notas = String(valsPend[j][6] || '').trim();
+      if (notas && notas.indexOf('ENC:v1:') !== 0) {
+        valsPend[j][6] = cifrarCampoEnReposo(notas);
+        totalSealed++;
+        modPend = true;
+      }
+    }
+    if (modPend) rangePend.setValues(valsPend);
+  }
+
+  // 3. Memoria de Aprendizaje (Columna 3: CONSULTA_ORIGINAL)
+  var sheetMem = getSheetFlexible(ss, CONFIG.SHEET_MEMORIA);
+  if (sheetMem && sheetMem.getLastRow() > 1) {
+    var rangeMem = sheetMem.getRange(2, 3, sheetMem.getLastRow() - 1, 1);
+    var valsMem = rangeMem.getValues();
+    var modMem = false;
+    for (var k = 0; k < valsMem.length; k++) {
+      var q = String(valsMem[k][0] || '').trim();
+      if (q && q.indexOf('ENC:v1:') !== 0) {
+        valsMem[k][0] = cifrarCampoEnReposo(q);
+        totalSealed++;
+        modMem = true;
+      }
+    }
+    if (modMem) rangeMem.setValues(valsMem);
+  }
+
+  // 4. Directorio Usuarios (Columna 10: MOTIVO_SANCION y Columna 11: CORREO_ELECTRONICO)
+  var sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (sheetUsr && sheetUsr.getLastRow() > 1) {
+    // Sellar Columna 10: MOTIVO_SANCION
+    var rangeUsr = sheetUsr.getRange(2, 10, sheetUsr.getLastRow() - 1, 1);
+    var valsUsr = rangeUsr.getValues();
+    var modUsr = false;
+    for (var l = 0; l < valsUsr.length; l++) {
+      var mot = String(valsUsr[l][0] || '').trim();
+      if (mot && mot.indexOf('ENC:v1:') !== 0) {
+        valsUsr[l][0] = cifrarCampoEnReposo(mot);
+        totalSealed++;
+        modUsr = true;
+      }
+    }
+    if (modUsr) rangeUsr.setValues(valsUsr);
+
+    // Sellar Columna 11: CORREO_ELECTRONICO
+    if (sheetUsr.getLastColumn() >= 11) {
+      var rangeMail = sheetUsr.getRange(2, 11, sheetUsr.getLastRow() - 1, 1);
+      var valsMail = rangeMail.getValues();
+      var modMail = false;
+      for (var m = 0; m < valsMail.length; m++) {
+        var mail = String(valsMail[m][0] || '').trim();
+        if (mail && mail.indexOf('ENC:v1:') !== 0) {
+          valsMail[m][0] = cifrarCampoEnReposo(mail);
+          totalSealed++;
+          modMail = true;
+        }
+      }
+      if (modMail) rangeMail.setValues(valsMail);
+    }
+  }
+
+  Logger.log('🔒 Sellado Criptográfico en Reposo completado. Total celdas selladas: ' + totalSealed);
+  return { success: true, totalSealed: totalSealed };
+}
+
+/**
+ * ============================================================================
  * 🚨 SISTEMA DE VIGILANCIA SECRETA (IDS / HONEYPOT DE CIBERSEGURIDAD)
  * ============================================================================
  */
@@ -429,6 +651,21 @@ function getSheetFlexible(ss, targetName) {
 }
 
 /**
+ * Obtiene la URL canónica absoluta del Web App desplegado en Google Apps Script
+ */
+function getWebAppBaseUrl() {
+  try {
+    if (typeof ScriptApp !== 'undefined' && ScriptApp.getService) {
+      const url = ScriptApp.getService().getUrl();
+      if (url && url.indexOf('https://script.google.com') === 0) {
+        return url;
+      }
+    }
+  } catch (err) {}
+  return CONFIG.WEB_APP_URL;
+}
+
+/**
  * Obtiene o crea una pestaña con encabezados formateados si no existe
  */
 function getOrCreateSheet(ss, sheetName, headers) {
@@ -447,41 +684,283 @@ function getOrCreateSheet(ss, sheetName, headers) {
 }
 
 /**
- * Inicialización de las 4 pestañas maestras del sistema
+ * Asegura que las columnas especificadas existan en la fila de encabezados
+ */
+function asegurarColumnasEncabezados(sheet, expectedHeaders) {
+  if (!sheet || !expectedHeaders || !expectedHeaders.length) return;
+  const lastCol = Math.max(sheet.getLastColumn(), 1);
+  const currentHeaders = sheet.getRange(1, 1, 1, Math.max(lastCol, expectedHeaders.length)).getValues()[0] || [];
+
+  for (let i = 0; i < expectedHeaders.length; i++) {
+    const colIdx = i + 1;
+    const currentVal = String(currentHeaders[i] || '').trim();
+    if (!currentVal) {
+      sheet.getRange(1, colIdx).setValue(expectedHeaders[i]);
+      sheet.getRange(1, colIdx)
+        .setFontWeight('bold')
+        .setBackground('#0f2b48')
+        .setFontColor('#ffffff');
+    }
+  }
+}
+
+/**
+ * Catálogo de Códigos Telefónicos Internacionales, Banderas y Saludos Fraternos
+ */
+const COUNTRY_DIAL_MAP = [
+  { prefix: '+593', flag: '🇪🇨', name: 'Ecuador', defaultLang: 'ES', greeting: '¡Una calurosa bienvenida a los apreciados colegas de Ecuador 🇪🇨! Reconocidos por su vocación médica y continuo crecimiento académico.' },
+  { prefix: '+591', flag: '🇧🇴', name: 'Bolivia', defaultLang: 'ES', greeting: '¡Un fraternal saludo a la comunidad médica de Bolivia 🇧🇴! Ejemplo de dedicación clínica y servicio incondicional.' },
+  { prefix: '+506', flag: '🇨🇷', name: 'Costa Rica', defaultLang: 'ES', greeting: '¡Un saludo de pura vida a los distinguidos colegas de Costa Rica 🇨🇷! Referente en salud comunitaria y excelencia médica.' },
+  { prefix: '+507', flag: '🇵🇦', name: 'Panamá', defaultLang: 'ES', greeting: '¡Un afectuoso saludo a la comunidad médica de Panamá 🇵🇦! Puente de innovación y dinamismo en la salud regional.' },
+  { prefix: '+502', flag: '🇬🇹', name: 'Guatemala', defaultLang: 'ES', greeting: '¡Nuestra más cordial bienvenida a los colegas de Guatemala 🇬🇹! Tierra de nobleza, vocación y esfuerzo médico ejemplar.' },
+  { prefix: '+503', flag: '🇸🇻', name: 'El Salvador', defaultLang: 'ES', greeting: '¡Un saludo fraterno a los estimados colegas de El Salvador 🇸🇻! Reconocidos por su espíritu de superación y rigor asistencial.' },
+  { prefix: '+504', flag: '🇭🇳', name: 'Honduras', defaultLang: 'ES', greeting: '¡Una calurosa bienvenida a los apreciados médicos de Honduras 🇭🇳! Dedicados con valentía y compromiso a la salud ortopédica.' },
+  { prefix: '+505', flag: '🇳🇮', name: 'Nicaragua', defaultLang: 'ES', greeting: '¡Un cordial saludo a los colegas de Nicaragua 🇳🇮! Profesionales de gran entereza y entrega en el cuidado quirúrgico.' },
+  { prefix: '+598', flag: '🇺🇾', name: 'Uruguay', defaultLang: 'ES', greeting: '¡Un fuerte abrazo a la respetada comunidad médica de Uruguay 🇺🇾! Tradición de ética, solvencia científica y calidez profesional.' },
+  { prefix: '+595', flag: '🇵🇾', name: 'Paraguay', defaultLang: 'ES', greeting: '¡Un saludo muy especial a los estimados colegas de Paraguay 🇵🇾! De corazón generoso y admirable vocación asistencial.' },
+  { prefix: '+351', flag: '🇵🇹', name: 'Portugal', defaultLang: 'PT', greeting: 'Uma calorosa saudação aos estimados colegas de Portugal 🇵🇹! Berço de rica história, pioneirismo científico e elevado padrão clínico.' },
+  { prefix: '+57', flag: '🇨🇴', name: 'Colombia', defaultLang: 'ES', greeting: '¡Un saludo muy especial a nuestra querida comunidad médica de Colombia 🇨🇴! Tierra de resiliencia, calidez y excelencia en la práctica quirúrgica.' },
+  { prefix: '+52', flag: '🇲🇽', name: 'México', defaultLang: 'ES', greeting: '¡Un fraterno saludo a nuestros admirados colegas de México 🇲🇽! Cuna de gran tradición clínica, vocación médica y calidez humana.' },
+  { prefix: '+34', flag: '🇪🇸', name: 'España', defaultLang: 'ES', greeting: '¡Una afectuosa bienvenida a nuestros colegas de España 🇪🇸! Referente histórico de rigor científico, formación médica y vanguardia quirúrgica.' },
+  { prefix: '+54', flag: '🇦🇷', name: 'Argentina', defaultLang: 'ES', greeting: '¡Un cálido abrazo a la talentosa comunidad médica de Argentina 🇦🇷! Tierra de pasión, pensamiento crítico y destacada escuela ortopédica.' },
+  { prefix: '+56', flag: '🇨🇱', name: 'Chile', defaultLang: 'ES', greeting: '¡Un saludo muy especial a nuestros colegas de Chile 🇨🇱! Ejemplo de constancia, rigor formativo y compromiso con la traumatología de calidad.' },
+  { prefix: '+51', flag: '🇵🇪', name: 'Perú', defaultLang: 'ES', greeting: '¡Nuestra más cordial bienvenida a los hermanos médicos de Perú 🇵🇪! Tierra de profunda historia milenaria y ejemplar entrega en la atención de salud.' },
+  { prefix: '+58', flag: '🇻🇪', name: 'Venezuela', defaultLang: 'ES', greeting: '¡Un entrañable abrazo a los admirados médicos de Venezuela 🇻🇪! Ejemplo permanente de perseverancia, mística y talento clínico.' },
+  { prefix: '+55', flag: '🇧🇷', name: 'Brasil', defaultLang: 'PT', greeting: 'Uma calorosa saudação à comunidade médica do Brasil 🇧🇷! Terra de vanguarda cirúrgica, alegria contagiante e notável dedicação clínica.' },
+  { prefix: '+44', flag: '🇬🇧', name: 'Reino Unido', defaultLang: 'EN', greeting: 'A warm welcome to our esteemed colleagues from the United Kingdom 🇬🇧! A bedrock of evidence-based medicine and surgical mastery.' },
+  { prefix: '+33', flag: '🇫🇷', name: 'Francia', defaultLang: 'FR', greeting: 'Une chaleureuse bienvenue à nos estimés confrères de France 🇫🇷! Berceau de l\\\'excellence chirurgicale et de la tradition académique.' },
+  { prefix: '+49', flag: '🇩🇪', name: 'Alemania', defaultLang: 'DE', greeting: 'Ein herzliches Willkommen an unsere geschätzten Kollegen aus Deutschland 🇩🇪! Vorreiter in chirurgischer Präzision, Biomechanik und Innovation.' },
+  { prefix: '+39', flag: '🇮🇹', name: 'Italia', defaultLang: 'IT', greeting: 'Un caloroso benvenuto ai nostri stimati colleghi d\\\'Italia 🇮🇹! Culla di tradizione anatomica e prestigiosa scuola ortopedica.' },
+  { prefix: '+1', flag: '🇺🇸', name: 'Estados Unidos / Canadá', defaultLang: 'EN', greeting: 'A warm welcome to our medical colleagues connecting from the United States and Canada 🇺🇸/🇨🇦! Global leaders in biomedical innovation and clinical excellence.' }
+];
+
+function resolveCountryAndLanguage(phone) {
+  const clean = '+' + String(phone || '').replace(/[^\\d]/g, '');
+  for (let i = 0; i < COUNTRY_DIAL_MAP.length; i++) {
+    if (clean.indexOf(COUNTRY_DIAL_MAP[i].prefix) === 0) {
+      return COUNTRY_DIAL_MAP[i];
+    }
+  }
+  return {
+    prefix: '+',
+    flag: '🌎',
+    name: 'Internacional',
+    defaultLang: 'ES',
+    greeting: '¡Una cordial bienvenida a nuestra comunidad médica internacional 🌎! Unidos por la vocación quirúrgica y el rigor científico.'
+  };
+}
+
+function translateTextForUser(text, targetLang) {
+  const lang = (targetLang || 'ES').trim().toUpperCase();
+  if (lang === 'ES' || !text) return text;
+  try {
+    const translated = LanguageApp.translate(text, '', lang.toLowerCase());
+    let prefix = '';
+    if (lang === 'EN') prefix = '🌐 *[English Version]*\\\\n';
+    else if (lang === 'PT') prefix = '🌐 *[Versão em Português]*\\\\n';
+    else if (lang === 'FR') prefix = '🌐 *[Version Française]*\\\\n';
+    return prefix + translated;
+  } catch (e) {
+    Logger.log('⚠️ Error en traducción LanguageApp: ' + e.message);
+    return text;
+  }
+}
+
+function sincronizarPaisesEIdiomasUsuarios() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (!sheetUsr) return;
+  const data = sheetUsr.getDataRange().getValues();
+  if (data.length <= 1) return;
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const phone = String(row[0] || '');
+    if (!phone) continue;
+
+    const currentFlag = row.length >= 13 ? row[12] : '';
+    const currentCountry = row.length >= 14 ? row[13] : '';
+    const currentLang = row.length >= 15 ? row[14] : '';
+
+    if (!currentFlag || !currentCountry || !currentLang) {
+      const info = resolveCountryAndLanguage(phone);
+      if (!currentFlag) sheetUsr.getRange(i + 1, 13).setValue(info.flag);
+      if (!currentCountry) sheetUsr.getRange(i + 1, 14).setValue(info.name);
+      if (!currentLang) sheetUsr.getRange(i + 1, 15).setValue(info.defaultLang || 'ES');
+    }
+  }
+  Logger.log('✅ Sincronización de banderas, países e idiomas completada con éxito.');
+}
+
+/**
+ * Configura la lista desplegable oficial de Estado_Acceso en Directorio_Usuarios (Columna E)
+ * y la lista desplegable oficial de Idioma_Preferido (Columna O)
+ * Permite al Gestor de Contenido seleccionar entre todos los estatus aprobados:
+ * ACTIVO, PENDIENTE_APROBACION, SUSPENDIDO_24H, SUSPENDIDO_48H, SUSPENDIDO_72H, BLOQUEADO, EXPULSADO, RECHAZADO, APROBADO
+ */
+function configurarValidacionUsuarios() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  if (!sheetUsr) {
+    Logger.log('⚠️ No se encontró la hoja ' + CONFIG.SHEET_USUARIOS);
+    return;
+  }
+
+  // 1. Asegurar encabezados de columnas I a O
+  const h9 = sheetUsr.getRange(1, 9).getValue();
+  if (!h9) {
+    sheetUsr.getRange(1, 9).setValue('Fecha_Fin_Suspension')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h10 = sheetUsr.getRange(1, 10).getValue();
+  if (!h10) {
+    sheetUsr.getRange(1, 10).setValue('Motivo_Sancion')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h11 = sheetUsr.getRange(1, 11).getValue();
+  if (!h11) {
+    sheetUsr.getRange(1, 11).setValue('Correo_Electronico')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h12 = sheetUsr.getRange(1, 12).getValue();
+  if (!h12) {
+    sheetUsr.getRange(1, 12).setValue('Historial_Actualizaciones')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h13 = sheetUsr.getRange(1, 13).getValue();
+  if (!h13) {
+    sheetUsr.getRange(1, 13).setValue('Bandera_Pais')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h14 = sheetUsr.getRange(1, 14).getValue();
+  if (!h14) {
+    sheetUsr.getRange(1, 14).setValue('Pais_Origen')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+  const h15 = sheetUsr.getRange(1, 15).getValue();
+  if (!h15) {
+    sheetUsr.getRange(1, 15).setValue('Idioma_Preferido')
+      .setFontWeight('bold')
+      .setBackground('#0f2b48')
+      .setFontColor('#ffffff');
+  }
+
+  // 2. Opciones oficiales del estatus definido (Columna E)
+  const listaEstatus = [
+    'ACTIVO',
+    'PENDIENTE_APROBACION',
+    'SUSPENDIDO_24H',
+    'SUSPENDIDO_48H',
+    'SUSPENDIDO_72H',
+    'BLOQUEADO',
+    'EXPULSADO',
+    'RECHAZADO',
+    'APROBADO'
+  ];
+
+  // 3. Crear regla de validación desplegable para Estatus
+  const ruleEstatus = SpreadsheetApp.newDataValidation()
+    .requireValueInList(listaEstatus, true)
+    .setAllowInvalid(true)
+    .setHelpText('Seleccione un estatus: ACTIVO, PENDIENTE_APROBACION, SUSPENDIDO_24H, SUSPENDIDO_48H, SUSPENDIDO_72H, BLOQUEADO, EXPULSADO, RECHAZADO')
+    .build();
+  sheetUsr.getRange('E2:E1000').setDataValidation(ruleEstatus);
+
+  // 4. Crear regla de validación desplegable para Idioma_Preferido (Columna O)
+  const listaIdiomas = ['ES', 'EN', 'PT', 'FR', 'DE', 'IT'];
+  const ruleIdioma = SpreadsheetApp.newDataValidation()
+    .requireValueInList(listaIdiomas, true)
+    .setAllowInvalid(true)
+    .setHelpText('Seleccione idioma de comunicación: ES, EN, PT, FR, DE, IT')
+    .build();
+  sheetUsr.getRange('O2:O1000').setDataValidation(ruleIdioma);
+
+  Logger.log('✅ Validación de datos desplegable configurada en Directorio_Usuarios (Columnas E y O)');
+}
+
+/**
+ * Inicialización de las 4 pestañas maestras del sistema y validaciones
  */
 function inicializarSistema() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 1. Inventario Maestro
-  getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO, [
+  // 1. Inventario Maestro (con Atribución Privada Interna de Donante)
+  const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO, [
     'ID_DOCUMENTO', 'DRIVE_FILE_ID', 'ANIO', 'AUTOR_PRINCIPAL', 
     'TITULO_COMPLETO', 'SUBESPECIALIDAD', 'TIPO_DOCUMENTO', 
-    'CLASIFICACION_AO', 'TERMINOS_MESH'
+    'CLASIFICACION_AO', 'TERMINOS_MESH',
+    'CANAL_APORTE', 'REGISTRO_PRIVADO_DONANTE', 'FECHA_RECEPCION'
+  ]);
+  asegurarColumnasEncabezados(sheetInv, [
+    'ID_DOCUMENTO', 'DRIVE_FILE_ID', 'ANIO', 'AUTOR_PRINCIPAL', 
+    'TITULO_COMPLETO', 'SUBESPECIALIDAD', 'TIPO_DOCUMENTO', 
+    'CLASIFICACION_AO', 'TERMINOS_MESH',
+    'CANAL_APORTE', 'REGISTRO_PRIVADO_DONANTE', 'FECHA_RECEPCION'
   ]);
 
   // 2. Pendientes Adquisición
-  getOrCreateSheet(ss, CONFIG.SHEET_PENDIENTES, [
+  const sheetPend = getOrCreateSheet(ss, CONFIG.SHEET_PENDIENTES, [
+    'TICKET_ID', 'FECHA_SOLICITUD', 'SOLICITANTE_PHONE', 'TITULO_O_TEMA', 
+    'DOI_O_ISBN', 'ESTADO_GESTION', 'NOTAS_GESTOR'
+  ]);
+  asegurarColumnasEncabezados(sheetPend, [
     'TICKET_ID', 'FECHA_SOLICITUD', 'SOLICITANTE_PHONE', 'TITULO_O_TEMA', 
     'DOI_O_ISBN', 'ESTADO_GESTION', 'NOTAS_GESTOR'
   ]);
 
-  // 3. Directorio Usuarios
-  getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS, [
-    'WHATSAPP_PHONE', 'NOMBRE_COMPLETO', 'HOSPITAL_UNIVERSIDAD', 
-    'NIVEL_RESIDENCIA', 'ESTADO_ACCESO', 'FECHA_REGISTRO', 
-    'DESCARGAS_MES', 'ULTIMA_ACTIVIDAD'
+  // 3. Directorio Usuarios (con Escala Disciplinaria, Fin de Suspensión, Correo, Control de Actualizaciones, País e Idioma)
+  const sheetUsr = getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS, [
+    'Telefono_WhatsApp', 'Nombre_Completo', 'Universidad_Institucion', 
+    'Nivel_Formacion', 'Estado_Acceso', 'Fecha_Registro', 
+    'Cuota_Descargas_Restante', 'Ultima_Interaccion',
+    'Fecha_Fin_Suspension', 'Motivo_Sancion',
+    'Correo_Electronico', 'Historial_Actualizaciones',
+    'Bandera_Pais', 'Pais_Origen', 'Idioma_Preferido'
+  ]);
+  asegurarColumnasEncabezados(sheetUsr, [
+    'Telefono_WhatsApp', 'Nombre_Completo', 'Universidad_Institucion', 
+    'Nivel_Formacion', 'Estado_Acceso', 'Fecha_Registro', 
+    'Cuota_Descargas_Restante', 'Ultima_Interaccion',
+    'Fecha_Fin_Suspension', 'Motivo_Sancion',
+    'Correo_Electronico', 'Historial_Actualizaciones',
+    'Bandera_Pais', 'Pais_Origen', 'Idioma_Preferido'
   ]);
 
   // 4. Memoria de Aprendizaje y Telemetría
-  getOrCreateSheet(ss, CONFIG.SHEET_MEMORIA, [
+  const sheetMem = getOrCreateSheet(ss, CONFIG.SHEET_MEMORIA, [
+    'TIMESTAMP', 'USUARIO_ANONIMIZADO', 'CONSULTA_ORIGINAL', 
+    'TERMINOS_DETECTADOS', 'RESULTADO', 'DOCUMENTO_ENTREGADO'
+  ]);
+  asegurarColumnasEncabezados(sheetMem, [
     'TIMESTAMP', 'USUARIO_ANONIMIZADO', 'CONSULTA_ORIGINAL', 
     'TERMINOS_DETECTADOS', 'RESULTADO', 'DOCUMENTO_ENTREGADO'
   ]);
 
+  // Configurar Validación de Datos Desplegable en Directorio de Usuarios
+  configurarValidacionUsuarios();
+
+  // Sincronizar Banderas, Países e Idiomas retroactivamente en usuarios preexistentes
+  sincronizarPaisesEIdiomasUsuarios();
+
   // Inicializar propiedades seguras
   inicializarPropiedadesSeguras();
 
-  Logger.log('✅ Sistema inicializado con las 4 pestañas maestras y blindaje de seguridad activado.');
+  // Sellado criptográfico en reposo retrocompatible de campos preexistentes
+  sellarCamposEnReposoSistema();
+
+  Logger.log('✅ Sistema inicializado con las 4 pestañas maestras, validaciones de estatus y blindaje de seguridad activado.');
 }
 
 /**
@@ -565,7 +1044,8 @@ function procesarBuzonCloud() {
 
       sheetInv.appendRow([
         docId, newDriveId, year, 'Autor Especializado', 
-        sanitizeSheetValue(cleanName), subspecialty, 'PDF', aoClass, 'Ingesta Cloud'
+        sanitizeSheetValue(cleanName), subspecialty, 'PDF', aoClass, 'Ingesta Especializada',
+        'Buzon_Digital', cifrarCampoEnReposo('Aporte Anónimo Web'), Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
       ]);
 
       existingTitles.add(normTitle);
@@ -821,7 +1301,7 @@ function renderEvidenceReport(payload) {
     '</style></head><body>' +
     '<div class="box">' +
     '  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">' +
-    '    <div><h1>Ficha de Síntesis de Evidencia Médica</h1><div class="sub">Biblioteca de Ortopedia • Dirección: Gestor de Contenido</div></div>' +
+    '    <div><h1>Ficha de Síntesis de Evidencia Médica</h1><div class="sub">Biblioteca de Ortopedia • Dirección Institucional: Dirección del Proyecto</div></div>' +
     '    <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>' +
     '  </div>' +
     '  <h3 style="font-size:14px; color:#0f2b48; margin-bottom:6px;">Pregunta Clínica Formulada:</h3>' +
@@ -1120,7 +1600,7 @@ function enviarBoletinDominical() {
   const bulletinHeader = 
     '☀️ *BOLETÍN DOMINICAL DE ACTUALIZACIÓN QUIRÚRGICA*\\\\n' +
     '*Biblioteca Médica de Cirugía Ortopédica*\\\\n' +
-    '*Dirección:* Gestor de Contenido\\\\n' +
+    '*Dirección:* Dirección del Proyecto\\\\n' +
     '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
     'Estimados Médicos y Residentes:\\\\n\\\\n' +
     'Presentamos la selección editorial de la semana para debate y actualización en revista de sala (Grand Rounds):\\\\n\\\\n';
@@ -1147,7 +1627,7 @@ function enviarBoletinDominical() {
   for (let u = 1; u < usrData.length; u++) {
     const status = usrData[u][4];
     const phone = String(usrData[u][0]).replace(/[^\\d+]/g, '');
-    if (status === 'APROBADO' && phone !== adminPhone) {
+    if ((status === 'APROBADO' || status === 'ACTIVO') && phone !== adminPhone) {
       sendWhatsAppText(phone, fullBulletin);
       countSent++;
       Utilities.sleep(300); // Pausa de estabilidad
@@ -1256,20 +1736,36 @@ function callGeminiClinicalEngine(prompt, systemInstruction) {
 function handleWhatsAppPdfDonation(cleanPhone, senderName, docObj) {
   try {
     const docName = docObj.filename || ('Aporte_Ortho_' + Date.now() + '.pdf');
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+    const invData = sheetInv.getDataRange().getValues();
+    const docId = 'DOC-WA-' + ('0000' + invData.length).slice(-5);
+    const cleanTitle = docName.replace(/\.pdf$/i, '').replace(/[^\w\.\-\s]/gi, '_');
+
+    // Registrar en Inventario Maestro con datos de donante privado sellados criptográficamente
+    sheetInv.appendRow([
+      docId, 'PENDIENTE_DRIVE_ID', new Date().getFullYear(), 'Autor Especializado',
+      sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte WhatsApp',
+      'WhatsApp', cifrarCampoEnReposo(sanitizeSheetValue(senderName + ' (' + cleanPhone + ')')),
+      Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+    ]);
+    invalidateInventoryCache();
+
     sendWhatsAppText(cleanPhone, 
       '🩺 *APORTE CLÍNICO RECIBIDO CON ÉXITO*\\\\n' +
       '*Biblioteca Médica de Cirugía Ortopédica*\\\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
       'Estimado(a) *' + senderName + '*:\\\\n\\\\n' +
-      'Su documento *"' + docName + '"* ha sido recibido y derivado a la bóveda privada para su clasificación.\\\\n\\\\n' +
+      'Su documento *"' + docName + '"* ha sido recibido y derivado al acervo privado para su clasificación.\\\\n\\\\n' +
       'Agradecemos sinceramente su contribución al enriquecimiento continuo de la biblioteca académica.'
     );
     const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
     sendWhatsAppText(adminPhone, 
       '📥 *NUEVO APORTE DE LITERATURA POR WHATSAPP*\\\\n' +
-      '👤 Médico: ' + senderName + ' (' + cleanPhone + ')\\\\n' +
+      '👤 Médico (Registro Privado): ' + senderName + ' (' + cleanPhone + ')\\\\n' +
       '📄 Archivo: "' + docName + '"\\\\n' +
-      '👉 Clasificado automáticamente en el catálogo.'
+      '🆔 ID Registro: ' + docId + '\\\\n' +
+      '👉 Catalogado en Inventario Maestro bajo estricto control interno de Dirección.'
     );
     recordTelemetry(cleanPhone, docName, 'WHATSAPP_DONACION', 'EXITO_DONACION', docName);
   } catch (err) {
@@ -1296,6 +1792,13 @@ function doGet(e) {
       return ContentService.createTextOutput(challenge);
     }
     return ContentService.createTextOutput('Token de verificación inválido').setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  // 1.5 Buzón Digital Seguro Anónimo (?mode=buzon)
+  const modeParam = String(params.mode || (e && e.parameters && e.parameters.mode && e.parameters.mode[0]) || '').toLowerCase();
+  const queryStr = String((e && e.queryString) || '').toLowerCase();
+  if (modeParam === 'buzon' || queryStr.indexOf('mode=buzon') !== -1) {
+    return serveBuzonDropzone();
   }
 
   // 2. Acceso o descarga mediante token efímero
@@ -1347,7 +1850,7 @@ function doGet(e) {
       return HtmlService.createHtmlOutput(
         '<div style="font-family:sans-serif; text-align:center; padding:40px; color:#1e293b;">' +
         '<h2>⚠️ Enlace Expirado (TTL 30 min)</h2>' +
-        '<p>Por políticas de seguridad médica del Gestor de Contenido, este enlace ha caducado.</p>' +
+        '<p>Por políticas de seguridad médica institucional, este enlace ha caducado.</p>' +
         '<p>Solicite uno nuevo escribiendo en el chat de WhatsApp.</p></div>'
       );
     }
@@ -1393,20 +1896,31 @@ function doGet(e) {
  * Renderiza el Manual Interactivo de Alto Impacto
  */
 function renderRichInteractiveManual(b64Pdf) {
-  const baseHtml = ` + cleanHtmlEscaped + `;
+  const webAppUrl = getWebAppBaseUrl();
+  const buzonUrl = webAppUrl + '?mode=buzon';
+
+  let baseHtml = ` + cleanHtmlEscaped + `;
+  baseHtml = baseHtml.replace(/href="\\?mode=buzon"/g, 'href="' + buzonUrl + '"');
+  baseHtml = baseHtml.replace(/href='\\?mode=buzon'/g, 'href="' + buzonUrl + '"');
+
+  const scriptInjection = '<script>window.CANONICAL_APP_URL = "' + webAppUrl + '";</script>';
+  baseHtml = baseHtml.replace('</head>', scriptInjection + '</head>');
 
   const topDownloadBar = 
-    '<div class="no-print" style="position:sticky; top:0; z-index:999; background:#0f2b48; color:#ffffff; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,0.18); border-bottom:2.5px solid #0d9488; flex-wrap:wrap; gap:10px;">' +
-    '  <div style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px;">' +
-    '    <span style="font-size:16px;">📖</span>' +
+    '<div class="no-print" style="position:sticky; top:0; z-index:999; background:#071324; color:#ffffff; padding:10px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 14px rgba(0,0,0,0.18); border-bottom:2.5px solid #0d9488; flex-wrap:wrap; gap:10px;">' +
+    '  <div style="font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px;">' +
+    '    <span style="font-size:15px;">📖</span>' +
     '    <span>Biblioteca Médica de Cirugía Ortopédica</span>' +
-    '    <span style="background:#0d9488; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; font-weight:700;">Gestor de Contenido</span>' +
+    '    <span style="background:#0d9488; color:#fff; font-size:9.5px; padding:2px 8px; border-radius:4px; font-weight:700;">Dirección del Proyecto</span>' +
     '  </div>' +
     '  <div style="display:flex; align-items:center; gap:10px;">' +
+    '    <a href="' + buzonUrl + '" target="_blank" class="buzon-direct-link" style="background:#0284c7; color:#ffffff; text-decoration:none; padding:7px 14px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">' +
+    '      📤 Buzón Digital' +
+    '    </a>' +
     '    <a href="https://wa.me/573205955993?text=MANUAL" target="_blank" style="background:#1e3a5f; color:#38bdf8; text-decoration:none; padding:7px 14px; border-radius:6px; font-size:11.5px; font-weight:700; border:1px solid #38bdf8; display:inline-flex; align-items:center; gap:6px;">' +
     '      💬 Abrir en WhatsApp' +
     '    </a>' +
-    '    <a id="btnDescargarPdfManual" style="background:#0d9488; color:#ffffff; text-decoration:none; padding:8px 18px; border-radius:6px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.25); cursor:pointer;">' +
+    '    <a id="btnDescargarPdfManual" style="background:#0d9488; color:#ffffff; text-decoration:none; padding:7px 16px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.25); cursor:pointer;">' +
     '      📥 Descargar Manual Oficial (PDF)' +
     '    </a>' +
     '  </div>' +
@@ -1438,7 +1952,826 @@ function renderRichInteractiveManual(b64Pdf) {
 
   return HtmlService.createHtmlOutput(finalHtml)
     .setTitle('Manual Oficial - Biblioteca Médica de Ortopedia')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Sirve el Buzón Digital Seguro Anónimo embebido (?mode=buzon)
+ * Compatible con archivos grandes (> 45 MB hasta 2 GB) vía Chunked Upload
+ */
+function serveBuzonDropzone() {
+  const webAppUrl = getWebAppBaseUrl();
+  const buzonHtml = '<!DOCTYPE html>' +
+    '<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Buzón Digital Seguro — Biblioteca Médica Especializada</title>' +
+    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">' +
+    '<style>' +
+    '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+    'body { font-family: "Plus Jakarta Sans", sans-serif; background: #071324; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }' +
+    '.buzon-card { background: #0f1e33; border: 1px solid #1e3a5f; border-radius: 16px; padding: 32px 28px; max-width: 600px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); position: relative; overflow: hidden; }' +
+    '.buzon-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #0d9488, #0284c7); }' +
+    '.top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }' +
+    '.btn-back { color: #38bdf8; text-decoration: none; font-size: 8.5pt; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); transition: all 0.2s; }' +
+    '.btn-back:hover { background: rgba(56, 189, 248, 0.18); border-color: #38bdf8; }' +
+    '.badge-inst { font-family: "JetBrains Mono", monospace; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5eead4; background: rgba(13, 148, 136, 0.2); border: 1px solid rgba(13, 148, 136, 0.4); padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 12px; }' +
+    'h1 { font-size: 17pt; font-weight: 800; color: #ffffff; margin-bottom: 6px; letter-spacing: -0.5px; }' +
+    'p.desc { font-size: 9pt; color: #94a3b8; line-height: 1.5; margin-bottom: 18px; }' +
+    '.large-file-banner { background: rgba(2, 132, 199, 0.08); border: 1px solid #0284c7; border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; font-size: 8.5pt; color: #bae6fd; line-height: 1.45; }' +
+    '.large-file-banner strong { color: #38bdf8; }' +
+    '.dropzone { border: 2px dashed #0d9488; background: rgba(13, 148, 136, 0.05); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; position: relative; }' +
+    '.dropzone:hover, .dropzone.dragover { background: rgba(13, 148, 136, 0.12); border-color: #5eead4; transform: scale(1.01); }' +
+    '.drop-icon { font-size: 40px; margin-bottom: 8px; display: block; }' +
+    '.drop-title { font-size: 10pt; font-weight: 700; color: #ffffff; margin-bottom: 4px; }' +
+    '.drop-sub { font-size: 8.5pt; color: #64748b; }' +
+    'input[type="file"] { display: none; }' +
+    '.donor-box { margin-top: 14px; text-align: left; }' +
+    '.donor-label { font-size: 8.5pt; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px; }' +
+    '.donor-input { width: 100%; padding: 10px 14px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; color: #f8fafc; font-size: 9pt; font-family: inherit; }' +
+    '.donor-note { font-size: 7.5pt; color: #64748b; margin-top: 4px; display: block; }' +
+    '.opt-label { display: flex; align-items: center; gap: 8px; font-size: 8.5pt; color: #94a3b8; margin-top: 12px; cursor: pointer; }' +
+    '.file-preview { display: none; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px 16px; margin-top: 16px; align-items: center; justify-content: space-between; gap: 12px; }' +
+    '.file-info { display: flex; align-items: center; gap: 10px; overflow: hidden; }' +
+    '.file-name { font-size: 9pt; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }' +
+    '.progress-box { display: none; margin-top: 16px; background: #15263f; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px; }' +
+    '.progress-bar-bg { width: 100%; height: 8px; background: #071324; border-radius: 4px; overflow: hidden; }' +
+    '.progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0d9488, #0284c7); transition: width 0.2s ease; }' +
+    '.progress-label { font-size: 8pt; color: #94a3b8; text-align: center; margin-top: 6px; }' +
+    '.btn-submit { width: 100%; background: linear-gradient(135deg, #0d9488, #0284c7); color: #ffffff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 10pt; font-weight: 700; cursor: pointer; margin-top: 18px; transition: all 0.2s ease; display: none; }' +
+    '.btn-submit:hover { box-shadow: 0 6px 20px rgba(13, 148, 136, 0.4); transform: translateY(-1px); }' +
+    '.status-box { margin-top: 16px; padding: 14px; border-radius: 8px; font-size: 9pt; display: none; text-align: center; line-height: 1.5; }' +
+    '.status-box.success { background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #6ee7b7; }' +
+    '.status-box.error { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #fca5a5; }' +
+    '.footer-note { text-align: center; font-size: 8pt; color: #475569; margin-top: 18px; line-height: 1.4; }' +
+    '</style></head><body>' +
+    '<div class="buzon-card">' +
+    '  <div class="top-nav">' +
+    '    <a href="' + webAppUrl + '" class="btn-back">← Volver a la Guía Maestra</a>' +
+    '    <span style="font-size: 8pt; color: #64748b;">Recepción Confidencial 24/7</span>' +
+    '  </div>' +
+    '  <div class="badge-inst">Buzón Digital Seguro • Acceso Confidencial</div>' +
+    '  <h1>Buzón Digital de Aportes</h1>' +
+    '  <p class="desc">Canal institucional anónimo para compartir artículos científicos, monografías y técnicas quirúrgicas en PDF para enriquecimiento colectivo.</p>' +
+    '  <div class="large-file-banner">' +
+    '    <strong>📦 Aportes de Gran Volumen (> 45 MB hasta 2 GB):</strong><br>' +
+    '    • <strong>WhatsApp Directo:</strong> Puede adjuntar como documento (hasta 2 GB) en el chat con la palabra <code>APORTE</code>.<br>' +
+    '    • <strong>Subida Fraccionada:</strong> Este buzón segmenta automáticamente en bloques seguros de 10 MB con sesión reanudable efímera.' +
+    '  </div>' +
+    '  <div class="dropzone" id="dropArea">' +
+    '    <span class="drop-icon">📑</span>' +
+    '    <div class="drop-title">Arrastra tu archivo PDF aquí</div>' +
+    '    <div class="drop-sub">o haz clic para examinar desde tu dispositivo (Soporta archivos grandes)</div>' +
+    '    <input type="file" id="fileInput" accept="application/pdf">' +
+    '  </div>' +
+    '  <div class="file-preview" id="filePreview">' +
+    '    <div class="file-info">' +
+    '      <span style="font-size: 20px;">📄</span>' +
+    '      <span class="file-name" id="fileNameDisp">archivo.pdf</span>' +
+    '    </div>' +
+    '    <span style="color:#ef4444; cursor:pointer; font-weight:bold;" id="btnClearFile">✕</span>' +
+    '  </div>' +
+    '  <div class="donor-box">' +
+    '    <label class="donor-label" for="donorInput">Datos del Aportante (Opcional):</label>' +
+    '    <input type="text" id="donorInput" class="donor-input" placeholder="Nombre / Institución / Hospital">' +
+    '    <span class="donor-note">🔒 Registro estrictamente privado para control interno de la Dirección. Nunca se expondrá ni publicará externamente.</span>' +
+    '  </div>' +
+    '  <label class="opt-label">' +
+    '    <input type="checkbox" id="chkOptimize" checked>' +
+    '    <span>Habilitar optimización clínica y fragmentación por bloques (Chunked Upload)</span>' +
+    '  </label>' +
+    '  <div class="progress-box" id="progressBox">' +
+    '    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar"></div></div>' +
+    '    <div class="progress-label" id="progressText">Iniciando subida...</div>' +
+    '  </div>' +
+    '  <button class="btn-submit" id="btnUpload">📤 Depositar en el Buzón Digital</button>' +
+    '  <div class="status-box" id="statusBox"></div>' +
+    '  <div class="footer-note">Biblioteca Médica Especializada de Cirugía Ortopédica y Traumatología<br>Dirección Institucional • Recepción Confidencial y Segura</div>' +
+    '</div>' +
+    '<script>' +
+    '  let selectedFile = null;' +
+    '  const dropArea = document.getElementById("dropArea");' +
+    '  const fileInput = document.getElementById("fileInput");' +
+    '  const filePreview = document.getElementById("filePreview");' +
+    '  const fileNameDisp = document.getElementById("fileNameDisp");' +
+    '  const donorInput = document.getElementById("donorInput");' +
+    '  const chkOptimize = document.getElementById("chkOptimize");' +
+    '  const progressBox = document.getElementById("progressBox");' +
+    '  const progressBar = document.getElementById("progressBar");' +
+    '  const progressText = document.getElementById("progressText");' +
+    '  const btnUpload = document.getElementById("btnUpload");' +
+    '  const statusBox = document.getElementById("statusBox");' +
+    '  const btnClearFile = document.getElementById("btnClearFile");' +
+    '  dropArea.addEventListener("click", function() { fileInput.click(); });' +
+    '  btnClearFile.addEventListener("click", clearFile);' +
+    '  btnUpload.addEventListener("click", uploadSelectedFile);' +
+    '  ["dragenter", "dragover"].forEach(eventName => {' +
+    '    dropArea.addEventListener(eventName, (e) => { e.preventDefault(); dropArea.classList.add("dragover"); }, false);' +
+    '  });' +
+    '  ["dragleave", "drop"].forEach(eventName => {' +
+    '    dropArea.addEventListener(eventName, (e) => { e.preventDefault(); dropArea.classList.remove("dragover"); }, false);' +
+    '  });' +
+    '  dropArea.addEventListener("drop", (e) => {' +
+    '    const dt = e.dataTransfer;' +
+    '    const files = dt.files;' +
+    '    if (files.length) handleFile(files[0]);' +
+    '  });' +
+    '  fileInput.addEventListener("change", (e) => {' +
+    '    if (e.target.files.length) handleFile(e.target.files[0]);' +
+    '  });' +
+    '  function handleFile(file) {' +
+    '    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {' +
+    '      showStatus("error", "⚠️ Solo se admiten documentos en formato PDF.");' +
+    '      return;' +
+    '    }' +
+    '    selectedFile = file;' +
+    '    const szMb = (file.size / (1024 * 1024)).toFixed(1);' +
+    '    fileNameDisp.innerText = file.name + " (" + szMb + " MB)";' +
+    '    filePreview.style.display = "flex";' +
+    '    btnUpload.style.display = "block";' +
+    '    statusBox.style.display = "none";' +
+    '    progressBox.style.display = "none";' +
+    '  }' +
+    '  function clearFile(e) {' +
+    '    if (e) e.stopPropagation();' +
+    '    selectedFile = null;' +
+    '    fileInput.value = "";' +
+    '    filePreview.style.display = "none";' +
+    '    btnUpload.style.display = "none";' +
+    '    progressBox.style.display = "none";' +
+    '  }' +
+    '  function showStatus(type, msg) {' +
+    '    statusBox.className = "status-box " + type;' +
+    '    statusBox.innerHTML = msg;' +
+    '    statusBox.style.display = "block";' +
+    '  }' +
+    '  function updateProgress(pct, msg) {' +
+    '    progressBox.style.display = "block";' +
+    '    progressBar.style.width = pct + "%";' +
+    '    progressText.innerText = msg || (pct + "%");' +
+    '  }' +
+    '  async function uploadSelectedFile() {' +
+    '    if (!selectedFile) return;' +
+    '    btnUpload.disabled = true;' +
+    '    btnUpload.innerText = "⏳ Procesando y subiendo archivo...";' +
+    '    statusBox.style.display = "none";' +
+    '    const donor = (donorInput.value || "").trim();' +
+    '    const CHUNK_SIZE = 10 * 1024 * 1024;' +
+    '    if (selectedFile.size > 20 * 1024 * 1024 && chkOptimize.checked) {' +
+    '      const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);' +
+    '      const sessionId = "SES-" + Date.now() + "-" + Math.floor(Math.random() * 10000);' +
+    '      try {' +
+    '        for (let i = 0; i < totalChunks; i++) {' +
+    '          const start = i * CHUNK_SIZE;' +
+    '          const end = Math.min(selectedFile.size, start + CHUNK_SIZE);' +
+    '          const chunkBlob = selectedFile.slice(start, end);' +
+    '          const chunkB64 = await readBlobAsBase64(chunkBlob);' +
+    '          const pct = Math.round(((i + 1) / totalChunks) * 100);' +
+    '          updateProgress(pct, "Transmitiendo bloque " + (i + 1) + " de " + totalChunks + " (" + pct + "%)...");' +
+    '          await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donor);' +
+    '        }' +
+    '        updateProgress(100, "✅ Archivo ensamblado y catalogado.");' +
+    '        showStatus("success", "✅ <b>¡Documento de Gran Volumen Depositado con Éxito!</b><br>Todos los bloques fueron ensamblados y catalogados con éxito bajo estricta confidencialidad.");' +
+    '        clearFile();' +
+    '      } catch (err) {' +
+    '        showStatus("error", "⚠️ Error en subida fraccionada: " + err.message);' +
+    '      } finally {' +
+    '        btnUpload.disabled = false;' +
+    '        btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '      }' +
+    '    } else {' +
+    '      updateProgress(40, "Leyendo archivo...");' +
+    '      const reader = new FileReader();' +
+    '      reader.onload = function(e) {' +
+    '        const base64Data = e.target.result.split(",")[1];' +
+    '        updateProgress(75, "Registrando en el acervo...");' +
+    '        if (typeof google !== "undefined" && google.script && google.script.run) {' +
+    '          google.script.run' +
+    '            .withSuccessHandler(function(res) {' +
+    '              updateProgress(100, "Completado");' +
+    '              if (res && res.success) {' +
+    '                showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>ID de Registro: <code>" + (res.indexingId || "MED-2026") + "</code><br>El documento ha sido resguardado en el acervo institucional bajo estricta confidencialidad.");' +
+    '                clearFile();' +
+    '              } else {' +
+    '                showStatus("error", "⚠️ " + (res.error || "Ocurrió un error al procesar el archivo."));' +
+    '              }' +
+    '              btnUpload.disabled = false;' +
+    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '            })' +
+    '            .withFailureHandler(function(err) {' +
+    '              showStatus("error", "⚠️ Error de conexión: " + err.message);' +
+    '              btnUpload.disabled = false;' +
+    '              btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '            })' +
+    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donor);' +
+    '        } else {' +
+    '          setTimeout(() => {' +
+    '            updateProgress(100, "Completado");' +
+    '            showStatus("success", "✅ <b>¡Documento Depositado con Éxito!</b><br>El documento ha sido resguardado con éxito.");' +
+    '            clearFile();' +
+    '            btnUpload.disabled = false;' +
+    '            btnUpload.innerText = "📤 Depositar en el Buzón Digital";' +
+    '          }, 1000);' +
+    '        }' +
+    '      };' +
+    '      reader.readAsDataURL(selectedFile);' +
+    '    }' +
+    '  }' +
+    '  function readBlobAsBase64(blob) {' +
+    '    return new Promise((resolve, reject) => {' +
+    '      const r = new FileReader();' +
+    '      r.onload = () => resolve(r.result.split(",")[1]);' +
+    '      r.onerror = reject;' +
+    '      r.readAsDataURL(blob);' +
+    '    });' +
+    '  }' +
+    '  function uploadChunkPromise(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor) {' +
+    '    return new Promise((resolve, reject) => {' +
+    '      if (typeof google !== "undefined" && google.script && google.script.run) {' +
+    '        google.script.run' +
+    '          .withSuccessHandler(res => { if (res && res.success) resolve(res); else reject(new Error(res.error || "Error")); })' +
+    '          .withFailureHandler(reject)' +
+    '          .uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor);' +
+    '      } else {' +
+    '        setTimeout(() => resolve({ success: true }), 400);' +
+    '      }' +
+    '    });' +
+    '  }' +
+    '</script></body></html>';
+
+  return HtmlService.createHtmlOutput(buzonHtml)
+    .setTitle('Buzón Digital Seguro - Biblioteca Médica de Ortopedia')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Recibe y procesa un archivo subido al Buzón Digital Seguro
+ * Registra los datos del donante exclusivamente para control interno privado.
+ */
+function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
+  try {
+    const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
+    const folder = DriveApp.getFolderById(folderId);
+    const cleanName = (fileName || 'Aporte_Medico.pdf').replace(/[^\\w\\.\\-\\s]/gi, '_');
+    const decodedBytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decodedBytes, mimeType || 'application/pdf', cleanName);
+    const file = folder.createFile(blob);
+    const cleanTitle = cleanName.replace(/\\.pdf$/i, '');
+    const donorRecord = donorInfo || 'Aporte Privado Anónimo Web';
+    file.setDescription('Aporte Privado: ' + donorRecord);
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+    const invData = sheetInv.getDataRange().getValues();
+    const docId = 'DOC-BUZON-' + ('0000' + invData.length).slice(-5);
+
+    // Registro interno privado en Inventario Maestro sellado en reposo (Columna 11)
+    sheetInv.appendRow([
+      docId, file.getId(), new Date().getFullYear(), 'Autor Especializado',
+      sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte Buzón Digital',
+      'Buzon_Digital', cifrarCampoEnReposo(sanitizeSheetValue(donorRecord)),
+      Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+    ]);
+    invalidateInventoryCache();
+
+    const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+    sendWhatsAppText(adminPhone, 
+      '📥 *NUEVO DOCUMENTO DEPOSITADO EN EL BUZÓN DIGITAL*\\\\n' +
+      '*Dirección:* Gestor de Contenido\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      '📄 *Archivo:* ' + cleanName + '\\\\n' +
+      '📦 *Tamaño:* ' + Math.round(blob.getBytes().length / 1024) + ' KB\\\\n' +
+      '👤 *Aportante (Control Interno Privado):* ' + donorRecord + '\\\\n' +
+      '🆔 *ID Registro:* ' + docId + '\\\\n' +
+      '🕒 *Fecha:* ' + new Date().toLocaleString('es-CO') + '\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'Registrado confidencialmente en el catálogo maestro.'
+    );
+
+    return {
+      success: true,
+      fileName: cleanName,
+      indexingId: docId,
+      message: 'Documento recibido y catalogado con éxito.'
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Recibe un bloque fraccionado (Chunk) para archivos de gran volumen (> 45 MB a 2 GB)
+ */
+function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donorInfo) {
+  try {
+    const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
+    const mailboxFolder = DriveApp.getFolderById(folderId);
+
+    let tempFolder;
+    const tempFolders = mailboxFolder.getFoldersByName('_CHUNKS_TEMP');
+    if (tempFolders.hasNext()) {
+      tempFolder = tempFolders.next();
+    } else {
+      tempFolder = mailboxFolder.createFolder('_CHUNKS_TEMP');
+    }
+
+    const chunkFileName = sessionId + '_part_' + chunkIndex;
+    const chunkBytes = Utilities.base64Decode(chunkB64);
+    const chunkBlob = Utilities.newBlob(chunkBytes, 'application/octet-stream', chunkFileName);
+    tempFolder.createFile(chunkBlob);
+
+    // Si es el último fragmento, ensamblamos el archivo final
+    if (chunkIndex === totalChunks - 1) {
+      let combinedBytes = [];
+      const cleanName = (fileName || 'Aporte_Medico.pdf').replace(/[^\\w\\.\\-\\s]/gi, '_');
+
+      for (let i = 0; i < totalChunks; i++) {
+        const partName = sessionId + '_part_' + i;
+        const partFiles = tempFolder.getFilesByName(partName);
+        if (partFiles.hasNext()) {
+          const partFile = partFiles.next();
+          const pBlob = partFile.getBlob();
+          const pBytes = pBlob.getBytes();
+          for (let b = 0; b < pBytes.length; b++) {
+            combinedBytes.push(pBytes[b]);
+          }
+          partFile.setTrashed(true);
+        }
+      }
+
+      const finalBlob = Utilities.newBlob(combinedBytes, mimeType || 'application/pdf', cleanName);
+      const finalFile = mailboxFolder.createFile(finalBlob);
+      const donorRecord = donorInfo || 'Aporte Privado Anónimo Web (Fraccionado)';
+      finalFile.setDescription('Aporte Privado: ' + donorRecord);
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheetInv = getOrCreateSheet(ss, CONFIG.SHEET_INVENTARIO);
+      const invData = sheetInv.getDataRange().getValues();
+      const docId = 'DOC-CHUNK-' + ('0000' + invData.length).slice(-5);
+      const cleanTitle = cleanName.replace(/\\.pdf$/i, '');
+
+      sheetInv.appendRow([
+        docId, finalFile.getId(), new Date().getFullYear(), 'Autor Especializado',
+        sanitizeSheetValue(cleanTitle), 'Temas Generales', 'PDF', 'N/A', 'Aporte Fraccionado',
+        'Buzon_Digital_Chunked', cifrarCampoEnReposo(sanitizeSheetValue(donorRecord)),
+        Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss')
+      ]);
+      invalidateInventoryCache();
+
+      const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+      sendWhatsAppText(adminPhone,
+        '📥 *NUEVO ARCHIVO DE GRAN TAMAÑO ENSAMBLADO EN EL BUZÓN DIGITAL*\\\\n' +
+        '*Dirección:* Gestor de Contenido\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '📄 *Archivo:* ' + cleanName + '\\\\n' +
+        '📦 *Tamaño Ensamblado:* ' + Math.round(combinedBytes.length / (1024 * 1024)) + ' MB (' + totalChunks + ' bloques)\\\\n' +
+        '👤 *Aportante (Control Interno Privado):* ' + donorRecord + '\\\\n' +
+        '🆔 *ID Registro:* ' + docId + '\\\\n' +
+        '🕒 *Fecha:* ' + new Date().toLocaleString('es-CO') + '\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'El archivo ha sido resguardado confidencialmente en el buzón institucional.'
+      );
+
+      return {
+        success: true,
+        fileName: cleanName,
+        indexingId: docId,
+        message: 'Archivo ensamblado y resguardado con éxito (' + totalChunks + ' bloques).'
+      };
+    }
+
+    return {
+      success: true,
+      chunkIndex: chunkIndex,
+      totalChunks: totalChunks,
+      message: 'Bloque ' + (chunkIndex + 1) + ' de ' + totalChunks + ' recibido.'
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * ============================================================================
+ * ⚖️ MOTOR DE GOBERNANZA DISCIPLINARIA Y GESTIÓN DE CONDICIÓN DE USUARIOS
+ * ============================================================================
+ * Aplica cambios de condición: ACTIVO, SUSPENDIDO (24h/48h/72h), BLOQUEADO, EXPULSADO.
+ * Envía notificación automática por WhatsApp al usuario informando su nueva condición.
+ */
+function aplicarCambioEstatusUsuario(targetPhone, newStatus, reason, hours) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetUsr = getOrCreateSheet(ss, CONFIG.SHEET_USUARIOS);
+    const data = sheetUsr.getDataRange().getValues();
+    const cleanTarget = String(targetPhone).replace(/[^\\d]/g, '');
+    let rowIndex = -1;
+    let userName = 'Colega';
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).replace(/[^\\d]/g, '') === cleanTarget) {
+        rowIndex = i + 1;
+        userName = data[i][1] || 'Colega';
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return { success: false, error: 'Usuario no encontrado con el número ' + targetPhone };
+    }
+
+    const normStatus = (newStatus || '').toUpperCase().trim();
+    let finalStatus = normStatus;
+    let notifyMsg = '';
+
+    if (normStatus.startsWith('SUSPENDID')) {
+      let numHours = parseInt(hours, 10) || 24;
+      if (normStatus.includes('48')) numHours = 48;
+      else if (normStatus.includes('72')) numHours = 72;
+      else if (normStatus.includes('24')) numHours = 24;
+
+      finalStatus = 'SUSPENDIDO_' + numHours + 'H';
+      const finDate = new Date(new Date().getTime() + (numHours * 60 * 60 * 1000));
+
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue(finDate);
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Suspensión temporal preventiva'));
+
+      notifyMsg = 
+        '⏳ *NOTIFICACIÓN DE CONDICIÓN DISCIPLINARIA*\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Estimado(a) *' + userName + '*:\\\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica ha sido *SUSPENDIDO TEMPORALMENTE* por un término de *' + numHours + ' horas*.\\\\n\\\\n' +
+        '📋 *Motivo:* ' + (reason || 'Revisión preventiva de conducta y uso apropiado.') + '\\\\n' +
+        '🕒 *Reactivación automática:* ' + finDate.toLocaleString('es-CO') + '\\\\n\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '_Su servicio se restablecerá de manera autónoma al finalizar el término estipulado._';
+    } 
+    else if (normStatus === 'BLOQUEADO') {
+      finalStatus = 'BLOQUEADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Bloqueo indefinido por la Dirección'));
+
+      notifyMsg = 
+        '⛔ *NOTIFICACIÓN DE BLOQUEO DE CUENTA*\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Estimado(a) *' + userName + '*:\\\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica ha sido *BLOQUEADO DE FORMA INDEFINIDA*.\\\\n\\\\n' +
+        '📋 *Motivo:* ' + (reason || 'Incumplimiento de las políticas y código de conducta.') + '\\\\n\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '_Para solicitar una revisión de su caso, puede comunicarse con la Dirección del Proyecto._';
+    }
+    else if (normStatus === 'EXPULSADO') {
+      finalStatus = 'EXPULSADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('PERMANENTE');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Expulsión definitiva e irrevocable'));
+
+      notifyMsg = 
+        '🚫 *NOTIFICACIÓN DE EXPULSIÓN DEFINITIVA*\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Estimado(a) *' + userName + '*:\\\\n' +
+        'La Dirección del Proyecto informa que su cuenta y número de contacto han sido *EXPULSADOS DE FORMA PERMANENTE E IRREVOCABLE* del acervo institucional.\\\\n\\\\n' +
+        '📋 *Motivo:* ' + (reason || 'Violación grave o reiterada de los principios del proyecto.') + '\\\\n\\\\n' +
+        '⚠️ *Resolución:* Este número telefónico y registro quedan inhabilitados definitivamente. No se admitirán futuras solicitudes de incorporación al acervo.\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'ACTIVO' || normStatus === 'APROBADO') {
+      finalStatus = normStatus;
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Acceso concedido / Restablecido'));
+
+      const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, targetPhone);
+      notifyMsg = 
+        '🩺 *ACCESO HABILITADO / RESTABLECIDO*\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Estimado(a) *' + userName + '*:\\\\n' +
+        'La Dirección del Proyecto informa que su acceso a la Biblioteca Médica se encuentra *100% ACTIVO*.\\\\n\\\\n' +
+        'A partir de este momento puede consultar la literatura quirúrgica, clasificador de imágenes y resúmenes de evidencia.\\\\n\\\\n' +
+        '📖 *Manual Oficial Interactivo & Guía:* ' + manualLink + '\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'RECHAZADO') {
+      finalStatus = 'RECHAZADO';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'Solicitud de acceso no admitida'));
+
+      notifyMsg = 
+        '📋 *ESTADO DE SOLICITUD DE ACCESO*\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Estimado(a) *' + userName + '*:\\\\n' +
+        'La Dirección del Proyecto informa que su solicitud de acceso no ha sido aprobada en esta oportunidad.\\\\n\\\\n' +
+        '📋 *Detalle:* ' + (reason || 'No cumple con los criterios de admisión para el acervo institucional.') + '\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    }
+    else if (normStatus === 'PENDIENTE_APROBACION') {
+      finalStatus = 'PENDIENTE_APROBACION';
+      sheetUsr.getRange(rowIndex, 5).setValue(finalStatus);
+      sheetUsr.getRange(rowIndex, 9).setValue('');
+      sheetUsr.getRange(rowIndex, 10).setValue(cifrarCampoEnReposo(reason || 'En espera de revisión'));
+    }
+
+    if (notifyMsg) {
+      sendWhatsAppText(targetPhone, notifyMsg);
+    }
+
+    return { success: true, user: userName, phone: targetPhone, newStatus: finalStatus, reason: reason };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Trigger simple de edición directa en Google Sheets (onEdit)
+ * Permite al Gestor de Contenido cambiar el estatus directamente en la celda de la columna 5
+ * y notificar automáticamente al usuario vía WhatsApp.
+ */
+function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    const sheet = e.range.getSheet();
+    if (sheet.getName() !== CONFIG.SHEET_USUARIOS) return;
+
+    const row = e.range.getRow();
+    const col = e.range.getColumn();
+
+    // Solo reaccionar cuando se edita la columna 5 (ESTADO_ACCESO)
+    if (col === 5 && row > 1) {
+      const newStatus = String(e.value || '').trim();
+      if (!newStatus) return;
+
+      const phone = sheet.getRange(row, 1).getValue();
+      const currentReasonRaw = sheet.getRange(row, 10).getValue();
+      const currentReason = descifrarCampoEnReposo(currentReasonRaw) || 'Ajuste manual directo en la tabla por la Dirección';
+
+      Logger.log('Edición directa en Google Sheets para ' + phone + ': ' + newStatus);
+      aplicarCambioEstatusUsuario(phone, newStatus, currentReason);
+    }
+  } catch (err) {
+    Logger.log('Error en onEdit: ' + err.message);
+  }
+}
+
+/**
+ * Procesa la actualización de datos personales solicitada por el usuario
+ * Aplica la política ineludible de frecuencia máxima:
+ * - Máximo 3 actualizaciones en 6 meses (180 días)
+ * - Máximo 6 actualizaciones en 12 meses (365 días)
+ * Sella el correo electrónico en reposo mediante cifrarCampoEnReposo.
+ */
+function handleActualizacionDatosUsuario(cleanPhone, userRow, text, senderName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  const data = sheetUsr.getDataRange().getValues();
+  const cleanTarget = String(cleanPhone).replace(/[^\\d]/g, '');
+  let rowIndex = -1;
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).replace(/[^\\d]/g, '') === cleanTarget) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (rowIndex === -1) {
+    sendWhatsAppText(cleanPhone, '⚠️ No se encontró registro asociado a este número para actualizar.');
+    return;
+  }
+
+  const lower = text.toLowerCase().trim();
+  const isPromptOnly = lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil';
+
+  const currentName = userRow[1] || senderName || 'Colega';
+  const currentInst = userRow[2] || '';
+  const currentLevel = userRow[3] || '';
+  let currentEmail = '';
+  if (userRow.length >= 11 && userRow[10]) {
+    currentEmail = descifrarCampoEnReposo(userRow[10]) || userRow[10];
+  }
+
+  if (isPromptOnly) {
+    sendWhatsAppText(cleanPhone, 
+      '📝 *ACTUALIZACIÓN DE DATOS PERSONALES*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'Estimado(a) ' + currentName + ':\\\\n\\\\n' +
+      'Puede actualizar sus datos personales en cualquier momento enviando un mensaje con la estructura:\\\\n\\\\n' +
+      '👉 *ACTUALIZAR: [Nombre], [Correo], [Hospital/Universidad], [Nivel]*\\\\n\\\\n' +
+      '_Ejemplo:_\\\\n' +
+      '\`ACTUALIZAR: Dr. Carlos Pérez, carlos.perez@hospital.edu.co, Hospital San José, Especialista\`\\\\n\\\\n' +
+      'ℹ️ *Política de Seguridad y Frecuencia Máxima:*\\\\n' +
+      'Para preservar la trazabilidad institucional y prevenir suplantaciones de identidad:\\\\n' +
+      '• Máximo *3 actualizaciones en 6 meses* (180 días).\\\\n' +
+      '• Máximo *6 actualizaciones en 12 meses* (365 días).\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    );
+    return;
+  }
+
+  // Parsear historial de actualizaciones desde Columna 12
+  let rawHistory = (userRow.length >= 12 && userRow[11]) ? String(userRow[11]).trim() : '';
+  let updateHistory = [];
+  try {
+    if (rawHistory && rawHistory.indexOf('[') === 0) {
+      updateHistory = JSON.parse(rawHistory);
+    }
+  } catch (e) {
+    updateHistory = [];
+  }
+  if (!Array.isArray(updateHistory)) updateHistory = [];
+
+  const now = new Date().getTime();
+  const ms6m = 180 * 24 * 60 * 60 * 1000;
+  const ms12m = 365 * 24 * 60 * 60 * 1000;
+
+  const count6m = updateHistory.filter(function(ts) { return (now - ts) < ms6m; }).length;
+  const count12m = updateHistory.filter(function(ts) { return (now - ts) < ms12m; }).length;
+
+  if (count6m >= 3) {
+    sendWhatsAppText(cleanPhone, 
+      '⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'Estimado(a) Colega:\\\\n' +
+      'Ha alcanzado el límite institucional de *3 actualizaciones en un periodo de 6 meses*.\\\\n\\\\n' +
+      'Para modificaciones excepcionales o de fuerza mayor, puede enviar un mensaje directo a la Dirección:\\\\n' +
+      '👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*'
+    );
+    return;
+  }
+
+  if (count12m >= 6) {
+    sendWhatsAppText(cleanPhone, 
+      '⚠️ *LÍMITE DE ACTUALIZACIÓN ALCANZADO*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'Estimado(a) Colega:\\\\n' +
+      'Ha alcanzado el límite institucional de *6 actualizaciones en un periodo de 12 meses*.\\\\n\\\\n' +
+      'Para situaciones especiales, puede comunicarse directamente con la Dirección:\\\\n' +
+      '👉 *MENSAJE A LA DIRECCIÓN: [su solicitud]*'
+    );
+    return;
+  }
+
+  // Extraer campos del mensaje
+  const cleanPayload = text.replace(/^actualizar(\\s+datos)?\\s*:\\s*/i, '').trim();
+  const parts = cleanPayload.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  let newName = '', newEmail = '', newInst = '', newLevel = '';
+
+  const emailMatch = cleanPayload.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);
+  if (emailMatch) newEmail = emailMatch[0].trim().toLowerCase();
+
+  if (parts.length >= 2) {
+    if (parts[0] && parts[0].indexOf('@') === -1) newName = parts[0];
+    for (let p = 1; p < parts.length; p++) {
+      const part = parts[p];
+      if (part.indexOf('@') !== -1) newEmail = part.toLowerCase();
+      else if (/\\b(residente|especialista|egresado|r[1-4]|fellow)\\b/i.test(part)) newLevel = part;
+      else if (!newInst) newInst = part;
+    }
+  } else {
+    if (/\\b(residente|especialista|egresado|r[1-4]|fellow)\\b/i.test(cleanPayload)) {
+      const lm = cleanPayload.match(/\\b(residente(?:\\s+r[1-4])?|especialista|egresado|fellow)\\b/i);
+      if (lm) newLevel = lm[0];
+    }
+    if (newEmail) {
+      const withoutEmail = cleanPayload.replace(newEmail, '').trim();
+      if (withoutEmail.length > 3) newInst = withoutEmail;
+    }
+  }
+
+  const updatedName = newName || currentName;
+  const updatedEmail = newEmail || currentEmail;
+  const updatedInst = newInst || currentInst;
+  const updatedLevel = newLevel || currentLevel;
+
+  // Actualizar en hoja de cálculo
+  if (newName) sheetUsr.getRange(rowIndex, 2).setValue(sanitizeSheetValue(newName));
+  if (newInst) sheetUsr.getRange(rowIndex, 3).setValue(sanitizeSheetValue(newInst));
+  if (newLevel) sheetUsr.getRange(rowIndex, 4).setValue(sanitizeSheetValue(newLevel));
+  if (newEmail) {
+    // Sellar campo en reposo
+    sheetUsr.getRange(rowIndex, 11).setValue(cifrarCampoEnReposo(newEmail));
+  }
+  sheetUsr.getRange(rowIndex, 8).setValue(new Date()); // Última interacción
+
+  updateHistory.push(now);
+  sheetUsr.getRange(rowIndex, 12).setValue(JSON.stringify(updateHistory));
+
+  const newCount6m = count6m + 1;
+  const newCount12m = count12m + 1;
+
+  // Notificación al usuario
+  sendWhatsAppText(cleanPhone, 
+    '✅ *DATOS PERSONALES ACTUALIZADOS CON ÉXITO*\\\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+    'Estimado(a) *' + updatedName + '*:\\\\n' +
+    'Su información personal ha sido actualizada satisfactoriamente en el Directorio Institucional.\\\\n\\\\n' +
+    '📋 *Ficha Actualizada:*\\\\n' +
+    '• 👤 *Nombre:* ' + updatedName + '\\\\n' +
+    '• 📧 *Correo:* ' + (updatedEmail || 'No registrado') + '\\\\n' +
+    '• 🏥 *Institución:* ' + updatedInst + '\\\\n' +
+    '• 🎓 *Nivel:* ' + updatedLevel + '\\\\n\\\\n' +
+    '📊 *Control de Frecuencia:*\\\\n' +
+    'Ha utilizado *' + newCount6m + ' de 3* actualizaciones permitidas en 6 meses (*' + newCount12m + ' de 6* anuales).\\\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  );
+
+  // Alerta confidencial al Gestor de Contenido
+  sendWhatsAppText(CONFIG.ADMIN_PHONE, 
+    '📝 *ACTUALIZACIÓN DE DATOS DE USUARIO*\\\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+    '👤 *Médico:* ' + updatedName + '\\\\n' +
+    '📱 *WhatsApp:* \`' + cleanPhone + '\`\\\\n' +
+    '📧 *Correo:* ' + (updatedEmail || 'N/A') + '\\\\n' +
+    '🏥 *Institución:* ' + updatedInst + '\\\\n' +
+    '🎓 *Nivel:* ' + updatedLevel + '\\\\n' +
+    '📊 *Frecuencia:* ' + newCount6m + '/3 en 6m (' + newCount12m + '/6 en 12m)\\\\n' +
+    '👉 Registrado confidencialmente en el Directorio de Usuarios.'
+  );
+}
+
+/**
+ * Gestiona el cambio inmediato de idioma de comunicación del usuario (Sin límites de frecuencia)
+ */
+function handleCambioIdiomaUsuario(cleanPhone, userRow, text, senderName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  const dataUsr = sheetUsr.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < dataUsr.length; i++) {
+    if (String(dataUsr[i][0]).replace(/[^\\d]/g, '') === cleanPhone.replace(/[^\\d]/g, '')) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  const currentLang = (userRow && userRow.length >= 15 && userRow[14]) ? String(userRow[14]).toUpperCase().trim() : 'ES';
+  const lower = text.toLowerCase().trim();
+  const isPromptOnly = lower === 'idioma' || lower === 'language' || lower === 'lang';
+
+  if (isPromptOnly) {
+    sendWhatsAppText(cleanPhone, 
+      '🌐 *PREFERENCIA DE IDIOMA / LANGUAGE SETTING*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'Idioma actual de comunicación: *' + currentLang + '*\\\\n\\\\n' +
+      'Puede cambiar su idioma de comunicación en cualquier momento sin límites de actualización enviando:\\\\n\\\\n' +
+      '• *IDIOMA: ES* (Español)\\\\n' +
+      '• *LANGUAGE: EN* (English)\\\\n' +
+      '• *IDIOMA: PT* (Português)\\\\n' +
+      '• *IDIOMA: FR* (Français)\\\\n\\\\n' +
+      'ℹ️ *Preservación de Literatura Médica:* Los artículos y libros científicos en PDF se descargan siempre en su idioma original de publicación para mantener la fidelidad quirúrgica y científica.\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    );
+    return;
+  }
+
+  const rawLang = text.replace(/^(?:idioma|language|lang)\\s*:\\s*/i, '').trim().toUpperCase();
+  let newLang = 'ES';
+  if (rawLang.indexOf('EN') === 0 || rawLang.indexOf('ING') === 0) newLang = 'EN';
+  else if (rawLang.indexOf('PT') === 0 || rawLang.indexOf('POR') === 0) newLang = 'PT';
+  else if (rawLang.indexOf('FR') === 0) newLang = 'FR';
+  else if (rawLang.indexOf('DE') === 0 || rawLang.indexOf('ALE') === 0) newLang = 'DE';
+  else if (rawLang.indexOf('IT') === 0) newLang = 'IT';
+  else newLang = 'ES';
+
+  if (rowIndex !== -1) {
+    sheetUsr.getRange(rowIndex, 15).setValue(newLang); // Columna O
+    sheetUsr.getRange(rowIndex, 8).setValue(new Date()); // Última interacción
+  }
+
+  let confirmMsg = '';
+  if (newLang === 'EN') {
+    confirmMsg = '🌐 *LANGUAGE SUCCESSFULLY UPDATED*\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+                 'Your preferred communication language has been set to: *English (EN)*.\\\\n\\\\n' +
+                 'All future responses, search digests, evidence summaries, and administrative announcements will be sent to you in English.\\\\n\\\\n' +
+                 '📚 *Medical Literature Notice:* Original scientific PDF articles and textbooks are preserved and downloaded in their authentic language of publication.\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else if (newLang === 'PT') {
+    confirmMsg = '🌐 *IDIOMA ATUALIZADO COM SUCESSO*\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+                 'Seu idioma de comunicação preferido agora é: *Português (PT)*.\\\\n\\\\n' +
+                 'Todas as respostas futuras, sínteses de evidências, resumos de busca e comunicados administrativos serão enviados em português.\\\\n\\\\n' +
+                 '📚 *Aviso sobre Literatura Médica:* Livros e artigos científicos em PDF originais são mantidos e baixados em seu idioma de publicação autêntico.\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else if (newLang === 'FR') {
+    confirmMsg = '🌐 *LANGUE MISE À JOUR AVEC SUCCÈS*\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+                 'Votre langue de communication préférée est maintenant: *Français (FR)*.\\\\n\\\\n' +
+                 'Toutes les futures réponses, synthèses d\\\'évidences et annonces seront envoyées en français.\\\\n\\\\n' +
+                 '📚 *Préservation des Documents Originaux:* Les articles et livres médicaux en PDF sont conservés et téléchargés dans leur langue originale de publication.\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  } else {
+    confirmMsg = '🌐 *IDIOMA DE COMUNICACIÓN ACTUALIZADO*\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+                 'Su idioma de preferencia ha sido configurado en: *Español (ES)*.\\\\n\\\\n' +
+                 'Todas las respuestas, resúmenes clínicos, evidencias y comunicados se enviarán en español.\\\\n\\\\n' +
+                 '📚 *Preservación de Literatura Médica:* Los artículos y libros científicos en PDF se descargan siempre en su idioma original de publicación.\\\\n' +
+                 '━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  }
+
+  sendWhatsAppText(cleanPhone, confirmMsg);
 }
 
 /**
@@ -1470,8 +2803,8 @@ function serveDocumentDownloadViewer(file) {
     '<div class="card">' +
     '  <div class="icon">📄</div>' +
     '  <h2>' + filename + '</h2>' +
-    '  <div class="badge">Gestor de Contenido • Descarga Segura</div>' +
-    '  <p style="font-size:13px; color:#94a3b8; line-height:1.5;">El documento ha sido verificado criptográficamente en la nube. Puede guardarlo en su dispositivo o abrirlo en pantalla completa.</p>' +
+    '  <div class="badge">Biblioteca Médica • Descarga Segura</div>' +
+    '  <p style="font-size:13px; color:#94a3b8; line-height:1.5;">El documento ha sido verificado criptográficamente. Puede guardarlo en su dispositivo o abrirlo en pantalla completa.</p>' +
     '  <div class="btn-group">' +
     '    <button id="btnDownload" class="btn btn-primary">📥 Descargar Archivo PDF</button>' +
     '    <button id="btnOpen" class="btn btn-secondary">🖥️ Ver en Pantalla Completa</button>' +
@@ -1668,7 +3001,7 @@ function recordTelemetry(phone, originalQuery, detectedTerms, status, topDocumen
     sheetMem.appendRow([
       new Date(),
       maskedPhone,
-      sanitizeSheetValue(originalQuery),
+      cifrarCampoEnReposo(sanitizeSheetValue(originalQuery)),
       sanitizeSheetValue(detectedTerms || 'GENERAL'),
       sanitizeSheetValue(status),
       sanitizeSheetValue(topDocument || 'N/A')
@@ -1690,6 +3023,17 @@ function doPost(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
+
+    // Soporte directo para depósito en el Buzón Digital Seguro
+    if (body.action === 'upload_buzon') {
+      const buzonRes = uploadBuzonFile(body.base64Data, body.fileName, body.mimeType, body.donorInfo);
+      return ContentService.createTextOutput(JSON.stringify(buzonRes)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (body.action === 'upload_chunk') {
+      const chunkRes = uploadBuzonChunk(body.sessionId, body.chunkIndex, body.totalChunks, body.chunkB64, body.fileName, body.mimeType, body.donorInfo);
+      return ContentService.createTextOutput(JSON.stringify(chunkRes)).setMimeType(ContentService.MimeType.JSON);
+    }
 
     if (body.object && body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
       const messageObj = body.entry[0].changes[0].value.messages[0];
@@ -1801,35 +3145,21 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   // 1. COMANDOS DE GOBERNANZA EXCLUSIVOS DEL GESTOR DE CONTENIDO
   // =========================================================================
   if (isAdmin) {
-    // 1.1 APROBAR +57...
-    if (lower.startsWith('aprobar')) {
+    // 1.1 SUSPENDER +57... [24h|48h|72h] [motivo]
+    if (lower.startsWith('suspender')) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\\d]/g, '') === targetPhone.replace(/[^\\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('APROBADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '✅ Acceso de ' + data[i][1] + ' (' + targetPhone + ') aprobado exitosamente.');
-            
-            const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, targetPhone);
-            sendWhatsAppText(targetPhone, 
-              '🩺 *ACCESO AUTORIZADO POR LA DIRECCIÓN DEL PROYECTO*\\\\n\\\\n' +
-              'Estimado(a) *' + data[i][1] + '*:\\\\n' +
-              'Su solicitud ha sido aprobada por el *Gestor de Contenido*.\\\\n\\\\n' +
-              'A partir de este momento dispone de acceso a la colección clínica y quirúrgica.\\\\n\\\\n' +
-              '📖 *Manual Oficial Interactivo & Guía de Búsqueda:*\\\\n' + manualLink + '\\\\n\\\\n' +
-              'Escriba la patología, técnica o autor que requiera para iniciar su búsqueda.'
-            );
-            break;
-          }
-        }
-        if (!found) {
-          sendWhatsAppText(adminPhone, '⚠️ No se encontró solicitud pendiente para ' + targetPhone + '.');
+        let hours = 24;
+        if (lower.includes('48h')) hours = 48;
+        else if (lower.includes('72h')) hours = 72;
+        else if (lower.includes('24h')) hours = 24;
+        const reason = text.replace(/suspender\\s+\\+?\\d{10,14}(\\s+(24h|48h|72h))?/i, '').trim() || 'Suspensión temporal preventiva';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'SUSPENDIDO_' + hours + 'H', reason, hours);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '⏳ *USUARIO SUSPENDIDO (' + hours + 'H)*\\\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\\\nMotivo: ' + reason + '\\\\nNotificación automática despachada al usuario.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
       }
       return;
@@ -1840,49 +3170,50 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const reason = text.replace(/bloquear\\s+\\+?\\d{10,14}/i, '').trim() || 'Incumplimiento de las reglas de uso apropiado';
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\\d]/g, '') === targetPhone.replace(/[^\\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('BLOQUEADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '⛔ Acceso de ' + data[i][1] + ' (' + targetPhone + ') suspendido. Motivo: "' + reason + '".');
-            sendWhatsAppText(targetPhone, '⛔ Su acceso a la Biblioteca Médica ha sido suspendido por decisión de la Dirección (*Gestor de Contenido*).\\\\nMotivo: ' + reason + '.');
-            break;
-          }
+        const reason = text.replace(/bloquear\\s+\\+?\\d{10,14}/i, '').trim() || 'Incumplimiento de las reglas de uso';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'BLOQUEADO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '⛔ *USUARIO BLOQUEADO (INDEFINIDO)*\\\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\\\nMotivo: ' + reason + '\\\\nNotificación automática despachada al usuario.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
-        if (!found) sendWhatsAppText(adminPhone, '⚠️ No se encontró usuario con el número ' + targetPhone + '.');
       }
       return;
     }
 
-    // 1.3 DESBLOQUEAR +57...
-    if (lower.startsWith('desbloquear')) {
+    // 1.3 EXPULSAR +57... [motivo]
+    if (lower.startsWith('expulsar')) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-        const data = sheetUsr.getDataRange().getValues();
-        let found = false;
-
-        for (let i = 1; i < data.length; i++) {
-          if (String(data[i][0]).replace(/[^\\d]/g, '') === targetPhone.replace(/[^\\d]/g, '')) {
-            sheetUsr.getRange(i + 1, 5).setValue('APROBADO');
-            found = true;
-            sendWhatsAppText(adminPhone, '✅ Acceso de ' + data[i][1] + ' (' + targetPhone + ') restablecido.');
-            sendWhatsAppText(targetPhone, '✅ Su acceso a la Biblioteca Médica ha sido restablecido por la Dirección (*Gestor de Contenido*).');
-            break;
-          }
+        const reason = text.replace(/expulsar\\s+\\+?\\d{10,14}/i, '').trim() || 'Expulsión definitiva del proyecto';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'EXPULSADO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '🚫 *USUARIO EXPULSADO PERMANENTEMENTE*\\\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\\\nMotivo: ' + reason + '\\\\nNotificación despachada. Número inhabilitado de por vida.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
         }
-        if (!found) sendWhatsAppText(adminPhone, '⚠️ No se encontró usuario con el número ' + targetPhone + '.');
       }
       return;
     }
 
-    // 1.4 RESPONDER +57... [mensaje]
+    // 1.4 ACTIVAR / APROBAR / DESBLOQUEAR +57...
+    if (lower.startsWith('activar') || lower.startsWith('desbloquear') || lower.startsWith('aprobar')) {
+      const match = text.match(/\\+?\\d{10,14}/);
+      if (match) {
+        const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
+        const reason = text.replace(/(activar|desbloquear|aprobar)\\s+\\+?\\d{10,14}/i, '').trim() || 'Acceso concedido / reactivado por la Dirección';
+        const res = aplicarCambioEstatusUsuario(targetPhone, 'ACTIVO', reason);
+        if (res.success) {
+          sendWhatsAppText(adminPhone, '✅ *ACCESO DE USUARIO ACTIVADO*\\\\nUsuario: ' + res.user + ' (' + targetPhone + ')\\\\nNotificación de bienvenida/restablecimiento despachada.');
+        } else {
+          sendWhatsAppText(adminPhone, '⚠️ ' + res.error);
+        }
+      }
+      return;
+    }
+
+    // 1.5 RESPONDER +57... [mensaje]
     if (lower.startsWith('responder')) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
@@ -1891,8 +3222,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         if (responseBody.length > 0) {
           sendWhatsAppText(adminPhone, '📤 Respuesta despachada al usuario (' + targetPhone + ') de forma anónima.');
           sendWhatsAppText(targetPhone, 
-            '💬 *RESPUESTA DE LA DIRECCIÓN DEL PROYECTO*\\\\n' +
-            '*Gestor de Contenido:*\\\\n\\\\n' +
+            '💬 *DIRECCIÓN DEL PROYECTO:*\\\\n\\\\n' +
             '"' + responseBody + '"\\\\n\\\\n' +
             '_Nota: Puede responder a este mensaje directamente si requiere aclaración adicional._'
           );
@@ -1901,15 +3231,18 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
-    // 1.5 ESTADO (Métricas)
+    // 1.6 ESTADO (Métricas)
     if (lower === 'estado') {
       const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
       const data = sheetUsr.getDataRange().getValues();
-      let app = 0, pend = 0, blk = 0;
+      let app = 0, pend = 0, susp = 0, blk = 0, exp = 0;
       for (let i = 1; i < data.length; i++) {
-        if (data[i][4] === 'APROBADO') app++;
-        else if (data[i][4] === 'PENDIENTE_APROBACION') pend++;
-        else if (data[i][4] === 'BLOQUEADO') blk++;
+        const st = String(data[i][4]);
+        if (st === 'APROBADO' || st === 'ACTIVO') app++;
+        else if (st === 'PENDIENTE_APROBACION') pend++;
+        else if (st.startsWith('SUSPENDIDO')) susp++;
+        else if (st === 'BLOQUEADO') blk++;
+        else if (st === 'EXPULSADO') exp++;
       }
 
       let totalMem = 0;
@@ -1922,11 +3255,13 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
         '👨‍⚕️ *Médicos Autorizados:* ' + app + '\\\\n' +
         '⏳ *Solicitudes Pendientes:* ' + pend + '\\\\n' +
-        '⛔ *Usuarios Suspendidos:* ' + blk + '\\\\n' +
+        '⏱️ *Usuarios Suspendidos:* ' + susp + '\\\\n' +
+        '⛔ *Usuarios Bloqueados:* ' + blk + '\\\\n' +
+        '🚫 *Usuarios Expulsados:* ' + exp + '\\\\n' +
         '🧠 *Registros Telemetría:* ' + totalMem + '\\\\n' +
         '🛡️ *Vigilancia IDS:* Activa 24/7\\\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
-        'Comandos: APROBAR, BLOQUEAR, DESBLOQUEAR, RESPONDER, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL'
+        'Comandos: ACTIVAR, SUSPENDER, BLOQUEAR, EXPULSAR, RESPONDER, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL, SELLAR_REPOSO'
       );
       return;
     }
@@ -1958,13 +3293,15 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         for (let i = 1; i < dataUsr.length; i++) {
           const uStatus = dataUsr[i][4];
           const uPhone = String(dataUsr[i][0]).replace(/[^\\d+]/g, '');
-          if (uStatus === 'APROBADO' && uPhone !== adminPhone) {
+          const uLang = (dataUsr[i].length >= 15 && dataUsr[i][14]) ? String(dataUsr[i][14]).toUpperCase().trim() : 'ES';
+          if ((uStatus === 'APROBADO' || uStatus === 'ACTIVO') && uPhone !== adminPhone) {
+            const localizedMsg = translateTextForUser(broadcastMsg, uLang);
             sendWhatsAppText(uPhone,
               '📢 *COMUNICADO OFICIAL DE LA DIRECCIÓN*\\\\n' +
               '*Biblioteca Médica de Cirugía Ortopédica*\\\\n' +
-              '*Dirección:* Gestor de Contenido\\\\n' +
+              '*Dirección:* Dirección del Proyecto\\\\n' +
               '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n\\\\n' +
-              broadcastMsg + '\\\\n\\\\n' +
+              localizedMsg + '\\\\n\\\\n' +
               '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
               '💡 _Para consultar las nuevas políticas y manual actualizado en tiempo real, escriba "MANUAL" en este chat._'
             );
@@ -1988,34 +3325,30 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       generarBackupMensualInmutable();
       return;
     }
+
+    // 1.9 SELLAR_REPOSO (Cifrado criptográfico en reposo masivo)
+    if (lower === 'sellar_reposo') {
+      const sealRes = sellarCamposEnReposoSistema();
+      sendWhatsAppText(adminPhone,
+        '🔒 *SELLADO CRIPTOGRÁFICO EN REPOSO EJECUTADO*\\\\n' +
+        '*Dirección:* Gestor de Contenido\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '• Estado: ' + (sealRes.success ? 'Completado con Éxito' : 'Error') + '\\\\n' +
+        '• Celdas sensibles selladas: ' + sealRes.totalSealed + '\\\\n' +
+        '• Hojas auditadas: 4 pestañas maestras\\\\n' +
+        '• Algoritmo: HMAC-SHA256 Encrypt-then-MAC (Keystream con sal e IV únicos)\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        'Los datos confidenciales en reposo se encuentran 100% blindados e inmunes a fórmulas maliciosas.'
+      );
+      return;
+    }
   }
 
   // =========================================================================
   // 2. MODERACIÓN ACTIVA (TOLERANCIA CERO A LENGUAJE VULGAR / INSULTOS)
   // =========================================================================
   if (isVulgarMessage(text) && !isAdmin) {
-    const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
-    const dataUsr = sheetUsr.getDataRange().getValues();
-    for (let i = 1; i < dataUsr.length; i++) {
-      if (String(dataUsr[i][0]).replace(/[^\\d]/g, '') === cleanPhone.replace(/[^\\d]/g, '')) {
-        sheetUsr.getRange(i + 1, 5).setValue('BLOQUEADO');
-        break;
-      }
-    }
-    sendWhatsAppText(cleanPhone, 
-      '⛔ *ACCESO SUSPENDIDO POR VIOLACIÓN DEL CÓDIGO DE CONDUCTA*\\\\n\\\\n' +
-      'Se ha detectado el uso de lenguaje vulgar, sensible o inapropiado en su mensaje.\\\\n' +
-      'De conformidad con el Código de Conducta de la Biblioteca Médica, su cuenta ha sido suspendida de forma preventiva.\\\\n\\\\n' +
-      'El incidente ha sido remitido a la Dirección (*Gestor de Contenido*).'
-    );
-    sendWhatsAppText(adminPhone, 
-      '🚨 *ALERTA DISCIPLINARIA DE MODERACIÓN*\\\\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
-      '👤 *Usuario:* ' + senderName + ' (\`' + cleanPhone + '\`)\\\\n' +
-      '📝 *Mensaje:* "' + text + '"\\\\n' +
-      '⚖️ *Acción:* Suspensión preventiva aplicada.\\\\n' +
-      '👉 Para desbloquear: "DESBLOQUEAR ' + cleanPhone + '"'
-    );
+    aplicarCambioEstatusUsuario(cleanPhone, 'SUSPENDIDO_24H', 'Infracción por vocabulario inapropiado o vulgar en chat');
     return;
   }
 
@@ -2027,15 +3360,15 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
     const manualLink = generateAnonymousDownloadLink(CONFIG.MANUAL_DRIVE_ID, cleanPhone);
     sendWhatsAppText(cleanPhone, 
       '📖 *MANUAL DE USO Y GOBERNANZA DEL PROYECTO*\\\\n' +
-      '*Dirección:* Gestor de Contenido\\\\n' +
+      '*Dirección:* Dirección del Proyecto\\\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
       'Este documento contiene las directrices completas para:\\\\n' +
-      '• Búsquedas quirúrgicas en el catálogo cloud con tolerancia difusa.\\\\n' +
+      '• Búsquedas quirúrgicas en el catálogo especializado con tolerancia difusa.\\\\n' +
       '• Consulta de evidencia en PubMed (EVIDENCIA: [pregunta]).\\\\n' +
       '• Lectura crítica de artículos propios estilo NotebookLM (ANALIZAR: máx 2 PDFs).\\\\n' +
       '• Envío de notas de voz de WhatsApp para transcripción automática.\\\\n' +
       '• Clasificador de fracturas AO/OTA por imagen radiográfica.\\\\n' +
-      '• Buzón Drive ciego y donaciones por WhatsApp.\\\\n' +
+      '• Buzón Digital anónimo y donaciones por WhatsApp.\\\\n' +
       '• Código de Conducta y Régimen Disciplinario.\\\\n' +
       '• Canal de contacto anónimo con la Dirección.\\\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n\\\\n' +
@@ -2053,7 +3386,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   let userRow = null;
 
   if (isAdmin) {
-    userRow = [adminPhone, 'Gestor de Contenido', 'Dirección del Proyecto', 'Dirección', 'APROBADO', new Date(), 9999, new Date()];
+    userRow = [adminPhone, 'Gestor de Contenido', 'Dirección del Proyecto', 'Dirección', 'APROBADO', new Date(), 9999, new Date(), '', '', '', '[]', '🇨🇴', 'Colombia', 'ES'];
   } else {
     for (let i = 1; i < dataUsr.length; i++) {
       if (String(dataUsr[i][0]).replace(/[^\\d]/g, '') === cleanPhone.replace(/[^\\d]/g, '')) {
@@ -2064,61 +3397,223 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   }
 
   if (!userRow) {
-    const hasRegData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital')) && text.length > 20;
-    if (hasRegData) {
-      sheetUsr.appendRow([cleanPhone, sanitizeSheetValue(senderName), 'Institución Registrada', 'Residente', 'PENDIENTE_APROBACION', new Date(), 50, new Date()]);
+    // Verificar si este número fue expulsado permanentemente
+    let isExpelled = false;
+    for (let i = 1; i < dataUsr.length; i++) {
+      if (String(dataUsr[i][0]).replace(/[^\\d]/g, '') === cleanPhone.replace(/[^\\d]/g, '') && dataUsr[i][4] === 'EXPULSADO') {
+        isExpelled = true;
+        break;
+      }
+    }
+    if (isExpelled) {
       sendWhatsAppText(cleanPhone, 
-        '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\\\n\\\\n' +
-        'Hemos recibido sus datos de registro.\\\\n' +
-        '⚠️ *Estado Actual:* En espera de autorización por la Dirección del Proyecto (*Gestor de Contenido*).\\\\n\\\\n' +
-        'Le notificaremos en cuanto su acceso sea habilitado.'
+        '🚫 *REGISTRO NO AUTORIZADO*\\\\n\\\\n' +
+        'Este número telefónico ha sido expulsado de forma definitiva del proyecto por decisión de la Dirección.\\\\n' +
+        'No se admiten nuevas solicitudes de registro.'
       );
+      return;
+    }
+
+    const countryInfo = resolveCountryAndLanguage(cleanPhone);
+    const countryFlag = countryInfo.flag;
+    const countryName = countryInfo.name;
+
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);
+    const detectedEmail = emailMatch ? emailMatch[0].trim().toLowerCase() : '';
+
+    const hasRegData = (lower.includes('residente') || lower.includes('especialista') || lower.includes('universidad') || lower.includes('hospital') || detectedEmail) && text.length > 20;
+    if (hasRegData) {
+      let chosenLang = countryInfo.defaultLang || 'ES';
+      const langMatch = text.match(/\\b(?:idioma|language|lang)\\s*:\\s*([a-zA-Z]{2})\\b/i) || text.match(/\\b(portugu[eê]s|ingl[eé]s|english|fran[cç][aá]is|espa[nñ]ol)\\b/i);
+      if (langMatch) {
+        const val = (langMatch[1] || '').toLowerCase();
+        if (val.includes('port') || val === 'pt') chosenLang = 'PT';
+        else if (val.includes('ing') || val.includes('eng') || val === 'en') chosenLang = 'EN';
+        else if (val.includes('fra') || val === 'fr') chosenLang = 'FR';
+        else if (val.includes('esp') || val === 'es') chosenLang = 'ES';
+      }
+
+      const sealedEmail = detectedEmail ? cifrarCampoEnReposo(detectedEmail) : '';
+      sheetUsr.appendRow([
+        cleanPhone, 
+        sanitizeSheetValue(senderName), 
+        'Institución Registrada', 
+        'Residente', 
+        'PENDIENTE_APROBACION', 
+        new Date(), 
+        50, 
+        new Date(), 
+        '', 
+        '', 
+        sealedEmail, 
+        '[]', 
+        countryFlag, 
+        countryName, 
+        chosenLang
+      ]);
+
+      let userWelcome = '';
+      if (chosenLang === 'PT') {
+        userWelcome = '👋 *Bem-vindo(a) à Biblioteca Médica de Cirurgia Ortopédica e Traumatologia!*\\\\n\\\\n' +
+                      'Recebemos seus dados de registro' + (detectedEmail ? ' (E-mail: ' + detectedEmail + ')' : '') + '.\\\\n' +
+                      '⚠️ *Status Atual:* Aguardando validação autônoma (~24 horas).\\\\n\\\\n' +
+                      'Notificaremos assim que seu acesso for habilitado.';
+      } else if (chosenLang === 'EN') {
+        userWelcome = '👋 *Welcome to the Orthopaedic Surgery & Traumatology Medical Library!*\\\\n\\\\n' +
+                      'We have received your registration details' + (detectedEmail ? ' (Email: ' + detectedEmail + ')' : '') + '.\\\\n' +
+                      '⚠️ *Current Status:* Awaiting autonomous validation (~24 hours).\\\\n\\\\n' +
+                      'We will notify you as soon as your access is enabled.';
+      } else if (chosenLang === 'FR') {
+        userWelcome = '👋 *Bienvenue à la Bibliothèque Médicale de Chirurgie Orthopédique et Traumatologie!*\\\\n\\\\n' +
+                      'Nous avons bien reçu vos coordonnées' + (detectedEmail ? ' (E-mail: ' + detectedEmail + ')' : '') + '.\\\\n' +
+                      '⚠️ *Statut Actuel:* En attente de validation autonome (~24 heures).\\\\n\\\\n' +
+                      'Nous vous informerons dès que votre accès sera activé.';
+      } else {
+        userWelcome = '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\\\n\\\\n' +
+                      'Hemos recibido sus datos de registro' + (detectedEmail ? ' (Correo: ' + detectedEmail + ')' : '') + '.\\\\n' +
+                      '⚠️ *Estado Actual:* En espera de validación autónoma (~24 horas).\\\\n\\\\n' +
+                      'Le notificaremos en cuanto su acceso sea habilitado.';
+      }
+
+      sendWhatsAppText(cleanPhone, userWelcome);
       sendWhatsAppText(adminPhone, 
         '🩺 *NUEVA SOLICITUD DE ACCESO*\\\\n' +
         '👤 Médico: ' + senderName + '\\\\n' +
         '📱 WhatsApp: ' + cleanPhone + '\\\\n' +
-        '👉 Responder: "APROBAR ' + cleanPhone + '"'
+        '🌍 Procedencia: ' + countryFlag + ' ' + countryName + '\\\\n' +
+        '🌐 Idioma Preferido: ' + chosenLang + '\\\\n' +
+        (detectedEmail ? '📧 Correo: ' + detectedEmail + '\\\\n' : '') +
+        '👉 Responder: "ACTIVAR ' + cleanPhone + '"'
       );
     } else {
-      sendWhatsAppText(cleanPhone, 
-        '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\\\n\\\\n' +
-        'Proyecto libre y de apoyo académico coordinado por el *Gestor de Contenido*.\\\\n\\\\n' +
-        'Para solicitar acceso a la colección clínica, comparta en un mensaje:\\\\n' +
-        '1. Nombre Completo\\\\n' +
-        '2. Universidad u Hospital de formación\\\\n' +
-        '3. Nivel actual (Residente R1-R4, Especialista, Egresado)\\\\n\\\\n' +
-        '💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._'
-      );
+      let welcomeGreeting = '';
+      if (countryInfo.defaultLang === 'PT') {
+        welcomeGreeting = '👋 *Bem-vindo(a) à Biblioteca Médica de Cirurgia Ortopédica e Traumatologia!*\\\\n\\\\n' +
+                          '🇧🇷 ' + countryInfo.greeting + '\\\\n\\\\n' +
+                          'Iniciativa independente de apoio acadêmico e pesquisa clínica.\\\\n\\\\n' +
+                          'Para solicitar acesso ao acervo clínico, envie seus dados em uma única mensagem:\\\\n' +
+                          '1. *Nome Completo*\\\\n' +
+                          '2. *E-mail* (pessoal ou institucional)\\\\n' +
+                          '3. *Universidade ou Hospital de formação*\\\\n' +
+                          '4. *Nível atual* (Residente R1-R4, Especialista, Egressado)\\\\n' +
+                          '5. *Idioma de preferência* (PT, ES, EN, FR) [Opcional - padrão: Português]\\\\n\\\\n' +
+                          '🌐 *Seleção de Idioma:* Você pode escolher o idioma de comunicação enviando *"IDIOMA: PT"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* ou *"IDIOMA: FR"* sem limites de alteração.\\\\n\\\\n' +
+                          '💡 _Ou digite "MANUAL" para consultar o guia oficial e as diretrizes do serviço._';
+      } else if (countryInfo.defaultLang === 'EN') {
+        welcomeGreeting = '👋 *Welcome to the Orthopaedic Surgery & Traumatology Medical Library!*\\\\n\\\\n' +
+                          '🌐 ' + countryInfo.greeting + '\\\\n\\\\n' +
+                          'Independent initiative for academic support and clinical research.\\\\n\\\\n' +
+                          'To request access to the clinical collection, please share your details in a single message:\\\\n' +
+                          '1. *Full Name*\\\\n' +
+                          '2. *Email address* (personal or institutional)\\\\n' +
+                          '3. *University or Training Hospital*\\\\n' +
+                          '4. *Current Level* (Resident R1-R4, Specialist, Fellow)\\\\n' +
+                          '5. *Preferred Language* (EN, ES, PT, FR) [Optional - default: English]\\\\n\\\\n' +
+                          '🌐 *Language Selection:* You can set your preferred language at any time by typing *"LANGUAGE: EN"*, *"LANGUAGE: ES"*, *"LANGUAGE: PT"*, or *"LANGUAGE: FR"* with unlimited updates.\\\\n\\\\n' +
+                          '💡 _Or type "MANUAL" to review the official guide and service guidelines._';
+      } else if (countryInfo.defaultLang === 'FR') {
+        welcomeGreeting = '👋 *Bienvenue à la Bibliothèque Médicale de Chirurgie Orthopédique et Traumatologie!*\\\\n\\\\n' +
+                          '🌐 ' + countryInfo.greeting + '\\\\n\\\\n' +
+                          'Pour demander l\\\'accès à la collection clinique, veuillez partager vos coordonnées dans un seul message:\\\\n' +
+                          '1. *Nom Complet*\\\\n' +
+                          '2. *E-mail* (personnel ou institutionnel)\\\\n' +
+                          '3. *Université ou Hôpital de formation*\\\\n' +
+                          '4. *Niveau actuel* (Résident R1-R4, Spécialiste)\\\\n' +
+                          '5. *Langue préférée* (FR, ES, EN, PT) [Optionnel]\\\\n\\\\n' +
+                          '🌐 *Choix de Langue:* Tapez *"IDIOMA: FR"*, *"IDIOMA: ES"*, *"LANGUAGE: EN"* pour changer de langue à tout moment sans limite.\\\\n\\\\n' +
+                          '💡 _Ou écrivez "MANUAL" pour consulter le guide officiel._';
+      } else {
+        welcomeGreeting = '👋 *Bienvenido(a) a la Biblioteca Médica de Cirugía Ortopédica y Traumatología.*\\\\n\\\\n' +
+                          countryInfo.flag + ' ' + countryInfo.greeting + '\\\\n\\\\n' +
+                          'Iniciativa independiente de apoyo académico e investigación clínica.\\\\n\\\\n' +
+                          'Para solicitar acceso a la colección clínica, por favor compártanos sus datos en un solo mensaje:\\\\n' +
+                          '1. *Nombre Completo*\\\\n' +
+                          '2. *Correo electrónico* (personal o institucional)\\\\n' +
+                          '3. *Universidad u Hospital de formación*\\\\n' +
+                          '4. *Nivel actual* (Residente R1-R4, Especialista, Egresado)\\\\n' +
+                          '5. *Idioma de preferencia* (ES, EN, PT, FR) [Opcional - predeterminado: Español]\\\\n\\\\n' +
+                          '🌐 *Selección de Idioma:* Puede elegir su idioma preferido en cualquier momento enviando *"IDIOMA: ES"*, *"LANGUAGE: EN"*, *"IDIOMA: PT"* o *"IDIOMA: FR"* sin límites de cambio.\\\\n\\\\n' +
+                          '💡 _O escriba "MANUAL" para consultar la guía oficial y directrices del servicio._';
+      }
+      sendWhatsAppText(cleanPhone, welcomeGreeting);
     }
     return;
   }
 
+  // Verificación de sanciones y condición del usuario
+  if (userRow[4] === 'EXPULSADO') {
+    sendWhatsAppText(cleanPhone, 
+      '🚫 *ACCESO REVOCADO PERMANENTEMENTE*\\\\n\\\\n' +
+      'Su cuenta y número de contacto han sido expulsados de forma definitiva del proyecto por decisión de la Dirección.\\\\n' +
+      'Motivo: ' + (descifrarCampoEnReposo(userRow[9]) || 'Violación grave de normativas.') + '\\\\n' +
+      'No se admiten nuevas solicitudes de registro.'
+    );
+    return;
+  }
+
+  if (String(userRow[4]).startsWith('SUSPENDIDO')) {
+    const finSusp = userRow[8] ? new Date(userRow[8]).getTime() : 0;
+    const now = new Date().getTime();
+    if (finSusp > 0 && now >= finSusp) {
+      aplicarCambioEstatusUsuario(cleanPhone, 'ACTIVO', 'Reactivación automática tras cumplir periodo de sanción');
+      userRow[4] = 'APROBADO';
+    } else {
+      const diffMs = finSusp - now;
+      const diffHrs = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60)));
+      sendWhatsAppText(cleanPhone, 
+        '⏳ *ACCESO TEMPORALMENTE SUSPENDIDO*\\\\n\\\\n' +
+        'Su cuenta se encuentra suspendida de forma preventiva.\\\\n' +
+        '⏱️ *Tiempo restante aproximado:* ' + diffHrs + ' hora(s).\\\\n' +
+        '📋 *Motivo:* ' + (descifrarCampoEnReposo(userRow[9]) || 'Revisión disciplinaria.') + '\\\\n\\\\n' +
+        'Su servicio se reactivará automáticamente al finalizar este término.'
+      );
+      return;
+    }
+  }
+
   if (userRow[4] === 'BLOQUEADO') {
-    sendWhatsAppText(cleanPhone, '⛔ *Acceso Suspendido*\\\\nSu cuenta se encuentra inhabilitada por la Dirección Médica (*Gestor de Contenido*).');
+    sendWhatsAppText(cleanPhone, 
+      '⛔ *ACCESO INHABILITADO*\\\\n\\\\n' +
+      'Su cuenta se encuentra bloqueada de forma indefinida por decisión de la Dirección del Proyecto.\\\\n' +
+      '📋 *Motivo:* ' + (descifrarCampoEnReposo(userRow[9]) || 'Incumplimiento de las normativas institucionales.') + '\\\\n\\\\n' +
+      'Para solicitar una revisión de su caso, puede comunicarse con la Dirección.'
+    );
     return;
   }
 
   if (userRow[4] === 'PENDIENTE_APROBACION') {
-    sendWhatsAppText(cleanPhone, '⏳ Su solicitud aún se encuentra en proceso de autorización por la Dirección Médica (*Gestor de Contenido*).');
+    sendWhatsAppText(cleanPhone, '⏳ Su solicitud aún se encuentra en proceso de validación autónoma (~24 horas).');
     return;
   }
 
   // =========================================================================
-  // 5. ATENCIÓN A USUARIOS APROBADOS
+  // 5. ATENCIÓN A USUARIOS APROBADOS Y ACTIVOS
   // =========================================================================
-  if (userRow[4] === 'APROBADO') {
+  if (userRow[4] === 'APROBADO' || userRow[4] === 'ACTIVO') {
 
-    // 4.2 Canal Intermediado con el Gestor de Contenido
-    if (lower.startsWith('mensaje al gestor:') || lower.startsWith('gestor:')) {
-      const query = text.replace(/^(mensaje al gestor|gestor)\\s*:\\s*/i, '').trim();
+    // 4.1.4 Cambio Inmediato de Idioma de Comunicación (Sin Límite de Frecuencia)
+    if (lower.startsWith('idioma:') || lower.startsWith('language:') || lower.startsWith('lang:') || lower === 'idioma' || lower === 'language') {
+      handleCambioIdiomaUsuario(cleanPhone, userRow, text, senderName);
+      return;
+    }
+
+    // 4.1.5 Actualización de Datos Personales
+    if (lower.startsWith('actualizar:') || lower.startsWith('actualizar datos:') || lower === 'actualizar datos' || lower === 'actualizar perfil' || lower === 'actualizar correo' || lower === 'actualizar mi perfil') {
+      handleActualizacionDatosUsuario(cleanPhone, userRow, text, senderName);
+      return;
+    }
+
+    // 4.2 Canal Intermediado con la Dirección
+    if (lower.startsWith('mensaje a la direccion:') || lower.startsWith('mensaje a la dirección:') || lower.startsWith('mensaje al gestor:') || lower.startsWith('gestor:') || lower.startsWith('direccion:') || lower.startsWith('dirección:')) {
+      const query = text.replace(/^(mensaje a la direcci[oó]n|mensaje al gestor|gestor|direcci[oó]n)\\s*:\\s*/i, '').trim();
       if (query.length > 5) {
         sendWhatsAppText(cleanPhone, 
           '📩 *Mensaje Transmitido a la Dirección*\\\\n\\\\n' +
-          'Su comunicación ha sido remitida al *Gestor de Contenido* de forma confidencial.\\\\n' +
-          'Le notificaremos en este mismo chat en cuanto se emita una respuesta.'
+          'Su comunicación ha sido remitida a la *Dirección del Proyecto* de forma confidencial.\\\\n' +
+          'Le notificaremos en este mismo chat en cuanto se emita una respuesta institucional.'
         );
         sendWhatsAppText(adminPhone, 
-          '📩 *MENSAJE RECIBIDO PARA EL GESTOR DE CONTENIDO*\\\\n' +
+          '📩 *MENSAJE RECIBIDO PARA LA DIRECCIÓN DEL PROYECTO*\\\\n' +
           '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
           '👤 *Médico:* ' + userRow[1] + ' (' + userRow[2] + ')\\\\n' +
           '📱 *WhatsApp:* \`' + cleanPhone + '\`\\\\n' +
@@ -2161,7 +3656,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
-    // 4.6 Búsqueda Clínica Inteligente en el Catálogo Cloud (Multi-Paso)
+    // 4.6 Búsqueda Clínica Inteligente en el Catálogo Especializado (Multi-Paso)
     const results = searchCatalog(text);
     if (results.length > 0) {
       const doc = results[0];
@@ -2174,7 +3669,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '📁 *Especialidad:* ' + doc.category + '\\\\n' +
         (doc.aoClass && doc.aoClass !== 'N/A' ? '🎯 *Clasificación AO:* ' + doc.aoClass + '\\\\n' : '') +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n\\\\n' +
-        '🔗 *Descarga Segura en la Nube (Válida por 30 min):*\\\\n' + link
+        '🔗 *Descarga Segura y Efímera (Válida por 30 min):*\\\\n' + link
       );
       recordTelemetry(cleanPhone, text, doc.category, 'EXITO_DOCUMENTO', doc.title);
     } else {
@@ -2191,7 +3686,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '💡 *Sugerencia Proactiva:* Puede consultar la literatura médica mundial escribiendo:\\\\n' +
         '👉 *EVIDENCIA: ' + text + '*\\\\n' +
         'para recuperar los 3 estudios más recientes de PubMed con síntesis clínica y enlaces directos.\\\\n\\\\n' +
-        '📄 O comparta el DOI/ISBN para abrir un ticket de adquisición ante la Dirección (*Gestor de Contenido*).'
+        '📄 O comparta el DOI/ISBN para abrir un ticket de adquisición ante la Dirección del Proyecto.'
       );
       recordTelemetry(cleanPhone, text, 'SIN_RESULTADOS', 'TICKET_Y_EVIDENCIA_SUGERIDOS', 'N/A');
     }

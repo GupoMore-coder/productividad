@@ -1,0 +1,22 @@
+# Ignore everything by default
+**/**
+
+# Whitelist Google Apps Script manifest
+!appsscript.json
+
+# Whitelist project core backend scripts (.js files are treated as .gs by clasp)
+!fase1_google_sheets_core.js
+!fase2_ai_agent_brain.js
+!fase3_whatsapp_webhook.js
+!fase4_dashboard_backend.js
+!fase5_informes_cfo_engine.js
+
+# Whitelist test runners
+!fase1_test_suite.js
+!fase2_test_suite.js
+!fase3_test_suite.js
+!fase4_test_suite.js
+
+# Whitelist HTML views
+!apps_script_index.html
+!fase4_dashboard_canvas.html

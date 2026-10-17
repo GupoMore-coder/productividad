@@ -159,6 +159,77 @@ function verifyEphemeralToken(token, currentTimestamp = Date.now()) {
   return { valid: true, payload };
 }
 
+// Criptografía de Sellado en Reposo (Field-Level Encryption at Rest)
+function cifrarCampoEnReposo(plainText, secretSalt = SECRET_SALT) {
+  if (plainText === null || plainText === undefined || plainText === '') return '';
+  const textStr = String(plainText);
+  if (textStr.indexOf('ENC:v1:') === 0) return textStr;
+
+  const saltHex = crypto.randomBytes(16).toString('hex');
+  const ivHex = crypto.randomBytes(16).toString('hex');
+
+  const encKeyHex = crypto.createHmac('sha256', secretSalt).update('ENC_KEY:' + saltHex).digest('hex');
+  const macKeyHex = crypto.createHmac('sha256', secretSalt).update('MAC_KEY:' + saltHex).digest('hex');
+
+  const textBytes = Buffer.from(textStr, 'utf8');
+  const cipherBytes = Buffer.alloc(textBytes.length);
+  let blockCounter = 0;
+  let currentKeyStream = Buffer.alloc(0);
+
+  for (let i = 0; i < textBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = crypto.createHmac('sha256', encKeyHex).update(ivHex + ':' + blockCounter).digest();
+      blockCounter++;
+    }
+    cipherBytes[i] = textBytes[i] ^ currentKeyStream[i % 32];
+  }
+
+  const cipherHex = cipherBytes.toString('hex');
+  const authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  const macHex = crypto.createHmac('sha256', macKeyHex).update(authPayload).digest('hex');
+
+  return 'ENC:v1:' + saltHex + ':' + ivHex + ':' + cipherHex + ':' + macHex;
+}
+
+function descifrarCampoEnReposo(cipherText, secretSalt = SECRET_SALT) {
+  if (cipherText === null || cipherText === undefined || cipherText === '') return '';
+  const str = String(cipherText);
+  if (str.indexOf('ENC:v1:') !== 0) return str;
+
+  const parts = str.split(':');
+  if (parts.length !== 6) return str;
+
+  const saltHex = parts[2];
+  const ivHex = parts[3];
+  const cipherHex = parts[4];
+  const macHex = parts[5];
+
+  const macKeyHex = crypto.createHmac('sha256', secretSalt).update('MAC_KEY:' + saltHex).digest('hex');
+  const authPayload = 'v1:' + saltHex + ':' + ivHex + ':' + cipherHex;
+  const expectedMacHex = crypto.createHmac('sha256', macKeyHex).update(authPayload).digest('hex');
+
+  if (!constantTimeEquals(macHex, expectedMacHex)) {
+    recordSilentIDS('CRYPTO_ENGINE', 'FIELD_TAMPERING_DETECTED', cipherHex, 'Firma MAC inválida en reposo');
+    return '[DATO_NO_VERIFICADO_CORRUPTO]';
+  }
+
+  const encKeyHex = crypto.createHmac('sha256', secretSalt).update('ENC_KEY:' + saltHex).digest('hex');
+  const cipherBytes = Buffer.from(cipherHex, 'hex');
+  const plainBytes = Buffer.alloc(cipherBytes.length);
+  let blockCounter = 0;
+  let currentKeyStream = Buffer.alloc(0);
+
+  for (let i = 0; i < cipherBytes.length; i++) {
+    if (i % 32 === 0) {
+      currentKeyStream = crypto.createHmac('sha256', encKeyHex).update(ivHex + ':' + blockCounter).digest();
+      blockCounter++;
+    }
+    plainBytes[i] = cipherBytes[i] ^ currentKeyStream[i % 32];
+  }
+
+  return plainBytes.toString('utf8');
+}
+
 // ============================================================================
 // BATERÍA DE AUDITORÍA ADVERSARIA (20 PRUEBAS EXTREMAS)
 // ============================================================================
@@ -495,6 +566,10 @@ runAuditTest('WHATSAPP', 'Ataque de Expresión Regular Catastrófica (ReDoS) en 
   // Cadena diseñada para provocar retroceso exponencial (catastrophic backtracking)
   const redosPayload = 'a'.repeat(500) + '!';
   
+  // Warmup JIT para estabilidad en entornos con virtualización o throttling
+  normalizeSecurityText('warmup');
+  sanitizeSheetValue('warmup');
+
   const t0 = process.hrtime.bigint();
   normalizeSecurityText(redosPayload);
   sanitizeSheetValue(redosPayload);
@@ -515,6 +590,37 @@ runAuditTest('LEAKAGE_CHECK', 'Auditoría de Fuga de PII en Código HTML y Plant
   }
 
   return { details: 'Plantilla del Manual Web 100% institucional. Únicamente figura "Dirección del Programa / Gestor de Contenido".' };
+});
+
+runAuditTest('REST_CRYPTO', 'Sellado Criptográfico en Reposo (Field-Level Encryption at Rest HMAC-SHA256)', () => {
+  const sensitiveField = 'Dr. Juan Pérez (+573105559999) - Aporte Donación Menisco PDF';
+  const sealedA = cifrarCampoEnReposo(sensitiveField);
+  const sealedB = cifrarCampoEnReposo(sensitiveField);
+
+  // 1. Estructura y formato (ENC:v1:<saltHex>:<ivHex>:<cipherHex>:<macHex>)
+  assert(sealedA.startsWith('ENC:v1:'), 'Falla: Prefijo ENC:v1 ausente');
+  assert(sealedA.split(':').length === 6, 'Falla: Estructura de 6 segmentos incorrecta');
+
+  // 2. Inmunidad a inyección de fórmulas de Google Sheets (=, +, -, @)
+  assert(!/^[=+@\-]/.test(sealedA), 'Falla: Prefijo ejecutable detectado en texto cifrado');
+
+  // 3. Sal e IV únicos por celda (IND-CPA / Semantic Security)
+  assert(sealedA !== sealedB, 'Falla: Cifrados idénticos para el mismo texto claro');
+
+  // 4. Descifrado transparente e íntegro
+  const unsealed = descifrarCampoEnReposo(sealedA);
+  assert(unsealed === sensitiveField, 'Falla: El descifrado no coincide con el texto original');
+
+  // 5. Detección y rechazo de manipulación (Tampering) con alerta IDS
+  const tamperedCipher = sealedA.slice(0, -4) + 'abcd';
+  const tamperResult = descifrarCampoEnReposo(tamperedCipher);
+  assert(tamperResult === '[DATO_NO_VERIFICADO_CORRUPTO]', 'Falla: Manipulación no neutralizada');
+
+  // 6. Retrocompatibilidad transparente con datos legados
+  const legacyPlain = 'Texto Legado en Claro';
+  assert(descifrarCampoEnReposo(legacyPlain) === legacyPlain, 'Falla: Retrocompatibilidad falló');
+
+  return { details: 'Cifrado autenticado HMAC-SHA256 con Encrypt-then-MAC, sal/IV aleatorios y tiempo constante.' };
 });
 
 // ============================================================================

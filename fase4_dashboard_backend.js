@@ -37,6 +37,110 @@ var HOJAS_DASHBOARD_ = (typeof HOJAS !== "undefined" && HOJAS) ? HOJAS : {
 };
 
 /**
+ * Calcula el saldo bancario real conciliado filtrando estrictamente por método de pago.
+ * Excluye al 100% transacciones en efectivo físico, asegurando que el dinero en caja
+ * no infle ni altere el saldo bancario.
+ * @param {Array<Object>} listaTx - Lista de transacciones a conciliar.
+ * @param {string} mascaraOCuenta - Dígitos o texto identificador de la cuenta (ej: "7194", "2103").
+ * @param {boolean} incluirTransferenciasGenericas - Si true, incluye también método "Transferencia" sin máscara.
+ * @return {number} Saldo conciliado neto.
+ */
+function calcularSaldoConciliadoCuenta_(listaTx, mascaraOCuenta, incluirTransferenciasGenericas) {
+  if (!listaTx || !Array.isArray(listaTx)) return 0;
+  const maskClean = String(mascaraOCuenta || "").replace(/[^0-9a-zA-Z]/g, "").toLowerCase();
+
+  let saldo = 0;
+  listaTx.forEach(t => {
+    if (!t || typeof t.monto !== "number" || isNaN(t.monto)) return;
+    const metodoNorm = String(t.metodo || "").toLowerCase();
+
+    // Exclusión total de movimientos físicos en efectivo o caja (salvo consignación o depósito expreso)
+    const esConsignacionExpresa = metodoNorm.includes("consigna") || metodoNorm.includes("deposit");
+    if ((metodoNorm.includes("efectivo") || metodoNorm.includes("caja")) && !esConsignacionExpresa) {
+      return;
+    }
+
+    const metodoClean = metodoNorm.replace(/[^0-9a-zA-Z]/g, "");
+    const coincideMascara = Boolean(maskClean && metodoClean.includes(maskClean));
+    const coincideTransferencia = Boolean(incluirTransferenciasGenericas && metodoNorm.includes("transferencia"));
+
+    if (coincideMascara || coincideTransferencia) {
+      if (t.tipo === "INGRESO") {
+        saldo += t.monto;
+      } else {
+        saldo -= t.monto;
+      }
+    }
+  });
+  return saldo;
+}
+
+/**
+ * Calcula el total de ingresos y gastos bancarios conciliados para una cuenta o máscara.
+ * @param {Array<Object>} listaTx - Lista de transacciones a conciliar.
+ * @param {string} mascaraOCuenta - Dígitos o texto identificador de la cuenta.
+ * @param {boolean} incluirTransferenciasGenericas - Si true, incluye "Transferencia".
+ * @return {Object} { ingresos, gastos, neto }
+ */
+function calcularTotalesConciliadosCuenta_(listaTx, mascaraOCuenta, incluirTransferenciasGenericas) {
+  if (!listaTx || !Array.isArray(listaTx)) return { ingresos: 0, gastos: 0, neto: 0 };
+  const maskClean = String(mascaraOCuenta || "").replace(/[^0-9a-zA-Z]/g, "").toLowerCase();
+
+  let ing = 0;
+  let gas = 0;
+  listaTx.forEach(t => {
+    if (!t || typeof t.monto !== "number" || isNaN(t.monto)) return;
+    const metodoNorm = String(t.metodo || "").toLowerCase();
+
+    const esConsignacionExpresa = metodoNorm.includes("consigna") || metodoNorm.includes("deposit");
+    if ((metodoNorm.includes("efectivo") || metodoNorm.includes("caja")) && !esConsignacionExpresa) {
+      return;
+    }
+
+    const metodoClean = metodoNorm.replace(/[^0-9a-zA-Z]/g, "");
+    const coincideMascara = Boolean(maskClean && metodoClean.includes(maskClean));
+    const coincideTransferencia = Boolean(incluirTransferenciasGenericas && metodoNorm.includes("transferencia"));
+
+    if (coincideMascara || coincideTransferencia) {
+      if (t.tipo === "INGRESO") {
+        ing += t.monto;
+      } else {
+        gas += t.monto;
+      }
+    }
+  });
+  return { ingresos: ing, gastos: gas, neto: ing - gas };
+}
+
+/**
+ * Calcula el saldo total de efectivo físico en caja (POS o caja menor).
+ * @param {Array<Object>} listaTx - Lista de transacciones.
+ * @return {number} Saldo físico neto.
+ */
+function calcularSaldoCajaFisica_(listaTx) {
+  if (!listaTx || !Array.isArray(listaTx)) return 0;
+  let saldo = 0;
+  listaTx.forEach(t => {
+    if (!t || typeof t.monto !== "number" || isNaN(t.monto)) return;
+    const metodoNorm = String(t.metodo || "").toLowerCase();
+
+    // Las consignaciones o depósitos son dinero que ya ingresó al banco, no efectivo en caja
+    if (metodoNorm.includes("consigna") || metodoNorm.includes("deposit")) {
+      return;
+    }
+
+    if (metodoNorm.includes("efectivo") || metodoNorm.includes("caja")) {
+      if (t.tipo === "INGRESO") {
+        saldo += t.monto;
+      } else {
+        saldo -= t.monto;
+      }
+    }
+  });
+  return saldo;
+}
+
+/**
  * Obtiene todas las métricas requeridas por el Canvas en un solo payload optimizado.
  * @param {string} entidadFiltro - 'Consolidado', 'Personal', 'More Paper' o 'More Design'.
  */
@@ -212,14 +316,29 @@ function obtenerMetricasCompletasDashboard(entidadFiltro, usuariosUniversalFiltr
     GastosGlobales: calcularTotalesRapidos_(transacciones.GastosGlobales)
   };
 
-  // 6.1 Liquidez por Cuentas Bancarias Oficiales (Valores 100% numéricos garantizados)
-  const saldoPersonal2103 = Number(resumenEntidades.Personal.flujoNeto || resumenEntidades.Personal.neto || 0);
-  const saldoMorePaper = Number(resumenEntidades.MorePaper.flujoNeto || resumenEntidades.MorePaper.neto || 0);
-  const saldoMoreDesign = Number(resumenEntidades.MoreDesign.flujoNeto || resumenEntidades.MoreDesign.neto || 0);
-  const totalGastosGlobalesNomina = Number(resumenEntidades.GastosGlobales.gastos || 0);
-  const totalIngresosGlobales = Number(resumenEntidades.GastosGlobales.ingresos || 0);
-  const flujoNetoGlobal = totalIngresosGlobales - totalGastosGlobalesNomina;
-  const saldoNegocios7194 = saldoMorePaper + saldoMoreDesign + flujoNetoGlobal;
+  // 6.1 Conciliación Bancaria Real & Segregación de Efectivo (Eliminación de Desincronización y Fugas)
+  const todasTxTiendasYGlobal = [
+    ...transacciones.MorePaper,
+    ...transacciones.MoreDesign,
+    ...transacciones.GastosGlobales
+  ];
+
+  // Saldos conciliados reales (excluyendo 100% de efectivo de caja)
+  const saldoPersonal2103 = calcularSaldoConciliadoCuenta_(transacciones.Personal, "2103", true);
+  const totales2103 = calcularTotalesConciliadosCuenta_(transacciones.Personal, "2103", true);
+
+  const saldoNegocios7194 = calcularSaldoConciliadoCuenta_(todasTxTiendasYGlobal, "7194", false);
+  const totales7194 = calcularTotalesConciliadosCuenta_(todasTxTiendasYGlobal, "7194", false);
+
+  const saldoMorePaper7194 = calcularSaldoConciliadoCuenta_(transacciones.MorePaper, "7194", false);
+  const saldoMoreDesign7194 = calcularSaldoConciliadoCuenta_(transacciones.MoreDesign, "7194", false);
+  const saldoGlobal7194 = calcularSaldoConciliadoCuenta_(transacciones.GastosGlobales, "7194", false);
+
+  // Efectivo en caja física (POS y caja menor pendientes por consignar)
+  const saldoCajaFisicaTiendas = calcularSaldoCajaFisica_(todasTxTiendasYGlobal);
+  const saldoCajaFisicaPaper = calcularSaldoCajaFisica_(transacciones.MorePaper);
+  const saldoCajaFisicaDesign = calcularSaldoCajaFisica_(transacciones.MoreDesign);
+  const saldoCajaFisicaPersonal = calcularSaldoCajaFisica_(transacciones.Personal);
 
   const esUsuarioExterno = (entidad !== "Consolidado" && entidad !== "Personal" && entidad !== "Fernando" && entidad !== "More Paper" && entidad !== "More Design" && entidad !== "Universal");
   const esUniversal = (entidad === "Universal");
@@ -228,107 +347,193 @@ function obtenerMetricasCompletasDashboard(entidadFiltro, usuariosUniversalFiltr
   let cuentasConfiguradas = [];
   try {
     if (typeof obtenerCuentasBancariasPorEntidad_ === "function") {
-      cuentasConfiguradas = obtenerCuentasBancariasPorEntidad_(ss, entidad);
+      cuentasConfiguradas = obtenerCuentasBancariasPorEntidad_(ss, (entidad === "Consolidado" || esUniversal) ? "Consolidado" : entidad);
     }
   } catch (eCuentas) {
     Logger.log("Aviso consultando cuentas configuradas: " + eCuentas.message);
   }
 
-  // Generar lista de tarjetas para el frontend
+  // Generar matriz dinámica de tarjetas bancarias para el frontend
   let tarjetasBancos = [];
 
   if (esUsuarioExterno) {
-    // USUARIOS EXTERNOS (ej: Florangellys): Solo sus cuentas personales
+    // USUARIOS EXTERNOS (ej: Florangellys): Sus cuentas bancarias conciliadas
     if (cuentasConfiguradas && cuentasConfiguradas.length > 0) {
       cuentasConfiguradas.forEach((c) => {
+        const saldoC = calcularSaldoConciliadoCuenta_(listaTransacciones, c.mascara, true);
+        const totC = calcularTotalesConciliadosCuenta_(listaTransacciones, c.mascara, true);
         tarjetasBancos.push({
           grupo: "Usuario",
           tipo: "personal",
           badge: `👤 ${c.banco.toUpperCase()} ${c.mascara}`,
           titulo: c.alias || `${c.banco} ${c.mascara}`,
-          saldo: flujoNeto,
-          flujo: `Ing: $${totalIngresos.toLocaleString("es-CO")} | Gas: $${totalGastos.toLocaleString("es-CO")}`,
+          saldo: saldoC,
+          flujo: `Ing: $${totC.ingresos.toLocaleString("es-CO")} | Gas: $${totC.gastos.toLocaleString("es-CO")}`,
           icono: "💳"
         });
       });
     } else {
+      const saldoC = calcularSaldoConciliadoCuenta_(listaTransacciones, "", true) || flujoNeto;
       tarjetasBancos.push({
         grupo: "Usuario",
         tipo: "personal",
         badge: `👤 ${entidad.toUpperCase()}`,
         titulo: `Billetera / Cuenta Personal`,
-        saldo: flujoNeto,
+        saldo: saldoC,
         flujo: `Ing: $${totalIngresos.toLocaleString("es-CO")} | Gas: $${totalGastos.toLocaleString("es-CO")}`,
         icono: "💳"
       });
     }
+
+    const saldoCajaExt = calcularSaldoCajaFisica_(listaTransacciones);
+    if (saldoCajaExt !== 0) {
+      tarjetasBancos.push({
+        grupo: "Efectivo",
+        tipo: "personal",
+        badge: "💵 EFECTIVO",
+        titulo: "Efectivo en Mano",
+        saldo: saldoCajaExt,
+        flujo: "Disponible físico",
+        icono: "💵"
+      });
+    }
   } else if (entidad === "Personal" || entidad === "Fernando") {
-    // PESTAÑA FERNANDO: Solo cuentas personales de Fernando
+    // PESTAÑA FERNANDO: Cuentas personales reales de Fernando
     tarjetasBancos.push({
       grupo: "Personal",
       tipo: "personal",
       badge: "👤 PERSONAL ***2103",
       titulo: "Ahorros Bancolombia (Personal)",
       saldo: saldoPersonal2103,
-      flujo: `Ing: $${Number(resumenEntidades.Personal.ingresos || 0).toLocaleString("es-CO")} | Gas: $${Number(resumenEntidades.Personal.gastos || 0).toLocaleString("es-CO")}`,
+      flujo: `Ing: $${totales2103.ingresos.toLocaleString("es-CO")} | Gas: $${totales2103.gastos.toLocaleString("es-CO")}`,
       icono: "💳"
     });
+
+    // Cuentas personales adicionales dinámicas (ej: Nequi, Davivienda, etc.)
     cuentasConfiguradas.forEach(c => {
-      if (c.mascara !== "***2103" && c.tipoUso === "Personal") {
+      const maskClean = String(c.mascara || "").replace(/[^0-9]/g, "");
+      if (maskClean !== "2103" && (String(c.tipoUso || "").toLowerCase().includes("personal") || String(c.usuario || "").toLowerCase().includes("fernando"))) {
+        const saldoC = calcularSaldoConciliadoCuenta_(transacciones.Personal, c.mascara, false);
+        const totC = calcularTotalesConciliadosCuenta_(transacciones.Personal, c.mascara, false);
         tarjetasBancos.push({
           grupo: "Personal",
           tipo: "personal",
           badge: `👤 ${c.banco.toUpperCase()} ${c.mascara}`,
-          titulo: c.alias,
-          saldo: saldoPersonal2103,
-          flujo: "Cuenta Activa",
+          titulo: c.alias || `${c.banco} ${c.mascara}`,
+          saldo: saldoC,
+          flujo: `Ing: $${totC.ingresos.toLocaleString("es-CO")} | Gas: $${totC.gastos.toLocaleString("es-CO")}`,
           icono: "💳"
         });
       }
     });
+
+    if (saldoCajaFisicaPersonal !== 0) {
+      tarjetasBancos.push({
+        grupo: "Efectivo",
+        tipo: "personal",
+        badge: "💵 EFECTIVO PERSONAL",
+        titulo: "Efectivo en Mano (Personal)",
+        saldo: saldoCajaFisicaPersonal,
+        flujo: "Dinero físico no bancarizado",
+        icono: "💵"
+      });
+    }
   } else if (entidad === "More Paper" || entidad === "More Design") {
-    // PESTAÑA TIENDAS: Solo cuentas de uso global para las tiendas (***7194)
+    // PESTAÑA TIENDAS: Sub-saldo específico de la tienda en ***7194 y efectivo POS
+    const saldoTienda7194 = (entidad === "More Paper") ? saldoMorePaper7194 : saldoMoreDesign7194;
+    const saldoCajaTienda = (entidad === "More Paper") ? saldoCajaFisicaPaper : saldoCajaFisicaDesign;
+
     tarjetasBancos.push({
       grupo: "Negocios",
       tipo: "negocios",
       badge: "🏢 NEGOCIOS ***7194",
-      titulo: "Ahorros Bancolombia (Común Tiendas)",
-      saldo: saldoNegocios7194,
-      desglose: `Paper: $${saldoMorePaper.toLocaleString("es-CO")} | Design: $${saldoMoreDesign.toLocaleString("es-CO")}${totalIngresosGlobales > 0 ? " | Fondos: $" + totalIngresosGlobales.toLocaleString("es-CO") : ""}`,
+      titulo: `Ahorros Bancolombia (${entidad})`,
+      saldo: saldoTienda7194,
+      desglose: `Saldo común tiendas total: $${saldoNegocios7194.toLocaleString("es-CO")}`,
       icono: "🏢"
     });
+
+    tarjetasBancos.push({
+      grupo: "Caja",
+      tipo: "negocios",
+      badge: "💵 CAJA FÍSICA POS",
+      titulo: `Efectivo en Caja POS (${entidad})`,
+      saldo: saldoCajaTienda,
+      desglose: "Dinero en mostrador pendiente por consignar",
+      icono: "💵"
+    });
   } else if (esUniversal) {
-    // PESTAÑA UNIVERSAL: Cuentas consolidadas de los usuarios seleccionados
+    // PESTAÑA UNIVERSAL: Cuentas consolidadas de usuarios seleccionados
+    const saldoUniversalBancos = calcularSaldoConciliadoCuenta_(listaTransacciones, "", true);
     tarjetasBancos.push({
       grupo: "Universal",
       tipo: "universal",
       badge: "🌐 FONDO CONSOLIDADO USUARIOS",
-      titulo: "Flujo Disponible de Usuarios Seleccionados",
-      saldo: flujoNeto,
+      titulo: "Flujo Bancario Conciliado",
+      saldo: saldoUniversalBancos,
       flujo: `Ingresos: $${totalIngresos.toLocaleString("es-CO")} | Gastos: $${totalGastos.toLocaleString("es-CO")}`,
       icono: "🌐"
     });
   } else {
-    // CONSOLIDADO: Separación visual de Personal vs Negocios
+    // CONSOLIDADO: Separación nítida Personal vs Negocios vs Cuentas Dinámicas + Indicador de Caja Física
     tarjetasBancos.push({
       grupo: "Personal",
       tipo: "personal",
       badge: "👤 PERSONAL ***2103",
       titulo: "Ahorros Bancolombia (Fernando)",
       saldo: saldoPersonal2103,
-      flujo: `Ing: $${Number(resumenEntidades.Personal.ingresos || 0).toLocaleString("es-CO")} | Gas: $${Number(resumenEntidades.Personal.gastos || 0).toLocaleString("es-CO")}`,
+      flujo: `Ing: $${totales2103.ingresos.toLocaleString("es-CO")} | Gas: $${totales2103.gastos.toLocaleString("es-CO")}`,
       icono: "💳"
     });
+
     tarjetasBancos.push({
       grupo: "Negocios",
       tipo: "negocios",
       badge: "🏢 NEGOCIOS ***7194",
       titulo: "Ahorros Bancolombia (Común Tiendas)",
       saldo: saldoNegocios7194,
-      desglose: `Paper: $${saldoMorePaper.toLocaleString("es-CO")} | Design: $${saldoMoreDesign.toLocaleString("es-CO")}${totalIngresosGlobales > 0 ? " | Fondos: $" + totalIngresosGlobales.toLocaleString("es-CO") : ""}`,
+      desglose: `Paper: $${saldoMorePaper7194.toLocaleString("es-CO")} | Design: $${saldoMoreDesign7194.toLocaleString("es-CO")}${saldoGlobal7194 !== 0 ? " | Op. Global: $" + saldoGlobal7194.toLocaleString("es-CO") : ""}`,
       icono: "🏢"
     });
+
+    // Inyectar cuentas adicionales configuradas activas (Nequi, Davivienda, etc.)
+    cuentasConfiguradas.forEach(c => {
+      const maskClean = String(c.mascara || "").replace(/[^0-9]/g, "");
+      if (maskClean !== "2103" && maskClean !== "7194") {
+        const esCuentaTienda = String(c.tipoUso || "").toLowerCase().includes("tienda") || String(c.tipoUso || "").toLowerCase().includes("global");
+        const listaParaCuenta = esCuentaTienda ? todasTxTiendasYGlobal : transacciones.Personal;
+        const saldoC = calcularSaldoConciliadoCuenta_(listaParaCuenta, c.mascara, false);
+        const totC = calcularTotalesConciliadosCuenta_(listaParaCuenta, c.mascara, false);
+        tarjetasBancos.push({
+          grupo: esCuentaTienda ? "Negocios" : "Personal",
+          tipo: esCuentaTienda ? "negocios" : "personal",
+          badge: `${esCuentaTienda ? "🏢" : "👤"} ${c.banco.toUpperCase()} ${c.mascara}`,
+          titulo: c.alias || `${c.banco} ${c.mascara}`,
+          saldo: saldoC,
+          flujo: `Ing: $${totC.ingresos.toLocaleString("es-CO")} | Gas: $${totC.gastos.toLocaleString("es-CO")}`,
+          icono: "💳"
+        });
+      }
+    });
+
+    // Tarjeta de Efectivo Físico en Caja POS
+    if (saldoCajaFisicaTiendas !== 0 || saldoCajaFisicaPersonal !== 0) {
+      tarjetasBancos.push({
+        grupo: "Caja",
+        tipo: "negocios",
+        badge: "💵 CAJA FÍSICA TOTAL",
+        titulo: "Efectivo en Caja POS (Por Consignar)",
+        saldo: saldoCajaFisicaTiendas,
+        desglose: `Paper: $${saldoCajaFisicaPaper.toLocaleString("es-CO")} | Design: $${saldoCajaFisicaDesign.toLocaleString("es-CO")}${saldoCajaFisicaPersonal !== 0 ? " | Pers: $" + saldoCajaFisicaPersonal.toLocaleString("es-CO") : ""}`,
+        icono: "💵"
+      });
+    }
   }
+
+  // Calcular total acumulado en bancos conciliados (excluyendo estrictamente efectivo de caja)
+  const totalBancosReconciliados = tarjetasBancos
+    .filter(t => t.grupo !== "Caja" && t.grupo !== "Efectivo")
+    .reduce((sum, t) => sum + Number(t.saldo || 0), 0);
 
   const cuentasBancarias = {
     esUsuarioExterno: esUsuarioExterno,
@@ -339,49 +544,55 @@ function obtenerMetricasCompletasDashboard(entidadFiltro, usuariosUniversalFiltr
       cuenta: "Ahorros ***2103",
       banco: "Bancolombia",
       titular: "Personal",
-      ingresos: Number(resumenEntidades.Personal.ingresos || 0),
-      gastos: Number(resumenEntidades.Personal.gastos || 0),
+      ingresos: totales2103.ingresos,
+      gastos: totales2103.gastos,
       saldoDisponible: saldoPersonal2103
     },
     negocios7194: {
       cuenta: "Ahorros ***7194",
       banco: "Bancolombia",
       titular: "Cuenta Común (More Paper & More Design)",
-      ingresosTotal: Number((resumenEntidades.MorePaper.ingresos || 0) + (resumenEntidades.MoreDesign.ingresos || 0) + totalIngresosGlobales),
-      gastosTotal: Number((resumenEntidades.MorePaper.gastos || 0) + (resumenEntidades.MoreDesign.gastos || 0) + totalGastosGlobalesNomina),
+      ingresosTotal: totales7194.ingresos,
+      gastosTotal: totales7194.gastos,
       saldoDisponible: saldoNegocios7194,
       desglose: {
         morePaper: {
           ingresos: Number(resumenEntidades.MorePaper.ingresos || 0),
           gastos: Number(resumenEntidades.MorePaper.gastos || 0),
-          neto: saldoMorePaper,
-          flujoNeto: saldoMorePaper
+          neto: saldoMorePaper7194,
+          flujoNeto: saldoMorePaper7194
         },
         moreDesign: {
           ingresos: Number(resumenEntidades.MoreDesign.ingresos || 0),
           gastos: Number(resumenEntidades.MoreDesign.gastos || 0),
-          neto: saldoMoreDesign,
-          flujoNeto: saldoMoreDesign
+          neto: saldoMoreDesign7194,
+          flujoNeto: saldoMoreDesign7194
         },
         operacionGlobal: {
-          ingresos: totalIngresosGlobales,
-          gastos: totalGastosGlobalesNomina,
-          neto: flujoNetoGlobal,
-          flujoNeto: flujoNetoGlobal
+          ingresos: Number(resumenEntidades.GastosGlobales.ingresos || 0),
+          gastos: Number(resumenEntidades.GastosGlobales.gastos || 0),
+          neto: saldoGlobal7194,
+          flujoNeto: saldoGlobal7194
         }
       }
     },
+    cajaFisica: {
+      tiendas: saldoCajaFisicaTiendas,
+      paper: saldoCajaFisicaPaper,
+      design: saldoCajaFisicaDesign,
+      personal: saldoCajaFisicaPersonal
+    },
     totalConsolidadoBancos: (entidad === "Consolidado") 
-      ? (saldoPersonal2103 + saldoNegocios7194) 
-      : (entidad === "Personal" || entidad === "Fernando" ? saldoPersonal2103 : (entidad.includes("Paper") || entidad.includes("Design") ? saldoNegocios7194 : flujoNeto))
+      ? totalBancosReconciliados 
+      : (entidad === "Personal" || entidad === "Fernando" ? saldoPersonal2103 : (entidad.includes("Paper") ? saldoMorePaper7194 : (entidad.includes("Design") ? saldoMoreDesign7194 : totalBancosReconciliados)))
   };
 
   // 6.2 Métricas Estratégicas Warren Buffett (Owner Earnings, Cash Fortress & Antigüedad de Cartera)
   const saldoLiquidoRelevante = esUsuarioExterno
-    ? flujoNeto
+    ? totalBancosReconciliados
     : (entidad === "Personal" 
         ? saldoPersonal2103 
-        : (entidad === "Consolidado" ? (saldoPersonal2103 + saldoNegocios7194) : saldoNegocios7194));
+        : (entidad === "Consolidado" ? totalBancosReconciliados : (entidad === "More Paper" ? saldoMorePaper7194 : (entidad === "More Design" ? saldoMoreDesign7194 : totalBancosReconciliados))));
 
   // Estimación de egresos mensuales operativos promedio
   const mesesContabilizados = Math.max(flujoMensual.length, 1);
@@ -614,7 +825,7 @@ function obtenerTransaccionesDeHoja_(ss, nombreHoja, entidadNombre) {
 
   // Mapeo dinámico de encabezados
   let headerRowIdx = 0;
-  let mapa = { id: 0, fecha: 1, tipo: 2, categoria: 3, subcategoria: 4, concepto: 5, tercero: 6, valor: 7 };
+  let mapa = { id: 0, fecha: 1, tipo: 2, categoria: 3, subcategoria: 4, concepto: 5, tercero: 6, valor: 7, metodo: 8 };
 
   for (let r = 0; r < Math.min(raw.length, 15); r++) {
     const rowStr = raw[r].join(" ").toUpperCase();
@@ -630,6 +841,7 @@ function obtenerTransaccionesDeHoja_(ss, nombreHoja, entidadNombre) {
         else if (hName.includes("CONCEPTO") || hName === "NOMBRE" || hName.includes("DESCRIP")) mapa.concepto = cIdx;
         else if (hName.includes("TERCERO") || hName.includes("PROVEEDOR")) mapa.tercero = cIdx;
         else if (hName.includes("VALOR") || hName.includes("MONTO") || hName.includes("IMPORTE")) mapa.valor = cIdx;
+        else if (hName.includes("METODO") || hName.includes("PAGO") || hName.includes("FORMA") || hName.includes("CUENTA")) mapa.metodo = cIdx;
       });
       break;
     }
@@ -648,13 +860,16 @@ function obtenerTransaccionesDeHoja_(ss, nombreHoja, entidadNombre) {
     const rawCat = mapa.categoria >= 0 ? row[mapa.categoria] : "";
     const rawConc = mapa.concepto >= 0 ? row[mapa.concepto] : "";
     const rawTerc = mapa.tercero >= 0 ? row[mapa.tercero] : "";
+    const rawMetodo = mapa.metodo >= 0 ? row[mapa.metodo] : (row[8] || "");
 
     const fechaStr = (rawFecha instanceof Date) 
       ? Utilities.formatDate(rawFecha, Session.getScriptTimeZone(), "yyyy-MM-dd")
       : String(rawFecha || "").substring(0, 10);
 
     const tipoStr = String(rawTipo || rawCat || "").trim().toUpperCase();
-    const esIngreso = tipoStr.includes("INGRESO") || (!tipoStr.includes("GASTO") && String(rawConc).toLowerCase().includes("saldo a favor"));
+    const patronesIngreso = ["INGRESO", "VENTA", "FACTURA", "COBRO", "CONSIGNACI", "ABONO CLIENTE", "CAPITAL", "APORTE", "RECAUDO"];
+    const esIngreso = patronesIngreso.some(p => tipoStr.includes(p) || String(rawCat || "").toUpperCase().includes(p)) ||
+      (!tipoStr.includes("GASTO") && (String(rawConc).toLowerCase().includes("saldo a favor") || String(rawConc).toLowerCase().includes("ingreso por")));
 
     transacciones.push({
       id: String(rawId || ("TX-" + r)),
@@ -665,6 +880,7 @@ function obtenerTransaccionesDeHoja_(ss, nombreHoja, entidadNombre) {
       subcategoria: String(mapa.subcategoria >= 0 ? row[mapa.subcategoria] : "").trim(),
       concepto: String(rawConc || "Movimiento contable").trim() || "Sin concepto",
       tercero: String(rawTerc || "").trim(),
+      metodo: String(rawMetodo || "Efectivo").trim(),
       monto: monto,
       entidad: entidadNombre
     });
@@ -709,12 +925,17 @@ function obtenerCompromisosDeHoja_(ss, nombreHoja, entidadNombre) {
     const totalAbonado = Math.abs(limpiarMontoMoneda_(row[5]));
     const saldoPendiente = Math.abs(limpiarMontoMoneda_(row[6])) || Math.max(0, montoTotal - totalAbonado);
 
+    const conceptoStr = String(row[3] || "").trim();
+    const terceroStr = String(row[2] || "").trim();
+    const textoComp = (conceptoStr + " " + terceroStr).toLowerCase();
+    const esCobrar = textoComp.includes("cobrar") || textoComp.includes("cobro") || textoComp.includes("a favor") || textoComp.includes("me debe") || textoComp.includes("deudor") || textoComp.includes("prestamo a");
+
     compromisos.push({
       id: String(row[0] || ("COMP-" + r)),
       fechaVencimiento: fVencStr,
-      tipo: "POR_PAGAR",
-      tercero: String(row[2] || "").trim(),
-      concepto: String(row[3] || "Obligación financiera").trim(),
+      tipo: esCobrar ? "POR_COBRAR" : "POR_PAGAR",
+      tercero: terceroStr,
+      concepto: conceptoStr || (esCobrar ? "Cuenta por cobrar" : "Obligación financiera"),
       montoOriginal: montoTotal,
       abonos: totalAbonado,
       saldoPendiente: saldoPendiente,
@@ -956,12 +1177,24 @@ function despacharSolicitudGetDashboard(e) {
   } else {
     // Si no es usuario externo, verificar si se configuró un token estricto en ScriptProperties
     const tokenConfigurado = PropertiesService.getScriptProperties().getProperty("DASHBOARD_ACCESS_TOKEN");
-    if (tokenConfigurado && authParam !== tokenConfigurado) {
+    const esAuthAdminValido = !tokenConfigurado || (typeof safeCompareTokens_ === "function" 
+      ? safeCompareTokens_(authParam, tokenConfigurado) 
+      : authParam === tokenConfigurado);
+
+    if (!esAuthAdminValido) {
       if (params.action === "getDashboardData" || params.action === "processPrompt") {
         return ContentService.createTextOutput(JSON.stringify({
           ok: false,
           error: "Acceso no autorizado al Dashboard. Token de acceso administrativo requerido."
         })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return HtmlService.createHtmlOutput(
+          "<div style='background:#060913;color:#f8fafc;font-family:sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;'>" +
+          "<div style='font-size:48px;margin-bottom:16px;'>🔒</div>" +
+          "<h2 style='color:#f43f5e;margin-bottom:8px;'>Acceso Administrativo Protegido</h2>" +
+          "<p style='color:#94a3b8;max-width:400px;line-height:1.5;'>Este Dashboard ejecutivo requiere credencial administrativa. Por favor accede mediante tu enlace privado con token (?auth=...).</p>" +
+          "</div>"
+        ).setTitle("Acceso Restringido | Antigravity Finanzas");
       }
     }
   }
@@ -989,6 +1222,15 @@ function despacharSolicitudGetDashboard(e) {
     }
     const reporte = procesarPromptDashboard(prompt, entidad);
     return ContentService.createTextOutput(JSON.stringify(reporte))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Caso C.2: API REST para aplicar directiva de caracteres rojos en Google Sheets
+  if (params.action === "aplicarDirectivaRojo") {
+    const res = (typeof aplicarDirectivaCaracteresRojosLibro === "function")
+      ? aplicarDirectivaCaracteresRojosLibro()
+      : { ok: false, error: "Función aplicarDirectivaCaracteresRojosLibro no disponible" };
+    return ContentService.createTextOutput(JSON.stringify(res))
       .setMimeType(ContentService.MimeType.JSON);
   }
 

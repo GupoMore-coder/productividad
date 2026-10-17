@@ -2,7 +2,7 @@
 
 > **Directorio y mapa de orquestación automática para todos los activos de Antigravity.**
 
-**Total de Activos Indexados:** 1043 especialistas, habilidades, reglas y síntesis especializadas.
+**Total de Activos Indexados:** 1059 especialistas, habilidades, reglas y síntesis especializadas.
 
 ---
 
@@ -11,12 +11,12 @@
 | Componente | Cantidad | Ubicación | Función |
 | :--- | :---: | :--- | :--- |
 | **The Agency Agents** | 279 | `.agents/agency/` | Especialistas de rol con personalidades y procesos (On-Demand) |
-| **Project Skills (Biblioteca On-Demand)** | 357 | `.agents/catalogs/skills/` | Conocimiento técnico, arquitecturas y metodologías cargadas dinámicamente |
+| **Project Skills (Biblioteca On-Demand)** | 365 | `.agents/catalogs/skills/` | Conocimiento técnico, arquitecturas y metodologías cargadas dinámicamente |
 | **Meta-Orquestadores Activos** | 2 | `.agents/skills/` | Auto-orquestador e indexador persistentes del IDE |
 | **Reviewers & Resolvers (ECC)** | 68 | `.agents/agents/` | Agentes evaluadores, de compilación y PR review |
 | **Reglas de Codificación** | 122 | `.agents/rules/` | Guías de estilo, seguridad y patrones por lenguaje |
 | **Workflows Automatizados** | 99 | `.agents/workflows/` | Comandos slash y flujos interactivos de alto nivel |
-| **Módulos y Catálogos Especializados** | 83 | `.agents/catalogs/` | Síntesis densa de biomecánica, ortopedia y protocolos MCP |
+| **Módulos y Catálogos Especializados** | 91 | `.agents/catalogs/` | Síntesis densa de biomecánica, ortopedia y protocolos MCP |
 | **Skills Globales Cloud** | 33 | `~/.gemini/config/skills/` | Capacidades GCP, BigQuery y Telemetría |
 
 ---
@@ -643,6 +643,74 @@ Cada vez que se procesa una petición, el sistema identifica el dominio y confor
 * **Skills de Soporte:** `adversarial-eval-neurosploit`, `autonomous-pentest-agent`, `shannon-pentest`
 * **Reglas de Calidad:** `common-security`, `web-security`, `common-security-gate`
 * **Registros & MCPs (Bajo Demanda):** `neurosploit-redteam.md` (`.agents/catalogs/mcp-registry/neurosploit-redteam.md`)
+
+### 🎯 Dominio: Defensive Authentication Resilience & Rate-Limit Auditing (`auth_resilience_bruteforceai`)
+
+* **Palabras clave / Triggers:** `bruteforceai, auth resilience, rate limit audit, lockout verification, credential stuffing test, form selector discovery, asvs v2`...
+* **Agentes Lead:** `specialized-security-bounty-hunter`, `engineering-identity-access-engineer`
+* **Skills de Soporte:** `auth-resilience-bruteforceai`, `security-review`, `shannon-pentest`
+* **Reglas de Calidad:** `common-security`, `web-security`, `common-security-gate`
+* **Registros & MCPs (Bajo Demanda):** `bruteforceai-auth-audit.md` (`.agents/catalogs/mcp-registry/bruteforceai-auth-audit.md`)
+
+### 🎯 Dominio: Local-First Constraint-Aware Personal AI Framework (`local_agent_openjarvis`)
+
+* **Palabras clave / Triggers:** `openjarvis, local agent, personal ai, constraint evaluation, flops energy budget, on device agent, local memory`...
+* **Agentes Lead:** `agency-software-architect`, `engineering-backend-architect`
+* **Skills de Soporte:** `local-agent-openjarvis`, `offline-inference-freedomgpt`, `local-interpreter-sandbox`
+* **Reglas de Calidad:** `common-development-workflow`, `common-performance`
+* **Registros & MCPs (Bajo Demanda):** `openjarvis-local-agent.md` (`.agents/catalogs/mcp-registry/openjarvis-local-agent.md`)
+
+### 🎯 Dominio: Sovereign WhatsApp Multi-Device Gateway & Native MCP (`sovereign_whatsapp_gowa`)
+
+* **Palabras clave / Triggers:** `gowa, go whatsapp, whatsmeow, sovereign whatsapp, whatsapp mcp, multi device qr, zero cost whatsapp, whatsapp rest api`...
+* **Agentes Lead:** `engineering-backend-architect`, `agency-software-architect`
+* **Skills de Soporte:** `sovereign-whatsapp-gowa`, `whatsapp-conversational-agent`, `agent-messaging-gateway`
+* **Reglas de Calidad:** `common-security`, `golang-coding-style`
+* **Registros & MCPs (Bajo Demanda):** `gowa-whatsapp-gateway.md` (`.agents/catalogs/mcp-registry/gowa-whatsapp-gateway.md`)
+
+### 🎯 Dominio: Self-Hosted Software Discovery & SaaS Migration (`selfhosted_stack_advisor`)
+
+* **Palabras clave / Triggers:** `awesome selfhosted, selfhosted stack, saas alternative, cloud cost reduction, replace jira, replace zapier, docker compose scaffold`...
+* **Agentes Lead:** `engineering-devops-automator`, `engineering-finops-engineer`
+* **Skills de Soporte:** `selfhosted-stack-advisor`, `selfhosted-paas-coolify`, `docker-patterns`
+* **Reglas de Calidad:** `common-development-workflow`, `common-security`
+* **Registros & MCPs (Bajo Demanda):** `awesome-selfhosted-catalog.md` (`.agents/catalogs/mcp-registry/awesome-selfhosted-catalog.md`)
+
+### 🎯 Dominio: Universal Public API Directory & Integration Scouting (`public_api_scout`)
+
+* **Palabras clave / Triggers:** `api mega list, public api directory, api scout, typed api client, discover apis, third party integration, api catalog`...
+* **Agentes Lead:** `agency-software-architect`, `engineering-api-platform-engineer`
+* **Skills de Soporte:** `public-api-scout`, `contract-first`, `atomic-file-organizer`
+* **Reglas de Calidad:** `common-development-workflow`, `web-security`
+* **Registros & MCPs (Bajo Demanda):** `public-api-mega-directory.md` (`.agents/catalogs/mcp-registry/public-api-mega-directory.md`)
+
+### 🎯 Dominio: Permanent Free LLM API Registry & Zero-Cost Routing (`free_tier_llm_router`)
+
+* **Palabras clave / Triggers:** `free llm apis, awesome free llm, zero cost llm, free tier inference, groq free, cerebras free, gemini free tier, free openai endpoint`...
+* **Agentes Lead:** `engineering-backend-architect`, `engineering-finops-engineer`
+* **Skills de Soporte:** `free-tier-llm-router`, `llm-pool-opencodex`, `token-budget-advisor`
+* **Reglas de Calidad:** `common-development-workflow`, `common-performance`
+* **Registros & MCPs (Bajo Demanda):** `free-llm-apis-registry.md` (`.agents/catalogs/mcp-registry/free-llm-apis-registry.md`)
+
+### 🎯 Dominio: Multi-Agent Tournament & Evolutionary Solution Selection (`multi_agent_arena`)
+
+* **Palabras clave / Triggers:** `arena, arena skill, multi agent tournament, bracket evaluation, evolutionary selection, parallel strategies, cross critique, llm as judge`...
+* **Agentes Lead:** `agency-software-architect`, `testing-qa-lead`
+* **Skills de Soporte:** `multi-agent-arena`, `ruflo-swarm-orchestrator`, `santa-loop`
+* **Reglas de Calidad:** `common-development-workflow`, `common-testing`
+* **Registros & MCPs (Bajo Demanda):** `arena-tournament-eval.md` (`.agents/catalogs/mcp-registry/arena-tournament-eval.md`)
+
+### 🎯 Dominio: OSINT Identity Footprint & Brand Impersonation Auditing (`osint_identity_aliens_eye`)
+
+* **Palabras clave / Triggers:** `aliens eye, osint identity, username reconnaissance, footprint scan, brand impersonation, handle search, profile verification, digital footprint`...
+* **Agentes Lead:** `specialized-security-bounty-hunter`, `marketing-growth-hacker`
+* **Skills de Soporte:** `osint-identity-footprint`, `social-web-reach`, `ai-recon-nebula`
+* **Reglas de Calidad:** `common-security`, `web-security`
+* **Registros & MCPs (Bajo Demanda):** `aliens-eye-osint.md` (`.agents/catalogs/mcp-registry/aliens-eye-osint.md`)
+
+
+
+
 
 
 

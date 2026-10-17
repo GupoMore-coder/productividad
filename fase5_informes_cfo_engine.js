@@ -642,17 +642,17 @@ function generarPdfYArchivarEnDrive_(htmlContent, nombreArchivo) {
     
     // 4. Gestión segura de permisos de Drive (Configurable vía PropertiesService)
     try {
-      const politicaSharing = PropertiesService.getScriptProperties().getProperty("DRIVE_SHARING_POLICY") || "HYBRID";
+      const politicaSharing = PropertiesService.getScriptProperties().getProperty("DRIVE_SHARING_POLICY") || "RESTRICTED_ADMIN";
       
-      if (politicaSharing === "RESTRICTED_ADMIN") {
-        // Modo Alta Seguridad: Solo usuarios autorizados del script y el correo de Google activo
+      if (politicaSharing === "PUBLIC_LINK") {
+        // Modo Enlace Público Explícito (solo si el administrador lo activa intencionalmente)
+        archivoDrive.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } else {
+        // Modo Alta Seguridad Zero-Trust (por defecto): Acceso restringido al propietario y administrador
         const emailActivo = Session.getEffectiveUser().getEmail();
         if (emailActivo) {
           archivoDrive.addViewer(emailActivo);
         }
-      } else {
-        // Modo Híbrido (por defecto): Acceso de solo lectura mediante enlace directo con ID de 33 caracteres
-        archivoDrive.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       }
     } catch (eSharing) {
       Logger.log("Aviso al establecer permisos de Drive: " + eSharing.message);
@@ -756,7 +756,10 @@ function autorizarServiciosGoogleAppsScript() {
     const testBlob = Utilities.newBlob(htmlTest, "text/html", `Verificacion_Drive_${timestamp}.html`);
     const archivoCreado = carpeta.createFile(testBlob);
     try {
-      archivoCreado.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      const pol = PropertiesService.getScriptProperties().getProperty("DRIVE_SHARING_POLICY") || "RESTRICTED_ADMIN";
+      if (pol === "PUBLIC_LINK") {
+        archivoCreado.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      }
     } catch (eShare) {
       Logger.log("Aviso al compartir archivo de prueba: " + eShare.message);
     }
@@ -1304,8 +1307,9 @@ function generarInformeCFOCompleto_(tipoInforme, periodo, ss) {
     const tipo = (tipoInforme || "PDF_DOSSIER").toUpperCase();
     const datosConsolidados = extraerDatosConsolidadosParaInforme_(ss, periodo);
     const flujoCaja = calcularFlujoCajaLibreDistribuible_(datosConsolidados);
-    const contextoMacro = obtenerContextoMacroEconomico_();
-    const diagnostico = generarDiagnosticoCFOConIA_(datosConsolidados, flujoCaja, contextoMacro, tipo);
+    const diagnostico = (tipo === "FLASH")
+      ? generarDiagnosticoCFODeterministico_(datosConsolidados, flujoCaja, contextoMacro)
+      : generarDiagnosticoCFOConIA_(datosConsolidados, flujoCaja, contextoMacro, tipo);
 
     // Preparar objeto de datos para compiladores
     const payloadCompilador = {
@@ -1416,6 +1420,72 @@ function generarInformeCFOCompleto_(tipoInforme, periodo, ss) {
 // ============================================================================
 
 /**
+ * Formatea el informe Flash con la voz, emoji, estilo y lema del personaje activo (ej: Deadpool, Batman, etc.)
+ */
+function formatearInformeFlashConPersonaje_(informe, perm, periodo) {
+  const perfil = perm?.perfilVoz || (perm?.rol === "SUPER_ADMIN" ? "DEADPOOL" : "FEMENINO_DULCE");
+  const def = (typeof obtenerDefinicionPersonajeCompleta_ === "function") 
+    ? obtenerDefinicionPersonajeCompleta_(perfil) 
+    : { emoji: "📊", alias: "Director Financiero", lema: "Dirección Financiera de Élite", iconoAccion: "💼" };
+
+  const nombre = (typeof sanitizarNombreHumano_ === "function") 
+    ? sanitizarNombreHumano_(perm?.nombre || "Fernando") 
+    : (perm?.nombre || "Fernando");
+
+  const datos = informe?.datosConsolidados;
+  const fcl = informe?.flujoCaja;
+  const diag = informe?.diagnostico;
+
+  // Saludo dinámico según personalidad
+  let saludoPersonaje = `¡Hola, ${nombre}! Aquí ${def.alias}, tu ${def.titulo || "Director Financiero"}. `;
+  if (perfil.includes("DEADPOOL") || perfil.includes("WADE")) {
+    saludoPersonaje = `⚔️ ¡Hola, ${nombre}! Wade Wilson reportándose. Katanas enfundadas y números afilados al centavo. Aquí tienes tu análisis financiero en tiempo real, sin dramas ni aburrimiento:`;
+  } else if (perfil.includes("BATMAN") || perfil.includes("BRUCE")) {
+    saludoPersonaje = `🦇 ${nombre}, aquí Bruce Wayne. He auditado minuciosamente las arcas. Tus números se mantienen bajo estricto control y vigilancia estratégica:`;
+  } else if (perfil.includes("IRON_MAN") || perfil.includes("STARK")) {
+    saludoPersonaje = `⚡ ${nombre}, Tony Stark aquí. Jarvis y yo procesamos la telemetría financiera. El balance está impecable y listo para seguir construyendo el imperio:`;
+  } else if (perfil.includes("GATO") || perfil.includes("PUSS")) {
+    saludoPersonaje = `🤺 ¡Hola, ${nombre}! El Gato con Botas desenvaina su espada para proteger cada moneda de tu tesoro. He aquí el estado de tu fortuna:`;
+  } else {
+    saludoPersonaje = `${def.emoji} ¡Hola, ${nombre}! Aquí ${def.alias}. Acabo de compilar tu análisis financiero en tiempo real para el período *${periodo}*:`;
+  }
+
+  const cuerpo = [
+    `${def.emoji} *ANÁLISIS FINANCIERO EJECUTIVO | ${def.nombreOficial ? def.nombreOficial.toUpperCase() : def.alias.toUpperCase()}*`,
+    `🗓️ _Corte: ${datos?.periodo || periodo}_`,
+    ``,
+    saludoPersonaje,
+    ``,
+    `🏦 *DISPONIBILIDAD BANCARIA (BANCOLOMBIA):*`,
+    `• 💳 *Negocios (***7194 - Común):* *$${(datos?.saldosBancarios?.cuenta7194_negocios || 0).toLocaleString("es-CO")} COP*`,
+    `   └ More Paper: $${(datos?.unidades?.morePaper?.disponible || 0).toLocaleString("es-CO")} | More Design: $${(datos?.unidades?.moreDesign?.disponible || 0).toLocaleString("es-CO")}`,
+    `• 💳 *Personal (***2103):* *$${(datos?.saldosBancarios?.cuenta2103_personal || 0).toLocaleString("es-CO")} COP*`,
+    `• 💰 *Total Disponible en Bóveda:* *$${(datos?.saldosBancarios?.totalConsolidado || 0).toLocaleString("es-CO")} COP*`,
+    ``,
+    `📈 *DESEMPEÑO Y RENTABILIDAD POR LOCAL:*`,
+    `• 🏢 *More Paper:* Ingresos: $${(datos?.unidades?.morePaper?.ingresos || 0).toLocaleString("es-CO")} | Margen: *${datos?.unidades?.morePaper?.margenPct || 0}%*`,
+    `• 🎨 *More Design:* Ingresos: $${(datos?.unidades?.moreDesign?.ingresos || 0).toLocaleString("es-CO")} | Margen: *${datos?.unidades?.moreDesign?.margenPct || 0}%*`,
+    (datos?.nominaGlobal?.total > 0 ? `• 👥 *Nómina Global Centralizada:* -$${datos.nominaGlobal.total.toLocaleString("es-CO")} COP\n` : ""),
+    `⚖️ *DIAGNÓSTICO CFO & FLUJO LIBRE:*`,
+    `• Estado de Salud: *${fcl?.estadoSalud || "ÓPTIMO"}*`,
+    `• Retiro Seguro hacia Personal (***2103): *$${(fcl?.fclDistribuibleRecomendado || 0).toLocaleString("es-CO")} COP*`,
+    `• _Dictamen:_ ${fcl?.advertenciaRetiro || "Liquidez sólida para retiros patrimoniales."}`,
+    ``,
+    `🎯 *RECOMENDACIONES CLAVE:*`,
+    ...(diag?.recomendacionesEstrategicas || []).slice(0, 3).map((r, i) => `${i + 1}. ${r}`),
+    ``,
+    `_${def.iconoAccion || "✨"} «${def.lema || "Cuentas blindadas y capital en orden."}»_`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━`,
+    `📥 *¿Deseas descargar el documento oficial o la tarjeta gráfica?*`,
+    `• Responde *PDF* para compilar el **Dossier Gerencial en PDF** (listo para imprimir).`,
+    `• Responde *INFOGRAFÍA* para generar la **Ficha Visual en Alta Resolución**.`
+  ].filter(Boolean).join("\n");
+
+  return cuerpo;
+}
+
+/**
  * Detecta si el usuario está solicitando un informe, reporte, dossier o PDF financiero.
  */
 function detectarSolicitudInformeCFO_(texto) {
@@ -1427,12 +1497,12 @@ function detectarSolicitudInformeCFO_(texto) {
     return false;
   }
 
-  const palabrasClave = /(?:\binformes?\b|\breportes?\s+(?:financieros?|gerenciales?|ejecutivos?|completos?)\b|\bdossiers?\b|\binfograf[ií]as?\b|\bpdf\b|\bbalance\s+imprimible\b|\bestado\s+financiero\b|\banalisis\s+cfo\b|\binforme\s+gerencial\b|\binforme\s+para\s+imprimir\b|\bresumen\s+ejecutivo\b|\bgenerar\s+documento\b|\bdescargar\s+informe\b|\bimprimir\s+informe\b|\bgenerar\s+informe\b|\bdam[ee]\s+un\s+(?:informe|reporte)\b|\bquiero\s+un\s+(?:informe|reporte)\b|\bhazme\s+un\s+(?:informe|reporte)\b|\bnecesito\s+(?:el|un)\s+(?:informe|reporte|dossier)\b)/i;
+  const palabrasClave = /(?:\binformes?\b|\breportes?\b|\bdossiers?\b|\binfograf[ií]as?\b|\bpdfs?\b|\bbalance(?:\s+imprimible|\s+general)?\b|\bestados?\s+financieros?\b|\banalisis\b|\bdiagnosticos?\s+financieros?\b|\bsituacion\s+financiera\b|\bestado\s+de\s+resultados\b|\bestado\s+(?:de\s+)?cuenta\b|\bflujo\s+de\s+caja\b|\bp&l\b|\bresumen\s+ejecutivo\b|\bgenerar\s+documento\b|\bdescargar\s+informe\b|\bimprimir\s+informe\b|\bgenerar\s+informe\b|\bdam[ee]\s+(?:un\s+)?(?:informe|reporte|analisis|balance|diagnostico|resumen)\b|\bquiero\s+(?:un\s+)?(?:informe|reporte|analisis|balance|diagnostico|resumen)\b|\bhazme\s+(?:un\s+)?(?:informe|reporte|analisis|balance|diagnostico|resumen)\b|\bnecesito\s+(?:el|un)\s+(?:informe|reporte|dossier|analisis|balance|diagnostico|resumen)\b)/i;
   return palabrasClave.test(t);
 }
 
 /**
- * Ejecuta la solicitud de informe: si es específica genera de inmediato; si es abierta inicia diálogo guiado.
+ * Ejecuta la solicitud de informe: si es específica genera de inmediato; si es abierta entrega de inmediato el análisis Flash y ofrece soporte PDF/Infografía.
  */
 function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicitaAudio) {
   const t = String(textoUsuario || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -1442,7 +1512,6 @@ function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicita
 
   const esPdf = /(?:pdf|dossier|completo|imprimible|formal|documento)/i.test(t);
   const esInfografia = /(?:infograf[ií]a|tarjeta|gr[aá]fica|visual)/i.test(t);
-  const esFlash = /(?:flash|r[aá]pido|resumen\s+en\s+chat|aqui\s+en\s+whatsapp|texto)/i.test(t);
 
   // Detección de período
   let periodo = "Mes en curso";
@@ -1452,9 +1521,9 @@ function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicita
     periodo = "Corte del Día";
   }
 
-  // CASO 1: Solicitud con formato específico explícito -> Generación directa
-  if (esPdf || esInfografia || esFlash) {
-    const tipo = esInfografia ? "INFOGRAFIA" : (esFlash ? "FLASH" : "PDF_DOSSIER");
+  // CASO 1: Solicitud con formato específico explícito (PDF o Infografía)
+  if (esPdf || esInfografia) {
+    const tipo = esInfografia ? "INFOGRAFIA" : "PDF_DOSSIER";
     const informe = generarInformeCFOCompleto_(tipo, periodo, ss);
 
     // Despacho multimodal si aplica WhatsApp API
@@ -1465,17 +1534,6 @@ function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicita
       } catch (eSend) {
         Logger.log("Aviso al despachar informe por WhatsApp: " + eSend.message);
       }
-    }
-
-    if (tipo === "FLASH") {
-      return {
-        tipo: "informe_cfo",
-        yaDespachadoPorWebhook: Boolean(despachoWs && despachoWs.enviado),
-        texto: informe.textoFlash,
-        textoVoz: `Fernando, he compilado tu informe financiero flash. En la cuenta de negocios setenta y uno noventa y cuatro cuentas con saldo favorable y un flujo de caja libre seguro para retiros personales.`,
-        perfilVoz: perm?.perfilVoz,
-        requiereAudio: solicitaAudio
-      };
     }
 
     const urlVis = informe.archivo?.urlVisualizacion;
@@ -1515,7 +1573,12 @@ function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicita
     };
   }
 
-  // CASO 2: Solicitud general o abierta -> Iniciar Flujo de Construcción Asistida (Paso 1)
+  // CASO 2: Solicitud de Análisis Financiero, Flash o Consulta General de Estado Financiero
+  // Compila y despacha el Informe Flash de alto impacto en tiempo real (< 1s) adaptado a la personalidad activa
+  const informeFlash = generarInformeCFOCompleto_("FLASH", periodo, ss);
+  const textoPersonalizado = formatearInformeFlashConPersonaje_(informeFlash, perm, periodo);
+
+  // Guardar estado interactivo en caché por 10 minutos para permitir selección directa con "PDF" o "Infografía"
   try {
     const cache = (typeof CacheService !== "undefined" && CacheService.getUserCache) ? CacheService.getUserCache() : null;
     if (cache) {
@@ -1525,22 +1588,23 @@ function ejecutarSolicitudInformeCFO_(ss, telefono, textoUsuario, perm, solicita
     Logger.log("Aviso al guardar caché informe guiado: " + eCache.message);
   }
 
-  const menuAsistido = [
-    `📊 *Dirección Financiera Senior - Centro de Reportes & Dossiers CFO*`,
-    ``,
-    `Con gusto, ${perm?.nombre || "Fernando"}. Como tu CFO puedo estructurar el informe financiero con la profundidad y el formato que prefieras:`,
-    ``,
-    `1️⃣ *Informe Flash en Chat:* Resumen de alto impacto directo aquí en WhatsApp (P&L de More Paper y More Design, balance en cuentas ***7194 y ***2103, y monto seguro para retiros personales).`,
-    `2️⃣ *Infografía Visual:* Tarjeta ejecutiva con indicadores gráficos y métricas esenciales de tesorería.`,
-    `3️⃣ *Dossier Gerencial en PDF (Calidad Big-4):* Documento formal multipágina listo para imprimir en tamaño carta, con gráficos vectoriales SVG, desglose de Nómina Global, pasivos pendientes con vencimiento, análisis de TRM/DIAN y recomendaciones estratégicas.`,
-    ``,
-    `👉 *¿Qué formato deseas que compile para ti?* Responde *1*, *2* o *3* (o escribe _"cancelar"_ para salir).`
-  ].join("\n");
+  const perfilActivo = perm?.perfilVoz || (perm?.rol === "SUPER_ADMIN" ? "DEADPOOL" : "FEMENINO_DULCE");
+  const nombreHumano = (typeof sanitizarNombreHumano_ === "function") ? sanitizarNombreHumano_(perm?.nombre || "Fernando") : (perm?.nombre || "Fernando");
+
+  let textoVozFlash = `¡Ey, ${nombreHumano}! Aquí Deadpool. Tus números están en orden: en la cuenta setenta y uno noventa y cuatro tienes liquidez sólida y flujo de caja libre seguro para retiros personales. Si quieres el dossier en PDF o la infografía, sólo dímelo.`;
+  if (perfilActivo.includes("BATMAN")) {
+    textoVozFlash = `${nombreHumano}, balance auditado. Cuentas con saldo favorable en la setenta y uno noventa y cuatro y margen seguro para retiros personales hacia tu cuenta dos mil ciento tres.`;
+  } else if (perfilActivo.includes("IRON_MAN")) {
+    textoVozFlash = `${nombreHumano}, telemetría financiera lista. Liquidez positiva en negocios y flujo de caja libre distribuible en verde. Avísame si compilo el PDF ejecutivo.`;
+  } else if (perfilActivo.includes("GATO")) {
+    textoVozFlash = `¡Hola, ${nombreHumano}! El Gato con Botas protegiendo tus arcas. Tu fortuna está a salvo y la tesorería en orden para retiros seguros.`;
+  }
 
   return {
-    tipo: "clarificacion_interactiva",
-    texto: menuAsistido,
-    textoVoz: `Fernando, dime qué tipo de informe prefieres: uno, un resumen flash en chat; dos, una infografía visual; o tres, un dossier gerencial completo en PDF listo para imprimir.`,
+    tipo: "informe_cfo",
+    yaDespachadoPorWebhook: false,
+    texto: textoPersonalizado,
+    textoVoz: textoVozFlash,
     perfilVoz: perm?.perfilVoz,
     requiereAudio: solicitaAudio
   };
@@ -1593,6 +1657,17 @@ function resolverFlujoInformeCFO_Pendiente_(ss, telefono, textoUsuario, perm) {
       const periodo = flowData.periodo || "Mes en curso";
       const informe = generarInformeCFOCompleto_(tipoSeleccionado, periodo, ss);
 
+      if (tipoSeleccionado === "FLASH") {
+        const textoFlashPers = formatearInformeFlashConPersonaje_(informe, perm, periodo);
+        return {
+          tipo: "informe_cfo",
+          yaDespachadoPorWebhook: false,
+          texto: textoFlashPers,
+          textoVoz: "Fernando, aquí tienes tu informe financiero flash.",
+          perfilVoz: perm?.perfilVoz
+        };
+      }
+
       let despachoWs = null;
       if (typeof enviarInformeCFOWhatsApp === "function") {
         try {
@@ -1600,16 +1675,6 @@ function resolverFlujoInformeCFO_Pendiente_(ss, telefono, textoUsuario, perm) {
         } catch (eSend) {
           Logger.log("Aviso al enviar informe guiado por WhatsApp: " + eSend.message);
         }
-      }
-
-      if (tipoSeleccionado === "FLASH") {
-        return {
-          tipo: "informe_cfo",
-          yaDespachadoPorWebhook: Boolean(despachoWs && despachoWs.enviado),
-          texto: informe.textoFlash,
-          textoVoz: "Fernando, aquí tienes tu informe financiero flash.",
-          perfilVoz: perm?.perfilVoz
-        };
       }
 
       const nombreTipo = tipoSeleccionado === "INFOGRAFIA" ? "Infografía Financiera" : "Dossier Gerencial en PDF";

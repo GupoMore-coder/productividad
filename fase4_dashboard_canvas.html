@@ -1485,6 +1485,17 @@
     // Formateador de Moneda Colombiana (COP)
     const fmtCOP = val => '$' + Number(val || 0).toLocaleString('es-CO');
 
+    // Sanitizador de entidades HTML (Protección Stored XSS / CWE-79)
+    const escapeHtml = str => {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
     // Datos pre-inyectados desde el servidor (cero latencia de carga inicial)
     let datosIniciales = null;
     <? if (typeof datosInicialesJSON !== "undefined" && datosInicialesJSON && datosInicialesJSON !== "null") { ?>
@@ -2022,14 +2033,14 @@
         item.innerHTML = `
           <div class="item-main-row">
             <div>
-              <span class="comp-title">${c.concepto}</span>
-              <div class="comp-sub">${c.tercero} • Vence: ${c.fechaVencimiento || 'Sin fecha'}</div>
+              <span class="comp-title">${escapeHtml(c.concepto)}</span>
+              <div class="comp-sub">${escapeHtml(c.tercero)} • Vence: ${escapeHtml(c.fechaVencimiento || 'Sin fecha')}</div>
             </div>
             <div style="text-align: right;">
               <div class="comp-monto" style="color: ${c.tipo === 'POR_COBRAR' ? 'var(--accent-cyan)' : 'var(--accent-amber)'}">
                 ${fmtCOP(c.saldoPendiente || c.montoOriginal)}
               </div>
-              <span class="urgencia-badge urgencia-${c.urgencia}">${(c.urgencia || 'NORMAL').replace(/_/g, ' ')}</span>
+              <span class="urgencia-badge urgencia-${escapeHtml(c.urgencia)}">${escapeHtml((c.urgencia || 'NORMAL').replace(/_/g, ' '))}</span>
             </div>
           </div>
         `;
@@ -2082,9 +2093,9 @@
         item.innerHTML = `
           <div class="item-main-row">
             <div>
-              <span class="trans-badge-entidad">${t.entidad}</span>
-              <span class="trans-title">${t.concepto}</span>
-              <div class="trans-sub">${t.categoria} • ${t.fecha}</div>
+              <span class="trans-badge-entidad">${escapeHtml(t.entidad)}</span>
+              <span class="trans-title">${escapeHtml(t.concepto)}</span>
+              <div class="trans-sub">${escapeHtml(t.categoria)} • ${escapeHtml(t.fecha)}</div>
             </div>
             <span class="trans-monto ${esIngreso ? 'ingreso' : 'gasto'}">
               ${esIngreso ? '+' : '-'}${fmtCOP(t.monto)}

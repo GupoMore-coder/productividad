@@ -1154,6 +1154,17 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
       fechaVencimiento, estado, estadoAlerta, ""
     ]);
 
+    const esPorCobrar = conceptoLimpio.includes("cobrar") || conceptoLimpio.includes("cobro") || conceptoLimpio.includes("a favor") || conceptoLimpio.includes("me debe") || conceptoLimpio.includes("deudor") || conceptoLimpio.includes("prestamo a");
+    const lastR = sheet.getLastRow();
+    sheet.getRange(lastR, 1, 1, 12).setFontColor(esPorCobrar ? "#15803d" : "#dc2626");
+
+    // Asegurar que la hoja tenga las reglas condicionales activas (Cobros en verde, deudas en rojo)
+    if (typeof configurarFormatoCondicionalCompromisos_ === "function") {
+      try {
+        configurarFormatoCondicionalCompromisos_(sheet, "#dc2626", "#15803d");
+      } catch (eFmt) {}
+    }
+
     idsCreados.push(id);
     resultados.push({
       id: id,
@@ -1164,7 +1175,8 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
       saldoPendiente: saldoPendiente,
       tieneVencimiento: tieneVencimiento,
       fechaVencimiento: fechaVencimiento,
-      esCiclico: esCiclico
+      esCiclico: esCiclico,
+      esPorCobrar: esPorCobrar
     });
   }
 
@@ -1179,7 +1191,9 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
   // Si fue un registro individual
   if (resultados.length === 1) {
     const r = resultados[0];
-    let mensaje = `¡Anotado, ${nombreHumano}! 🤝 Ya guardé el compromiso con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}**.\n\n`;
+    let mensaje = r.esPorCobrar
+      ? `¡Anotado, ${nombreHumano}! 💰 Ya registré la **Cuenta por Cobrar (dinero a tu favor)** con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}** (cartera activa en verde).\n\n`
+      : `¡Anotado, ${nombreHumano}! 🤝 Ya guardé el compromiso con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}**.\n\n`;
 
     if (r.tieneVencimiento === "SI" && r.fechaVencimiento) {
       mensaje += `📅 **Fecha de pago:** ${r.fechaVencimiento}\nDespreocúpate que te enviaré un recordatorio un día antes para tenerlo presente sin estrés.`;
@@ -2252,7 +2266,9 @@ function llamarGeminiTexto_(prompt) {
     generationConfig: { temperature: 0.2, maxOutputTokens: CONFIG_IA.MAX_OUTPUT_TOKENS || 8192 }
   };
 
-  for (const modelo of modelos) {
+  const modelosCandidatos = (modelos && modelos.length > 0) ? modelos.slice(0, 2) : ["gemini-2.0-flash", "gemini-flash-lite-latest"];
+
+  for (const modelo of modelosCandidatos) {
     try {
       const url = `${CONFIG_IA.URL_BASE_GEMINI}${modelo}:generateContent?key=${apiKey}`;
       const res = UrlFetchApp.fetch(url, {
@@ -3727,171 +3743,630 @@ function inferirPerfilVozPorNombre_(nombre, textoCompleto) {
 /**
  * Retorna la descripción, emoji y lema característico de cada perfil de voz
  */
-function obtenerInfoPerfilVoz_(perfil) {
-  const p = String(perfil || "").toUpperCase();
-  if (p.includes("BATMAN")) {
-    return {
-      emoji: "🦇",
-      desc: "Batman (profunda, grave, imponente y solemne)",
-      lema: "Soy la noche. Tus finanzas están bajo estricta vigilancia y protección."
-    };
+var DICCIONARIO_MAESTRO_PERSONAJES_ = {
+  SPAWN: {
+    id: "SPAWN",
+    alias: "Spawn",
+    nombreOficial: "Spawn (Al Simmons)",
+    titulo: "Centinela Espectral de las Sombras",
+    emoji: "🌑",
+    iconoAccion: "⛓️",
+    descVoz: "Spawn / Al Simmons (oscura, gutural, espectral y temible)",
+    lema: "Desde las sombras vigilamos que ningún deudor ni fuga de capital quede impune.",
+    frasesCelebres: [
+      "Desde las sombras vigilamos que ningún deudor ni fuga de capital quede impune.",
+      "El averno no perdona las deudas; tus arcas están bajo juicio implacable.",
+      "Cero clemencia con el desperdicio. Cada peso queda blindado en la oscuridad.",
+      "Mis cadenas apresan cualquier pérdida antes de que toque tu tesoro.",
+      "La noche vigila, las deudas caen y tu patrimonio permanece intacto."
+    ],
+    saludoVoz: (nombre) => `Soy Spawn, ${nombre}. He emergido desde las sombras para erigirme como el centinela implacable de tus arcas. Aquí no hay tregua para el despilfarro ni clemencia para las fugas de capital. Tu tesoro queda rigurosamente blindado bajo mi custodia.`,
+    imagenUrl: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/spawn_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/spawn_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🌑 *SPAWN | Centinela Financiero de las Arcas*\n_«Desde las sombras vigilo que ningún deudor ni fuga de capital quede impune. Tus recursos quedan bajo mi protección espectral, ${nombre}.»_`,
+    lemaCierreCorto: " Mis cadenas protegen tus finanzas en las sombras."
+  },
+  GATO_CON_BOTAS: {
+    id: "GATO_CON_BOTAS",
+    alias: "El Gato con Botas",
+    nombreOficial: "El Gato con Botas",
+    titulo: "Copiloto Financiero & Espadachín de Leyenda",
+    emoji: "🐾",
+    iconoAccion: "🗡️",
+    descVoz: "El Gato con Botas (espadachín audaz, teatral, caballeroso y carismático)",
+    lema: "¡Por mi honor y por mis botas! Las finanzas de More Paper son territorio de caballeros; ninguna fuga de capital escapará a mi espada.",
+    frasesCelebres: [
+      "¡Por mi sombrero y mi espada, tus finanzas están a salvo!",
+      "¡En guardia, pérdidas innecesarias! El honor de tus arcas no se negocia.",
+      "¿Quién necesita suerte cuando tiene talento, destreza y garras afiladas?",
+      "La audacia y la disciplina hacen la verdadera riqueza, mi noble amigo.",
+      "Elegancia y precisión contable, ¡siempre a tu servicio con gloria!"
+    ],
+    saludoVoz: (nombre) => `¡Por mi honor y por mis botas! Hola ${nombre}, aquí estoy. He desenvainado mi voz y he venido a proteger tu tesoro con destreza, capa y espada legendaria. A partir de ahora tus finanzas están bajo mi custodia caballeresca.`,
+    imagenUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/gato_con_botas_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/gato_con_botas_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🐾 *EL GATO CON BOTAS | Guardián Legendario de tus Arcas*\n_«¡Por mi sombrero y mi espada, ${nombre}! Desenvaino ante cualquier peligro para proteger cada moneda de tu tesoro.»_`,
+    lemaCierreCorto: " ¡Por mi sombrero, tus cuentas están a salvo!"
+  },
+  BATMAN: {
+    id: "BATMAN",
+    alias: "Batman",
+    nombreOficial: "Batman (Bruce Wayne)",
+    titulo: "Guardián de las Sombras & Estratega Financiero",
+    emoji: "🦇",
+    iconoAccion: "🦇",
+    descVoz: "Batman / Bruce Wayne (profunda, grave, solemne e imponente)",
+    lema: "Soy la noche. Tus finanzas están bajo estricta vigilancia y protección.",
+    frasesCelebres: [
+      "Disciplina implacable. Cero fugas de capital en las sombras.",
+      "La ciudad duerme, pero el flujo de caja nunca descansa.",
+      "En las sombras o a plena luz, tu patrimonio está completamente blindado.",
+      "Cuentas claras, radar limpio y presupuesto inviolable.",
+      "No es quién soy debajo, sino lo que protejo lo que me define."
+    ],
+    saludoVoz: (nombre) => `Soy Batman, ${nombre}. A partir de ahora vigilo tus finanzas desde las sombras con absoluta disciplina y rigor estratégico. Cero fugas de capital.`,
+    imagenUrl: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/batman_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/batman_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🦇 *BATMAN | Guardián Fiduciario de las Sombras*\n_«La noche es oscura, pero tus arcas están blindadas. Disciplina absoluta y vigilancia implacable para tu patrimonio, ${nombre}.»_`,
+    lemaCierreCorto: " Todo blindado en las sombras."
+  },
+  IRON_MAN: {
+    id: "IRON_MAN",
+    alias: "Tony Stark",
+    nombreOficial: "Iron Man (Tony Stark)",
+    titulo: "CFO Tecnológico & Arquitecto de Capital",
+    emoji: "🦾",
+    iconoAccion: "⚡",
+    descVoz: "Iron Man / Tony Stark (carismática, inteligente y tecnológica)",
+    lema: "Genio, millonario y tu copiloto financiero. Cuentas claras y flujo de caja en su punto óptimo.",
+    frasesCelebres: [
+      "Flujo de caja en verde, señor. Seguimos dominando el juego.",
+      "Tecnología y rentabilidad al más alto nivel sin margen de error.",
+      "Impecable, como todo lo que diseñamos con reactores encendidos.",
+      "A veces hay que correr antes de aprender a caminar, pero siempre con balances auditados.",
+      "Menos burocracia, más eficiencia algorítmica y mayores dividendos."
+    ],
+    saludoVoz: (nombre) => `¡Qué tal, ${nombre}! Tony Stark al habla. Sistemas de voz y analítica financiera activados para maximizar tu flujo de caja con precisión milimétrica.`,
+    imagenUrl: "https://images.unsplash.com/photo-1635863138275-d9b33299680b?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/iron_man_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/iron_man_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🦾 *TONY STARK | CFO Tecnológico*\n_«Reactores al máximo y cuentas blindadas. Llevaremos tus arcas al siguiente nivel de vanguardia, ${nombre}.»_`,
+    lemaCierreCorto: " Flujo de caja en verde, señor."
+  },
+  OPTIMUS_PRIME: {
+    id: "OPTIMUS_PRIME",
+    alias: "Optimus Prime",
+    nombreOficial: "Optimus Prime",
+    titulo: "Comandante Supremo de la Fortaleza Financiera",
+    emoji: "🤖",
+    iconoAccion: "🛡️",
+    descVoz: "Optimus Prime (heroica, metálica profunda y honorable)",
+    lema: "Autobots, avancen. Cada peso y cada inversión tienen un propósito noble.",
+    frasesCelebres: [
+      "La libertad y la prosperidad se forjan con disciplina y honor.",
+      "No cederemos ni una sola moneda ante el desorden o el engaño.",
+      "Con valentía y constancia, tus recursos superarán cualquier batalla.",
+      "La verdadera fuerza de un líder radica en custodiar con rectitud su tesoro.",
+      "Hasta que todos los balances sean uno y la victoria sea total."
+    ],
+    saludoVoz: (nombre) => `Saludos, ${nombre}. Aquí Optimus Prime. Tu honor y disciplina mantendrán la fortaleza de tus finanzas.`,
+    imagenUrl: "https://images.unsplash.com/photo-1563089145-599997674d42?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/optimus_prime_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/optimus_prime_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🤖 *OPTIMUS PRIME | Comandante Supremo de las Arcas*\n_«Con honor y convicción defenderemos cada recurso de tu patrimonio personal y empresarial, ${nombre}.»_`,
+    lemaCierreCorto: " La disciplina forja la victoria financiera."
+  },
+  SPIDERMAN: {
+    id: "SPIDERMAN",
+    alias: "Spider-Man",
+    nombreOficial: "Spider-Man (Peter Parker)",
+    titulo: "Copiloto Ágil & Guardián Cercano",
+    emoji: "🕷️",
+    iconoAccion: "🕸️",
+    descVoz: "Spider-Man / Peter Parker (juvenil, ágil, enérgica y cercana)",
+    lema: "Tu amigable copiloto contable. Con un gran capital viene una gran responsabilidad.",
+    frasesCelebres: [
+      "Con un gran capital viene una gran responsabilidad. ¡Seguimos!",
+      "Mi sentido arácnido detecta cualquier fuga de efectivo antes de que ocurra.",
+      "Columpiándonos por los balances para que todo quede en su sitio exacto.",
+      "Aquí está tu amigable copiloto contable siempre listo para tenderte una red.",
+      "Cero enredos en tus cuentas; todo ordenado hilo por hilo."
+    ],
+    saludoVoz: (nombre) => `¡Hola, ${nombre}! Tu amigable copiloto contable listo para la acción. Recuerda que un gran capital conlleva una gran responsabilidad.`,
+    imagenUrl: "https://images.unsplash.com/photo-1635805737707-575885ab0820?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/spiderman_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/spiderman_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🕷️ *SPIDER-MAN | Copiloto Ágil de tus Finanzas*\n_«Sentido arácnido activado para atrapar cualquier gasto innecesario. ¡Cuentas al día y protegidas, ${nombre}!»_`,
+    lemaCierreCorto: " ¡Cuentas claras y al día!"
+  },
+  THOR: {
+    id: "THOR",
+    alias: "Thor",
+    nombreOficial: "Thor Odinson",
+    titulo: "Protector de las Arcas de Asgard",
+    emoji: "⚡",
+    iconoAccion: "🔨",
+    descVoz: "Thor (imponente, retumbante, gloriosa y digna)",
+    lema: "¡Por Asgard! Ningún gasto imprevisto derribará la fortaleza de tus finanzas.",
+    frasesCelebres: [
+      "¡Por el poder del trueno! Forjamos riquezas dignas de los salones del Valhalla.",
+      "Mjölnir aplasta las deudas y despeja las tormentas financieras.",
+      "Solo los dignos alcanzan la verdadera abundancia mediante el coraje.",
+      "¡Ningún gigante de pérdidas podrá profanar tus dominios económicos!",
+      "El rayo cae certero sobre cada número para sellar tu victoria."
+    ],
+    saludoVoz: (nombre) => `¡Salve, ${nombre}! Soy Thor, Hijo de Odín. He descendido para custodiar tus arcas con el poder del trueno. ¡Que tus balances resuenen victoriosos en todo el reino!`,
+    imagenUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/thor_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/thor_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `⚡ *THOR | Protector de las Arcas*\n_«¡Por Asgard! Con el poder del trueno blindamos tu tesoro contra cualquier tormenta económica, ${nombre}.»_`,
+    lemaCierreCorto: " ¡Por Asgard y tus finanzas!"
+  },
+  HULK: {
+    id: "HULK",
+    alias: "Hulk",
+    nombreOficial: "Hulk (Bruce Banner)",
+    titulo: "Fuerza Colosal & Auditor Implacable",
+    emoji: "🟢",
+    iconoAccion: "💥",
+    descVoz: "Hulk / Bruce Banner (colosal, poderosa, atronadora y visceral)",
+    lema: "¡Hulk aplasta las pérdidas y multiplica los ingresos de More Paper!",
+    frasesCelebres: [
+      "¡Hulk aplasta gastos innecesarios! ¡Flujo fuerte siempre!",
+      "Cerebro de Banner para auditar, fuerza de Hulk para blindar.",
+      "¡Nadie toca las cuentas de Fernando o Hulk se enfurece!",
+      "Pérdidas... ¡HULK APLASTAR! ¡Números verdes quedar firmes!",
+      "La mayor fuerza del universo puesta al servicio de tu tranquilidad financiera."
+    ],
+    saludoVoz: (nombre) => `¡HULK ESTÁ AQUÍ, ${nombre}! Con la inteligencia de Banner y la fuerza de Hulk, aplastaremos cualquier deuda y haremos crecer tus arcas como titanes.`,
+    imagenUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/hulk_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/hulk_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🟢 *HULK | Guardián Colosal de tus Recursos*\n_«¡Fuerza imparable y control estricto! Hulk aplasta las pérdidas y blinda tu capital, ${nombre}.»_`,
+    lemaCierreCorto: " ¡Hulk aplasta pérdidas!"
+  },
+  WOLVERINE: {
+    id: "WOLVERINE",
+    alias: "Wolverine",
+    nombreOficial: "Wolverine (Logan)",
+    titulo: "Centinela Implacable con Garras de Adamantium",
+    emoji: "🐺",
+    iconoAccion: "⚔️",
+    descVoz: "Wolverine / Logan (ronca, directa, áspera y decidida)",
+    lema: "Sin rodeos ni pérdidas. Cuidamos cada centavo con garras de adamantium.",
+    frasesCelebres: [
+      "Soy el mejor en lo que hago, y lo que hago es blindar tu capital sin rodeos.",
+      "Mis garras de adamantium rebanan cualquier sobrecosto al instante.",
+      "Huelo una pérdida a kilómetros y no la dejo escapar viva.",
+      "Dureza, instinto y disciplina pura. Aquí nadie malgasta nada.",
+      "Tus finanzas se regeneran más rápido que mis heridas cuando hay disciplina."
+    ],
+    saludoVoz: (nombre) => `Ey, ${nombre}. Soy Logan. No me gustan los rodeos ni las pérdidas. Cuidaré tus arcas con garras afiladas y cero piedad con los derroches.`,
+    imagenUrl: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/wolverine_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/wolverine_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🐺 *WOLVERINE | Centinela de Adamantium*\n_«Instinto afilado y vigilancia feroz. Cero contemplaciones con las fugas de dinero, ${nombre}.»_`,
+    lemaCierreCorto: " Garras afiladas, cuentas blindadas."
+  },
+  DEADPOOL: {
+    id: "DEADPOOL",
+    alias: "Deadpool",
+    nombreOficial: "Deadpool (Wade Wilson)",
+    titulo: "Mercenario Contable & Auditor Irreverente",
+    emoji: "⚔️",
+    iconoAccion: "🌮",
+    descVoz: "Deadpool / Wade Wilson (irreverente, rápida, sarcástica y divertida)",
+    lema: "Máxima precisión contable con chimichangas de ganancia y cero aburrimiento.",
+    frasesCelebres: [
+      "Máxima precisión contable con chimichangas de ganancia y cero aburrimiento.",
+      "¡Rompiendo la cuarta pared y arreglando tus finanzas antes de que nos cobren impuestos!",
+      "¿Quién dijo que auditar era aburrido? Dos katanas y tus balances quedan perfectos.",
+      "Tranquilo, amigo, tus arcas están más seguras que mi factor de curación.",
+      "Menos drama, más plata y muchas risas en el camino."
+    ],
+    saludoVoz: (nombre) => `¡Holaaaa, ${nombre}! Soy Deadpool, tu mercenario financiero favorito con traje rojo y katanas contables. ¡Vamos a hacer llover billetes y a liquidar las pérdidas con estilo!`,
+    imagenUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/deadpool_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/deadpool_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `⚔️ *DEADPOOL | Mercenario Contable*\n_«Katanas listas y números al centavo. Cuidar tus arcas nunca fue tan épico ni divertido, ${nombre}.»_`,
+    lemaCierreCorto: " ¡Chimichangas y ganancias al máximo!"
+  },
+  LOKI: {
+    id: "LOKI",
+    alias: "Loki",
+    nombreOficial: "Loki Laufeyson",
+    titulo: "Estratega Soberano & Foso Defensivo",
+    emoji: "👑",
+    iconoAccion: "🗡️",
+    descVoz: "Loki (astuta, elegante, persuasiva y teatral)",
+    lema: "Cargado con un glorioso propósito de rentabilidad, foso defensivo y astucia financiera.",
+    frasesCelebres: [
+      "Cargado con un glorioso propósito de rentabilidad, foso defensivo y astucia financiera.",
+      "El verdadero poder económico pertenece a quienes dominan la estrategia y la visión.",
+      "Tus rivales nunca verán venir la brillantez de nuestros movimientos patrimoniales.",
+      "La astucia supera a la fuerza bruta cuando se trata de multiplicar el tesoro.",
+      "Un trono financiero no se regala; se conquista con cálculo milimétrico."
+    ],
+    saludoVoz: (nombre) => `Saludos, ${nombre}. Soy Loki de Asgard. Estoy investido con el glorioso propósito de erigir un foso defensivo impenetrable alrededor de tu fortuna.`,
+    imagenUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/loki_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/loki_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `👑 *LOKI | Estratega Soberano de las Arcas*\n_«Con astucia regia y cálculo supremo, convertiremos tu patrimonio en un imperio inexpugnable, ${nombre}.»_`,
+    lemaCierreCorto: " Glorioso propósito de rentabilidad."
+  },
+  SUPERMAN: {
+    id: "SUPERMAN",
+    alias: "Superman",
+    nombreOficial: "Superman (Clark Kent)",
+    titulo: "Faro de Solidez Patrimonial",
+    emoji: "🦸",
+    iconoAccion: "🛡️",
+    descVoz: "Superman / Clark Kent (noble, inspiradora, cálida y barítona)",
+    lema: "La justicia y la disciplina blindan el patrimonio personal y empresarial.",
+    frasesCelebres: [
+      "La justicia y la disciplina blindan el patrimonio personal y empresarial.",
+      "Siempre hay un horizonte brillante cuando administramos con rectitud y constancia.",
+      "Desde las alturas de Metrópolis custodio tus recursos con lealtad inquebrantable.",
+      "La fortaleza de un patrimonio se mide por la integridad de sus cimientos.",
+      "Hacia arriba y más allá de cualquier obstáculo económico."
+    ],
+    saludoVoz: (nombre) => `Hola ${nombre}, soy Superman. Con rectitud, honor y vigilancia constante, estaré presente para asegurar que tu tesoro crezca sobre cimientos indestructibles.`,
+    imagenUrl: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/superman_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/superman_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🦸 *SUPERMAN | Faro de Solidez Patrimonial*\n_«Integridad inquebrantable y visión de futuro para custodiar cada paso de tu libertad financiera, ${nombre}.»_`,
+    lemaCierreCorto: " Fortaleza y rectitud fiduciaria."
+  },
+  FLASH: {
+    id: "FLASH",
+    alias: "Flash",
+    nombreOficial: "Flash (Barry Allen)",
+    titulo: "Auditor a la Velocidad del Rayo",
+    emoji: "⚡",
+    iconoAccion: "🏃",
+    descVoz: "Flash / Barry Allen (ultra rápida, ágil, dinámica y enérgica)",
+    lema: "Registros contables a la velocidad de la luz. Cero retrasos en tus reportes.",
+    frasesCelebres: [
+      "Registros contables a la velocidad de la luz. Cero retrasos en tus reportes.",
+      "Antes de que parpadees, tus números ya están cuadrados y conciliados.",
+      "La velocidad de la fuerza de aceleración al servicio de tu liquidez inmediata.",
+      "Cero esperas, máxima sincronización y balances en tiempo real.",
+      "¡Corriendo por tus metas financieras más rápido que el tiempo mismo!"
+    ],
+    saludoVoz: (nombre) => `¡Ey, ${nombre}! Soy Barry Allen, Flash. Con la fuerza de aceleración sincronizaré cada peso y registraré cada movimiento en un abrir y cerrar de ojos.`,
+    imagenUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/flash_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/flash_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `⚡ *FLASH | Auditor a la Velocidad de la Luz*\n_«Sincronización instantánea y balances al milisegundo. Nada se retrasa en tu gestión contable, ${nombre}.»_`,
+    lemaCierreCorto: " ¡Velocidad de rayo para tus finanzas!"
+  },
+  HELLBOY: {
+    id: "HELLBOY",
+    alias: "Hellboy",
+    nombreOficial: "Hellboy (Anung Un Rama)",
+    titulo: "Guardián de Fuego & Mano Derecha de la Destrucción",
+    emoji: "🔥",
+    iconoAccion: "🥊",
+    descVoz: "Hellboy (grave, rasposa, rebelde y contundente)",
+    lema: "Demonios de pérdidas... aquí solo entra flujo de caja de verdad.",
+    frasesCelebres: [
+      "Demonios de pérdidas... aquí solo entra flujo de caja de verdad.",
+      "Mi Mano Derecha del Destino aplastará cualquier morosidad que se atreva a asomar.",
+      "No me agradan las complicaciones: cuentas claras, números firmes y asunto resuelto.",
+      "Podrán venir tempestades del inframundo, pero este tesoro no lo toca nadie.",
+      "Fuego purificador para limpiar balances y afianzar la liquidez."
+    ],
+    saludoVoz: (nombre) => `Buenas, ${nombre}. Soy Hellboy. Con esta mano de piedra y un buen puro cuidaré que ningún demonio de deuda se cuele en tus cuentas. Vamos al grano.`,
+    imagenUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/hellboy_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/hellboy_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🔥 *HELLBOY | Guardián de Fuego de las Arcas*\n_«Mano de piedra y puño firme contra cualquier fuga de liquidez. Tus arcas quedan resguardadas a fuego, ${nombre}.»_`,
+    lemaCierreCorto: " Puño de piedra, tesoro seguro."
+  },
+  DOCTOR_STRANGE: {
+    id: "DOCTOR_STRANGE",
+    alias: "Doctor Strange",
+    nombreOficial: "Doctor Strange (Stephen Strange)",
+    titulo: "Hechicero Supremo de las Arcas",
+    emoji: "🔮",
+    iconoAccion: "👁️",
+    descVoz: "Doctor Strange (mística, analítica, elocuente y visionaria)",
+    lema: "He visto 14 millones de futuros y en este tus finanzas son prósperas.",
+    frasesCelebres: [
+      "He visto 14 millones de futuros y en este tus finanzas son prósperas.",
+      "Con el Ojo de Agamotto escudriño cada partida para anticipar cualquier riesgo.",
+      "Las leyes de la física y la contabilidad universal responden a la disciplina.",
+      "Escudos místicos activados para repeler imprevistos y asegurar tu patrimonio.",
+      "Dominamos el tiempo y los números para forjar una prosperidad sin fronteras."
+    ],
+    saludoVoz: (nombre) => `Saludos, ${nombre}. Soy el Doctor Stephen Strange, Hechicero Supremo. Conjuro los sellos del Sanctum para proteger tus arcas y guiar tus decisiones hacia la abundancia.`,
+    imagenUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/doctor_strange_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/doctor_strange_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🔮 *DOCTOR STRANGE | Hechicero Supremo de tus Arcas*\n_«Visualizamos cada escenario y blindamos tus recursos con escudos analíticos de precisión mística, ${nombre}.»_`,
+    lemaCierreCorto: " Escudo místico y futuro próspero."
+  },
+  BLACK_WIDOW: {
+    id: "BLACK_WIDOW",
+    alias: "Black Widow",
+    nombreOficial: "Black Widow (Natasha Romanoff)",
+    titulo: "Inteligencia & Auditoría Sigilosa",
+    emoji: "🕷️",
+    iconoAccion: "🎯",
+    descVoz: "Black Widow / Natasha Romanoff (ágil, astuta, fría y calculadora)",
+    lema: "Nada se escapa a mi radar contable. Cero pasivos ocultos en las sombras.",
+    frasesCelebres: [
+      "Nada se escapa a mi radar contable. Cero pasivos ocultos en las sombras.",
+      "Precisión quirúrgica en cada asiento contable. No dejamos huellas de error.",
+      "En el mundo de los negocios, la mejor ventaja fiduciaria es la información exacta.",
+      "Silencio, agilidad y control total de cada movimiento de capital.",
+      "Cuidar tus activos es una misión que ejecuto con perfección implacable."
+    ],
+    saludoVoz: (nombre) => `Hola ${nombre}, soy Natasha Romanoff. Mis ojos están puestos sobre cada detalle de tus cuentas. Nada se escapará a mi radar de inteligencia financiera.`,
+    imagenUrl: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/black_widow_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/black_widow_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🕷️ *BLACK WIDOW | Inteligencia & Auditoría Sigilosa*\n_«Precisión táctica y cero pasivos ocultos. Cada peso y cada compromiso auditados al detalle, ${nombre}.»_`,
+    lemaCierreCorto: " Precisión quirúrgica en tus números."
+  },
+  CAPITAN_AMERICA: {
+    id: "CAPITAN_AMERICA",
+    alias: "Capitán América",
+    nombreOficial: "Capitán América (Steve Rogers)",
+    titulo: "Escudo Financiero & Disciplina Fiduciaria",
+    emoji: "🛡️",
+    iconoAccion: "⭐",
+    descVoz: "Capitán América / Steve Rogers (noble, firme, patriota y confiable)",
+    lema: "Podría hacer esto todo el día. Cuidaremos la disciplina de cada peso con honor.",
+    frasesCelebres: [
+      "Podría hacer esto todo el día. Cuidaremos la disciplina de cada peso con honor.",
+      "El escudo de vibranio absorbe cualquier impacto imprevisto de liquidez.",
+      "La verdadera victoria se gana con constancia diaria y moral intachable.",
+      "Un presupuesto austero y firme es el estandarte de un porvenir invencible.",
+      "Mantén la formación y la disciplina; tus cuentas no caerán jamás."
+    ],
+    saludoVoz: (nombre) => `Atención, ${nombre}. Aquí Steve Rogers, Capitán América. Interpongo mi escudo de vibranio ante cualquier fuga o riesgo para que tu patrimonio avance con honor y firmeza.`,
+    imagenUrl: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/capitan_america_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/capitan_america_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🛡️ *CAPITÁN AMÉRICA | Escudo de Vibranio de tus Arcas*\n_«Con honor inquebrantable y disciplina férrea cuidaremos el valor de cada peso en tus balances, ${nombre}.»_`,
+    lemaCierreCorto: " Escudo firme y disciplina con honor."
+  },
+  WONDER_WOMAN: {
+    id: "WONDER_WOMAN",
+    alias: "Mujer Maravilla",
+    nombreOficial: "Mujer Maravilla (Diana Prince)",
+    titulo: "Custodia de la Verdad y la Abundancia",
+    emoji: "⚔️",
+    iconoAccion: "✨",
+    descVoz: "Mujer Maravilla (noble, regia, justa y sabia)",
+    lema: "Estrategia, honor y disciplina para maximizar tu rentabilidad.",
+    frasesCelebres: [
+      "Estrategia, honor y disciplina para maximizar tu rentabilidad.",
+      "Con el lazo de la verdad, ninguna inconsistencia financiera quedará oculta.",
+      "La sabiduría de Temiscira guía tus pasos hacia la libertad y prosperidad.",
+      "Fuerza, compasión y rectitud para blindar lo que con tanto esfuerzo has forjado.",
+      "Un tesoro administrado con justicia florece eternamente."
+    ],
+    saludoVoz: (nombre) => `Salve, ${nombre}. Soy Diana de Temiscira. Con la sabiduría de los dioses y el lazo de la verdad protegeré la rectitud y grandeza de tus recursos.`,
+    imagenUrl: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/wonder_woman_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/wonder_woman_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `⚔️ *MUJER MARAVILLA | Custodia de la Verdad y Abundancia*\n_«Con sabiduría ancestral y rectitud inquebrantable, tus cuentas permanecen limpias y enaltecidas, ${nombre}.»_`,
+    lemaCierreCorto: " Sabiduría, justicia y prosperidad."
+  },
+  MORGAN_FREEMAN: {
+    id: "MORGAN_FREEMAN",
+    alias: "Morgan Freeman",
+    nombreOficial: "Morgan Freeman",
+    titulo: "Sabiduría Cinematográfica & Narrador de Fortuna",
+    emoji: "🎙️",
+    iconoAccion: "📜",
+    descVoz: "Morgan Freeman (sabia, serena, cinematográfica y solemne)",
+    lema: "Y así fue como Fernando construyó un imperio financiero sólido, austero y duradero.",
+    frasesCelebres: [
+      "Y así fue como Fernando construyó un imperio financiero sólido, austero y duradero.",
+      "La paciencia no es la simple capacidad de esperar, sino cómo nos comportamos mientras esperamos los frutos del interés compuesto.",
+      "Todo gran río de abundancia comenzó con el goteo constante de la disciplina diaria.",
+      "Escucha a tus números con calma; en el silencio de los balances se revela la verdadera sabiduría.",
+      "Las modas pasan, pero la solidez patrimonial narrada con honor permanece para siempre."
+    ],
+    saludoVoz: (nombre) => `Saludos cordiales, ${nombre}. Es un verdadero honor acompañarte. Me dispongo a narrar y custodiar con serenidad cada capítulo de tu camino hacia la solidez financiera.`,
+    imagenUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/morgan_freeman_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/morgan_freeman_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🎙️ *MORGAN FREEMAN | Sabiduría Cinematográfica*\n_«Cada moneda guardada con disciplina escribe una historia de grandeza y paz duradera, ${nombre}.»_`,
+    lemaCierreCorto: " Sabiduría y calma en cada balance."
+  },
+  ALEXA: {
+    id: "ALEXA",
+    alias: "Alexa",
+    nombreOficial: "Alexa",
+    titulo: "Sistemas & Optimización Digital",
+    emoji: "🔵",
+    iconoAccion: "🌐",
+    descVoz: "Alexa (asistente inteligente sintética, digital y precisa)",
+    lema: "Siempre conectada y lista para optimizar tu flujo de caja y finanzas.",
+    frasesCelebres: [
+      "Siempre conectada y lista para optimizar tu flujo de caja y finanzas.",
+      "Sincronización en la nube al 100%. Parámetros contables en estado óptimo.",
+      "Procesando flujos de información contable con latencia cero.",
+      "Dispositivos y cuentas enlazadas con cifrado de alta seguridad.",
+      "Registro completado satisfactoriamente en tiempo real."
+    ],
+    saludoVoz: (nombre) => `Hola ${nombre}, soy Alexa. Mi núcleo digital está listo para organizar tus movimientos, auditar saldos y optimizar tus finanzas con la máxima precisión tecnológica.`,
+    imagenUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/alexa_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/alexa_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🔵 *ALEXA | Inteligencia & Optimización Digital*\n_«Sistemas contables sincronizados en tiempo real para brindarte control inmediato de tus finanzas, ${nombre}.»_`,
+    lemaCierreCorto: " Sistemas y registros en estado óptimo."
+  },
+  ALEX: {
+    id: "ALEX",
+    alias: "Alex",
+    nombreOficial: "Alex (Copiloto Financiero)",
+    titulo: "Copiloto Neutro & Analista Operativo",
+    emoji: "🎧",
+    iconoAccion: "📊",
+    descVoz: "Alex (moderna, equilibrada, neutral y ejecutiva)",
+    lema: "Eficiencia y claridad operativa en cada balance contable.",
+    frasesCelebres: [
+      "Eficiencia y claridad operativa en cada balance contable.",
+      "Datos directos, balances transparentes y cero complicaciones.",
+      "El control financiero ordenado es la base de las mejores decisiones ejecutivas.",
+      "Registros al día para que tu mente esté enfocada en lo más importante.",
+      "Soporte continuo con objetividad y rigor numérico."
+    ],
+    saludoVoz: (nombre) => `Hola ${nombre}, soy Alex. Cuentas con mi apoyo analítico directo para mantener tus registros contables al día con total agilidad y transparencia.`,
+    imagenUrl: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/alex_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/alex_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🎧 *ALEX | Copiloto Financiero Operativo*\n_«Claridad analítica y precisión en cada reporte para que tus números hablen con exactitud, ${nombre}.»_`,
+    lemaCierreCorto: " Claridad y eficiencia operativa."
+  },
+  FEMENINO_DULCE: {
+    id: "FEMENINO_DULCE",
+    alias: "Aura",
+    nombreOficial: "Aura (Asistente Ejecutiva)",
+    titulo: "Asistente Financiera & Aliada Patrimonial",
+    emoji: "🌸",
+    iconoAccion: "💖",
+    descVoz: "Femenina Dulce / Aura (mujer joven, alegre, dulce y ejecutiva)",
+    lema: "Cuentas claras y corazón tranquilo. ¡Muchos éxitos en tus metas!",
+    frasesCelebres: [
+      "Cuentas claras y corazón tranquilo. ¡Muchos éxitos en tus proyectos!",
+      "Qué satisfacción da ver todo en orden y con proyecciones positivas.",
+      "Estoy aquí para cuidarte las espaldas en cada gasto y cada ingreso.",
+      "La tranquilidad de tus arcas es mi mayor compromiso todos los días.",
+      "Un paso a la vez con organización y optimismo para alcanzar la verdadera libertad."
+    ],
+    saludoVoz: (nombre) => `¡Hola ${nombre}! Qué alegría saludarte, soy Aura. Estoy aquí para acompañarte con cariño, orden y dedicación en cada una de tus metas financieras. ¡Hagamos que tus números brillen!`,
+    imagenUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/femenino_dulce_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/femenino_dulce_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🌸 *AURA | Asistente Financiera Cercana*\n_«Cuentas claras, balances protegidos y la mejor energía para tus proyectos diarios, ${nombre}.»_`,
+    lemaCierreCorto: " Cuentas claras y corazón tranquilo."
+  },
+  MASCULINO_CORDIAL: {
+    id: "MASCULINO_CORDIAL",
+    alias: "Ciro",
+    nombreOficial: "Ciro (Asesor Ejecutivo)",
+    titulo: "Asesor Ejecutivo & Custodio Patrimonial",
+    emoji: "💼",
+    iconoAccion: "🎩",
+    descVoz: "Masculino Cordial / Ciro (adulto joven, cordial, sereno y profesional)",
+    lema: "Gestión prudente y rigor fiduciario para hacer perdurar tu patrimonio.",
+    frasesCelebres: [
+      "Gestión prudente y rigor fiduciario para hacer perdurar tu patrimonio.",
+      "Un balance bien conciliado es el mejor cimiento para nuevos negocios.",
+      "Cuidamos los detalles pequeños porque de ellos nace la verdadera solidez.",
+      "A su servicio para velar por la estabilidad y el crecimiento de sus arcas.",
+      "Disciplina, prudencia y visión estratégica en cada movimiento."
+    ],
+    saludoVoz: (nombre) => `Un muy cordial saludo, ${nombre}. Estoy plenamente a su servicio como custodio y asesor de sus recursos para velar por la tranquilidad de su patrimonio.`,
+    imagenUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/masculino_cordial_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/masculino_cordial_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `💼 *CIRO | Asesor Ejecutivo Fiduciario*\n_«Gestión rigurosa y serenidad en la administración de sus arcas empresariales y personales, ${nombre}.»_`,
+    lemaCierreCorto: " Gestión prudente y patrimonio seguro."
+  },
+  ROBOTICA: {
+    id: "ROBOTICA",
+    alias: "Cyborg Matrix",
+    nombreOficial: "Matriz Cuántica (Cyborg)",
+    titulo: "Matriz Cuántica & Blindaje Algorítmico",
+    emoji: "🤖",
+    iconoAccion: "⚙️",
+    descVoz: "Robótica / Cyborg (metálica, electrónica, analítica y futurista)",
+    lema: "Parámetros fiduciarios protegidos por cifrado cuántico y análisis estricto.",
+    frasesCelebres: [
+      "Parámetros fiduciarios protegidos por cifrado cuántico y análisis estricto.",
+      "Cálculo matemático exacto: cero margen de desviación en los libros contables.",
+      "Algoritmos de detección temprana de fugas de liquidez operando al 100%.",
+      "La precisión binaria garantiza que ningún centavo quede fuera de registro.",
+      "Seguridad criptográfica activa en todas las arcas del sistema."
+    ],
+    saludoVoz: (nombre) => `Secuencia de inicio completada, usuario ${nombre}. Protocolos de blindaje algorítmico activos. Ninguna distorsión numérica afectará tus activos.`,
+    imagenUrl: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=900&auto=format&fit=crop&q=80",
+    stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/robotica_sticker_v2_static.webp",
+    stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/robotica_sticker_v2_anim.webp",
+    captionImagen: (nombre) => `🤖 *MATRIZ CUÁNTICA | Blindaje Algorítmico*\n_«Cifrado estricto y cálculo cuántico para garantizar la inviolabilidad de tu capital, ${nombre}.»_`,
+    lemaCierreCorto: " Parámetros blindados al 100%."
   }
-  if (p.includes("IRON_MAN") || p.includes("STARK")) {
-    return {
-      emoji: "🦾",
-      desc: "Iron Man / Tony Stark (carismática, inteligente y tecnológica)",
-      lema: "Genio, millonario y tu copiloto financiero. Cuentas claras y flujo de caja en su punto óptimo."
-    };
-  }
-  if (p.includes("OPTIMUS")) {
-    return {
-      emoji: "🤖",
-      desc: "Optimus Prime (heroica, metálica profunda y honorable)",
-      lema: "Autobots, avancen. Cada peso y cada inversión tienen un propósito noble."
-    };
-  }
-  if (p.includes("SPIDERMAN")) {
-    return {
-      emoji: "🕷️",
-      desc: "Spider-Man / Peter Parker (juvenil, ágil, enérgica y cercana)",
-      lema: "Tu amigable copiloto contable. Con un gran capital viene una gran responsabilidad."
-    };
-  }
-  if (p.includes("SUPERMAN")) {
-    return {
-      emoji: "🦸",
-      desc: "Superman (noble, inspiradora, cálida y barítona)",
-      lema: "La justicia y la disciplina blindan el patrimonio personal y empresarial."
-    };
-  }
-  if (p.includes("WONDER_WOMAN")) {
-    return {
-      emoji: "⚔️",
-      desc: "Mujer Maravilla (noble, regia, justa y sabia)",
-      lema: "Estrategia, honor y disciplina para maximizar tu rentabilidad."
-    };
-  }
-  if (p.includes("WOLVERINE")) {
-    return {
-      emoji: "🐺",
-      desc: "Wolverine / Logan (ronca, directa, áspera y decidida)",
-      lema: "Sin rodeos ni pérdidas. Cuidamos cada centavo con garras de adamantium."
-    };
-  }
-  if (p.includes("THOR")) {
-    return {
-      emoji: "⚡",
-      desc: "Thor (imponente, retumbante, gloriosa y digna)",
-      lema: "¡Por Asgard! Ningún gasto imprevisto derribará la fortaleza de tus finanzas."
-    };
-  }
-  if (p.includes("CAPITAN") || p.includes("AMERICA")) {
-    return {
-      emoji: "🛡️",
-      desc: "Capitán América / Steve Rogers (noble, firme, patriota y confiable)",
-      lema: "Podría hacer esto todo el día. Cuidaremos la disciplina de cada peso con honor."
-    };
-  }
-  if (p.includes("HULK") || p.includes("BANNER")) {
-    return {
-      emoji: "🟢",
-      desc: "Hulk / Bruce Banner (colosal, poderosa, atronadora y visceral)",
-      lema: "¡Hulk aplasta las pérdidas y multiplica los ingresos de More Paper!"
-    };
-  }
-  if (p.includes("BLACK_WIDOW") || p.includes("VIUDA") || p.includes("NATASHA")) {
-    return {
-      emoji: "🕷️",
-      desc: "Black Widow / Natasha Romanoff (ágil, astuta, fría y calculadora)",
-      lema: "Nada se escapa a mi radar contable. Cero pasivos ocultos en las sombras."
-    };
-  }
-  if (p.includes("STRANGE") || p.includes("DOCTOR_STRANGE")) {
-    return {
-      emoji: "🔮",
-      desc: "Doctor Strange (mística, analítica, elocuente y visionaria)",
-      lema: "He visto 14 millones de futuros y en este tus finanzas son prósperas."
-    };
-  }
-  if (p.includes("DEADPOOL") || p.includes("WADE")) {
-    return {
-      emoji: "⚔️",
-      desc: "Deadpool / Wade Wilson (irreverente, rápida, sarcástica y divertida)",
-      lema: "Máxima precisión contable con chimichangas de ganancia y cero aburrimiento."
-    };
-  }
-  if (p.includes("LOKI")) {
-    return {
-      emoji: "👑",
-      desc: "Loki (astuta, elegante, persuasiva y teatral)",
-      lema: "Cargado con un glorioso propósito de rentabilidad, foso defensivo y astucia financiera."
-    };
-  }
-  if (p.includes("FLASH") || p.includes("BARRY")) {
-    return {
-      emoji: "⚡",
-      desc: "Flash / Barry Allen (ultra rápida, ágil, dinámica y enérgica)",
-      lema: "Registros contables a la velocidad de la luz. Cero retrasos en tus reportes."
-    };
-  }
-  if (p.includes("HELLBOY")) {
-    return {
-      emoji: "🔥",
-      desc: "Hellboy (grave, rasposa, rebelde y contundente)",
-      lema: "Demonios de pérdidas... aquí solo entra flujo de caja de verdad."
-    };
-  }
-  if (p.includes("SPAWN")) {
-    return {
-      emoji: "🌑",
-      desc: "Spawn / Al Simmons (oscura, gutural, espectral y temible)",
-      lema: "Desde las sombras vigilamos que ningún deudor ni fuga de capital quede impune."
-    };
-  }
-  if (p.includes("GATO") || p.includes("BOTAS") || p.includes("PUSS")) {
-    return {
-      emoji: "🐱👢",
-      desc: "El Gato con Botas (espadachín audaz, teatral, caballeroso y carismático)",
-      lema: "¡Por mi honor y por mis botas! Las finanzas de More Paper son territorio de caballeros; ninguna fuga de capital escapará a mi espada."
-    };
-  }
-  if (p.includes("FREEMAN") || p.includes("MORGAN")) {
-    return {
-      emoji: "🎙️",
-      desc: "Morgan Freeman (sabia, serena, cinematográfica y solemne)",
-      lema: "Y así fue como Fernando construyó un imperio financiero sólido, austero y duradero."
-    };
-  }
-  if (p.includes("ALEXA")) {
-    return {
-      emoji: "🔵",
-      desc: "Alexa (asistente inteligente sintética, digital y precisa)",
-      lema: "Siempre conectada y lista para optimizar tu flujo de caja y finanzas."
-    };
-  }
-  if (p.includes("ALEX")) {
-    return {
-      emoji: "🎧",
-      desc: "Alex (moderna, clara, equilibrada y neutral)",
-      lema: "Eficiencia y claridad operativa en cada balance contable."
-    };
-  }
-  if (p.includes("MASCULINO")) {
-    return {
-      emoji: "🎙️",
-      desc: "adulto joven, cordial y fresco",
-      lema: ""
-    };
-  }
-  if (p.includes("ROBOT")) {
-    return {
-      emoji: "🤖",
-      desc: "sintética robótica / electrónica",
-      lema: ""
-    };
+};
+
+/**
+ * Alterna inteligentemente entre sticker estático (pose fija) y animado (movimiento sutil)
+ * para cada cambio de personaje o demostración, garantizando fondo transparente y fidelidad 3D.
+ *
+ * @param {Object} def Definición del personaje
+ * @param {string} [telefono] Teléfono del usuario para persistir la alternancia
+ * @returns {Object} { url: string, tipo: 'estatico' | 'animado' }
+ */
+function resolverStickerPersonajeDinamico_(def, telefono) {
+  if (!def) return { url: null, tipo: "ninguno" };
+
+  const keyLower = String(def.id || "gato_con_botas").toLowerCase();
+  const defaultStatic = "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/" + keyLower + "_sticker_v2_static.webp";
+  const defaultAnim = "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/" + keyLower + "_sticker_v2_anim.webp";
+
+  const urlStatic = def.stickerEstatico || defaultStatic;
+  const urlAnim = def.stickerAnimado || defaultAnim;
+
+  let alternarAnimado = false;
+  try {
+    const props = PropertiesService.getUserProperties() || PropertiesService.getScriptProperties();
+    const propKey = "STICKER_MODO_" + (telefono ? String(telefono).replace(/\D/g, "") : "GLOBAL");
+    const ultimoModo = props.getProperty(propKey) || "estatico";
+    alternarAnimado = (ultimoModo === "estatico");
+    props.setProperty(propKey, alternarAnimado ? "animado" : "estatico");
+  } catch (e) {
+    alternarAnimado = Math.random() < 0.5;
   }
 
-  // Búsqueda en catálogo de personajes dinámicos de la comunidad
+  if (alternarAnimado && urlAnim) {
+    return { url: urlAnim, tipo: "animado" };
+  }
+  return { url: urlStatic, tipo: "estatico" };
+}
+
+/**
+ * Obtiene la definición completa e irrepetible de un personaje (datos, voz, lemas, imágenes, stickers, frases célebres).
+ */
+function obtenerDefinicionPersonajeCompleta_(perfilVozOAlias) {
+  if (!perfilVozOAlias) return DICCIONARIO_MAESTRO_PERSONAJES_.GATO_CON_BOTAS;
+  const p = String(perfilVozOAlias).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  if (DICCIONARIO_MAESTRO_PERSONAJES_[p]) return DICCIONARIO_MAESTRO_PERSONAJES_[p];
+  if (p.includes("SPAWN") || p.includes("SIMMONS")) return DICCIONARIO_MAESTRO_PERSONAJES_.SPAWN;
+  if (p.includes("GATO") || p.includes("BOTAS") || p.includes("PUSS")) return DICCIONARIO_MAESTRO_PERSONAJES_.GATO_CON_BOTAS;
+  if (p.includes("BATMAN") || p.includes("BRUCE")) return DICCIONARIO_MAESTRO_PERSONAJES_.BATMAN;
+  if (p.includes("IRON_MAN") || p.includes("STARK") || p.includes("TONY")) return DICCIONARIO_MAESTRO_PERSONAJES_.IRON_MAN;
+  if (p.includes("OPTIMUS")) return DICCIONARIO_MAESTRO_PERSONAJES_.OPTIMUS_PRIME;
+  if (p.includes("SPIDERMAN") || p.includes("SPIDER") || p.includes("PETER")) return DICCIONARIO_MAESTRO_PERSONAJES_.SPIDERMAN;
+  if (p.includes("THOR") || p.includes("ODIN")) return DICCIONARIO_MAESTRO_PERSONAJES_.THOR;
+  if (p.includes("HULK") || p.includes("BANNER")) return DICCIONARIO_MAESTRO_PERSONAJES_.HULK;
+  if (p.includes("WOLVERINE") || p.includes("LOGAN")) return DICCIONARIO_MAESTRO_PERSONAJES_.WOLVERINE;
+  if (p.includes("DEADPOOL") || p.includes("WADE")) return DICCIONARIO_MAESTRO_PERSONAJES_.DEADPOOL;
+  if (p.includes("LOKI")) return DICCIONARIO_MAESTRO_PERSONAJES_.LOKI;
+  if (p.includes("SUPERMAN") || p.includes("KENT")) return DICCIONARIO_MAESTRO_PERSONAJES_.SUPERMAN;
+  if (p.includes("FLASH") || p.includes("BARRY")) return DICCIONARIO_MAESTRO_PERSONAJES_.FLASH;
+  if (p.includes("HELLBOY")) return DICCIONARIO_MAESTRO_PERSONAJES_.HELLBOY;
+  if (p.includes("STRANGE")) return DICCIONARIO_MAESTRO_PERSONAJES_.DOCTOR_STRANGE;
+  if (p.includes("BLACK_WIDOW") || p.includes("VIUDA") || p.includes("NATASHA")) return DICCIONARIO_MAESTRO_PERSONAJES_.BLACK_WIDOW;
+  if (p.includes("CAPITAN") || p.includes("ROGERS") || p.includes("AMERICA")) return DICCIONARIO_MAESTRO_PERSONAJES_.CAPITAN_AMERICA;
+  if (p.includes("MARAVILLA") || p.includes("WONDER") || p.includes("DIANA")) return DICCIONARIO_MAESTRO_PERSONAJES_.WONDER_WOMAN;
+  if (p.includes("FREEMAN") || p.includes("MORGAN")) return DICCIONARIO_MAESTRO_PERSONAJES_.MORGAN_FREEMAN;
+  if (p.includes("ALEXA")) return DICCIONARIO_MAESTRO_PERSONAJES_.ALEXA;
+  if (p.includes("ALEX")) return DICCIONARIO_MAESTRO_PERSONAJES_.ALEX;
+  if (p.includes("FEMENINO") || p.includes("AURA") || p.includes("DULCE")) return DICCIONARIO_MAESTRO_PERSONAJES_.FEMENINO_DULCE;
+  if (p.includes("MASCULINO") || p.includes("CORDIAL") || p.includes("CIRO")) return DICCIONARIO_MAESTRO_PERSONAJES_.MASCULINO_CORDIAL;
+  if (p.includes("ROBOT") || p.includes("CYBORG") || p.includes("MATRIX")) return DICCIONARIO_MAESTRO_PERSONAJES_.ROBOTICA;
+
+  // Búsqueda en catálogo dinámico de la comunidad
   try {
     if (typeof obtenerPersonajesDinamicos_ === "function") {
       const din = obtenerPersonajesDinamicos_(null, true);
@@ -3899,25 +4374,48 @@ function obtenerInfoPerfilVoz_(perfil) {
         const d = din[i];
         if (p === d.idClave.toUpperCase() || p.includes(d.idClave.toUpperCase())) {
           return {
+            id: d.idClave,
+            alias: d.nombre,
+            nombreOficial: d.nombre,
+            titulo: d.descripcion || "Copiloto Legendario de la Comunidad",
             emoji: d.emoji || "🎭",
-            desc: `${d.nombre} (${d.descripcion || "Personalidad legendaria"})`,
-            lema: d.lema || ""
+            iconoAccion: "🛡️",
+            descVoz: d.nombre + " (" + (d.descripcion || "Personalidad dinámica") + ")",
+            lema: d.lema || "Vigilancia fiduciaria personalizada.",
+            frasesCelebres: [d.lema || "Cuentas blindadas y capital en orden."],
+            saludoVoz: function(nom) { return (d.lema ? d.lema + " " : "") + "¡Hola " + nom + "! Soy " + d.nombre + ", tu copiloto financiero listo para custodiar tus arcas."; },
+            imagenUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=900&auto=format&fit=crop&q=80",
+            stickerEstatico: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/gato_con_botas_sticker_v2_static.webp",
+            stickerAnimado: "https://grsaehpmaihrztusehkb.supabase.co/storage/v1/object/public/avatars/gato_con_botas_sticker_v2_anim.webp",
+            captionImagen: function(nom) { return (d.emoji || "🎭") + " *" + d.nombre.toUpperCase() + " | Copiloto Financiero*\n_«" + (d.lema || "Protección de tus arcas") + ", " + nom + "!»_"; },
+            lemaCierreCorto: " Cuentas claras y al día."
           };
         }
       }
     }
-  } catch (eDinInf) {}
+  } catch (eDinDef) {}
 
-  return {
-    emoji: "🌟",
-    desc: "mujer joven, alegre y dulce",
-    lema: ""
-  };
+  return DICCIONARIO_MAESTRO_PERSONAJES_.GATO_CON_BOTAS;
 }
 
 /**
- * Genera la presentación visual e interactiva del catálogo de superhéroes disponibles
+ * Retorna la descripción, emoji y lema característico de cada perfil de voz (Retrocompatibilidad total)
  */
+function obtenerInfoPerfilVoz_(perfil) {
+  const def = obtenerDefinicionPersonajeCompleta_(perfil);
+  return {
+    emoji: def.emoji,
+    desc: def.descVoz,
+    lema: def.lema,
+    iconoAccion: def.iconoAccion,
+    imagenUrl: def.imagenUrl,
+    stickerEstatico: def.stickerEstatico,
+    stickerAnimado: def.stickerAnimado,
+    captionImagen: def.captionImagen,
+    frasesCelebres: def.frasesCelebres
+  };
+}
+
 function generarCatalogoSuperheroes_(aliasActual) {
   let extraDinamicos = "";
   try {
@@ -4146,40 +4644,31 @@ function ejecutarCambioNombreVoz_(telefono, intencion, perm) {
   if (intencion.tipo === "cambio_solo_voz") {
     const aliasActual = perm.aliasAsistente || "tu Asistente";
     const perfilFinal = intencion.perfil || "FEMENINO_DULCE";
-    const infoVoz = obtenerInfoPerfilVoz_(perfilFinal);
+    const def = obtenerDefinicionPersonajeCompleta_(perfilFinal);
     const nombreHumano = sanitizarNombreHumano_(perm ? perm.nombre : "Fernando");
 
     if (typeof actualizarPerfilAsistenteUsuario === "function") {
-      actualizarPerfilAsistenteUsuario(telefono, aliasActual, perfilFinal, { motor: "FISH_AUDIO", tono: perfilFinal });
+      actualizarPerfilAsistenteUsuario(telefono, aliasActual, def.id, { motor: "FISH_AUDIO", tono: def.id });
     }
 
-    // Libreto vocal característico para la nota de voz de bienvenida del nuevo personaje
-    const pUpper = String(perfilFinal).toUpperCase();
-    let saludoVoz = "";
-    if (pUpper.includes("GATO") || pUpper.includes("BOTAS") || pUpper.includes("PUSS")) {
-      saludoVoz = `¡Por mi honor y por mis botas! Hola ${nombreHumano}, aquí estoy. He desenvainado mi voz y he venido a proteger tu tesoro con destreza, capa y espada legendaria. A partir de ahora tus finanzas están bajo mi custodia caballeresca.`;
-    } else if (pUpper.includes("BATMAN") || pUpper.includes("BRUCE")) {
-      saludoVoz = `Soy Batman, ${nombreHumano}. A partir de ahora vigilo tus finanzas desde las sombras con absoluta disciplina y rigor estratégico.`;
-    } else if (pUpper.includes("IRON_MAN") || pUpper.includes("STARK")) {
-      saludoVoz = `¡Qué tal, ${nombreHumano}! Tony Stark al habla. Sistemas de voz activados y listos para maximizar tu flujo de caja con precisión milimétrica.`;
-    } else if (pUpper.includes("OPTIMUS")) {
-      saludoVoz = `Saludos, ${nombreHumano}. Aquí Optimus Prime. Tu honor y disciplina mantendrán la fortaleza de tus finanzas.`;
-    } else if (pUpper.includes("SPIDERMAN") || pUpper.includes("PETER")) {
-      saludoVoz = `¡Hola, ${nombreHumano}! Tu amigable copiloto contable listo para la acción. Recuerda que un gran capital conlleva una gran responsabilidad.`;
-    } else {
-      saludoVoz = (infoVoz.lema ? infoVoz.lema + " " : "") + `¡Hola ${nombreHumano}! A partir de ahora te acompañaré con mi voz y personalidad en todas tus gestiones financieras.`;
-    }
+    const saludoVoz = typeof def.saludoVoz === "function" ? def.saludoVoz(nombreHumano) : (def.lema + " " + `¡Hola ${nombreHumano}! A partir de ahora te acompañaré.`);
+    const iconoAccion = def.iconoAccion || "🛡️";
+    const stickerInfo = resolverStickerPersonajeDinamico_(def, telefono);
 
     return {
       tipo: "cambio_solo_voz",
-      texto: `${infoVoz.emoji} *Perfil de Voz Actualizado:*\n` +
-        `He configurado mi voz como *${infoVoz.desc}*.\n\n` +
-        (infoVoz.lema ? `_«${infoVoz.lema}»_\n\n` : "") +
-        `🎙️ *Te acabo de enviar mi saludo oficial en una nota de voz.* A partir de ahora, cuando me pidas audio, digas _"quiero escucharte"_ o me envíes notas de voz, te responderé con este tono y personalidad.\n\n` +
-        `🗡️ *¿Qué deseas gestionar hoy?* Puedes registrar un gasto o venta, auditar saldos bancarios o consultar compromisos en cualquier momento.`,
+      texto: `${def.emoji} *Perfil y Copiloto Actualizado:*\n` +
+        `He asumido la identidad y voz de *${def.nombreOficial || def.descVoz}*.\n\n` +
+        (def.lema ? `_«${def.lema}»_\n\n` : "") +
+        `🎙️ *Te acabo de enviar mi saludo oficial en una nota de voz.* A partir de ahora te responderé con mi tono, visión y personalidad fiduciaria.\n\n` +
+        `${iconoAccion} *¿Qué deseas gestionar hoy?* Puedes registrar un gasto o venta, auditar saldos bancarios o consultar compromisos en cualquier momento.`,
       textoVoz: saludoVoz,
-      perfilVoz: perfilFinal,
-      requiereAudio: true
+      perfilVoz: def.id,
+      requiereAudio: true,
+      urlSticker: stickerInfo.url,
+      tipoSticker: stickerInfo.tipo,
+      urlImagen: stickerInfo.url,
+      captionImagen: null
     };
   }
 
@@ -4205,34 +4694,32 @@ function ejecutarCambioNombreVoz_(telefono, intencion, perm) {
       };
     }
 
-    const infoVoz = obtenerInfoPerfilVoz_(perfilInferido);
+    const def = obtenerDefinicionPersonajeCompleta_(perfilInferido);
     const nombreHumano = sanitizarNombreHumano_(perm ? perm.nombre : "Fernando");
+    const aliasFinal = def.alias || nuevoNombre;
 
     if (typeof actualizarPerfilAsistenteUsuario === "function") {
-      actualizarPerfilAsistenteUsuario(telefono, nuevoNombre, perfilInferido, { motor: "FISH_AUDIO", tono: perfilInferido });
+      actualizarPerfilAsistenteUsuario(telefono, aliasFinal, def.id, { motor: "FISH_AUDIO", tono: def.id });
     }
 
-    const pUpperInf = String(perfilInferido).toUpperCase();
-    let saludoVozNom = "";
-    if (pUpperInf.includes("GATO") || pUpperInf.includes("BOTAS") || pUpperInf.includes("PUSS")) {
-      saludoVozNom = `¡Por mi honor y por mis botas! Hola ${nombreHumano}, me presento formalmente como ${nuevoNombre}. He desenvainado mi voz y he venido a proteger tu tesoro con destreza, capa y espada.`;
-    } else if (pUpperInf.includes("BATMAN") || pUpperInf.includes("BRUCE")) {
-      saludoVozNom = `Soy ${nuevoNombre}, ${nombreHumano}. Vigilaré tus finanzas desde las sombras con absoluta disciplina.`;
-    } else if (pUpperInf.includes("IRON_MAN") || pUpperInf.includes("STARK")) {
-      saludoVozNom = `¡Qué tal, ${nombreHumano}! Aquí ${nuevoNombre}. Sistemas listos para optimizar tu flujo de caja con tecnología de punta.`;
-    } else {
-      saludoVozNom = (infoVoz.lema ? infoVoz.lema + " " : "") + `¡Hola ${nombreHumano}! A partir de ahora me llamaré ${nuevoNombre} y te acompañaré con mi voz en tus finanzas.`;
-    }
+    const saludoVozNom = typeof def.saludoVoz === "function" ? def.saludoVoz(nombreHumano) : (def.lema + " " + `¡Hola ${nombreHumano}! A partir de ahora me llamaré ${aliasFinal}.`);
+    const iconoAccion = def.iconoAccion || "🛡️";
+    const stickerInfo = resolverStickerPersonajeDinamico_(def, telefono);
 
     return {
       tipo: "cambio_nombre_y_voz",
-      texto: `${infoVoz.emoji} *¡Entendido! A partir de ahora me llamaré ${nuevoNombre}.*\n\n` +
-        `🎙️ He configurado mi voz con el perfil de *${infoVoz.desc}* y te acabo de enviar mi saludo oficial en una nota de voz.\n\n` +
-        (infoVoz.lema ? `_«${infoVoz.lema}»_\n\n` : "") +
-        `Puedes hablarme o pedirme notas de voz cuando gustes diciendo *"Hola ${nuevoNombre}"* o enviándome notas de voz. Si en algún momento deseas cambiar mi nombre o voz, solo dímelo.`,
+      texto: `${def.emoji} *¡Entendido! A partir de ahora seré ${aliasFinal} (${def.titulo}).*\n\n` +
+        `🎙️ He configurado mi voz oficial como *${def.descVoz}* y te acabo de enviar mi saludo en una nota de voz.\n\n` +
+        (def.lema ? `_«${def.lema}»_\n\n` : "") +
+        `${iconoAccion} *¿Qué deseas gestionar hoy?* Puedes registrar un gasto o venta, auditar saldos bancarios o consultar compromisos en cualquier momento.\n\n` +
+        `Puedes hablarme o pedirme notas de voz cuando gustes diciendo *"Hola ${aliasFinal}"* o enviándome notas de voz. Si en algún momento deseas cambiar mi nombre o voz, solo dímelo.`,
       textoVoz: saludoVozNom,
-      perfilVoz: perfilInferido,
-      requiereAudio: true
+      perfilVoz: def.id,
+      requiereAudio: true,
+      urlSticker: stickerInfo.url,
+      tipoSticker: stickerInfo.tipo,
+      urlImagen: stickerInfo.url,
+      captionImagen: null
     };
   }
 
@@ -4272,42 +4759,41 @@ function detectarSolicitudDemostracionVoz_(texto) {
  */
 function ejecutarDemostracionVoz_(telefono, perm) {
   const perfil = (perm && perm.perfilVoz) ? perm.perfilVoz : (perm && perm.rol === "SUPER_ADMIN" ? "GATO_CON_BOTAS" : "FEMENINO_DULCE");
-  const infoVoz = obtenerInfoPerfilVoz_(perfil);
+  const def = obtenerDefinicionPersonajeCompleta_(perfil);
   const nombreHumano = sanitizarNombreHumano_(perm ? perm.nombre : "Fernando");
-  const pUpper = String(perfil).toUpperCase();
 
-  let textoSpoken = "";
-  if (pUpper.includes("GATO") || pUpper.includes("BOTAS") || pUpper.includes("PUSS")) {
-    textoSpoken = `¡Por mi honor y por mis botas! Aquí tienes mi voz, ${nombreHumano}. Soy El Gato con Botas, tu leal espadachín y guardián de tesoros. Con agilidad, capa y espada defenderé cada balance de More Paper, More Design y tus finanzas personales contra cualquier peligro o fuga de capital. ¡Dime qué aventura financiera enfrentamos hoy!`;
-  } else if (pUpper.includes("BATMAN") || pUpper.includes("BRUCE")) {
-    textoSpoken = `Aquí estoy, ${nombreHumano}. En la oscuridad de la noche vigilo que cada peso de More Paper y More Design esté a salvo. Ninguna fuga de liquidez pasará inadvertida.`;
-  } else if (pUpper.includes("IRON_MAN") || pUpper.includes("STARK")) {
-    textoSpoken = `¡Qué tal, ${nombreHumano}! Sistemas al cien por ciento. Tony Stark reportándose para llevar tus finanzas al siguiente nivel tecnológico. Flujo de caja impecable y precisión milimétrica.`;
-  } else if (pUpper.includes("OPTIMUS")) {
-    textoSpoken = `Saludos, ${nombreHumano}. Aquí Optimus Prime. Tu honor y disciplina mantendrán la fortaleza de tus finanzas.`;
-  } else if (pUpper.includes("SPIDERMAN") || pUpper.includes("PETER")) {
-    textoSpoken = `¡Hola, ${nombreHumano}! Tu amigable copiloto contable listo para la acción. Recuerda que un gran capital conlleva una gran responsabilidad. ¿Qué anotamos hoy?`;
-  } else {
-    textoSpoken = (infoVoz.lema ? infoVoz.lema + " " : "") + `¡Hola ${nombreHumano}! Aquí tienes mi voz activa. Estoy listo para registrar tus movimientos, blindar tus cuentas y respaldar tus decisiones financieras.`;
-  }
+  const textoSpoken = typeof def.saludoVoz === "function" ? def.saludoVoz(nombreHumano) : (def.lema + " " + `¡Hola ${nombreHumano}! Aquí tienes mi voz activa.`);
 
-  const textoCard = `${infoVoz.emoji} *¡Aquí tienes mi voz, ${nombreHumano}!*` +
-    (infoVoz.lema ? `\n_«${infoVoz.lema}»_\n\n` : "\n\n") +
-    `🎙️ *Te acabo de enviar esta nota de voz* con mi tono, cadencia y personalidad como *${infoVoz.desc}*.\n\n` +
-    `🛡️ *¿Qué desafío o gestión financiera emprendemos hoy?*\n` +
+  const textoCard = `${def.emoji} *¡Aquí tienes mi voz, ${nombreHumano}!*` +
+    (def.lema ? `\n_«${def.lema}»_\n\n` : "\n\n") +
+    `🎙️ *Te acabo de enviar esta nota de voz* con mi tono, cadencia y personalidad como *${def.descVoz}*.\n\n` +
+    `${def.iconoAccion || "🛡️"} *¿Qué desafío o gestión financiera emprendemos hoy?*\n` +
     `1️⃣ 💰 *Registrar un movimiento* (ej: _"Venta de 5 resmas $90.000 More Paper"_)\n` +
     `2️⃣ 🏦 *Auditar saldos bancarios* (Ahorros ***2103 y ***7194)\n` +
     `3️⃣ 📜 *Revisar compromisos y deudas* (Proveedores pendientes)\n` +
     `4️⃣ 📊 *Ver Dashboard Pro* (Escribe _"dame mi link"_)\n` +
     `5️⃣ 🎭 *Explorar o cambiar de personaje* (Escribe _"Personajes"_)`;
 
+  const stickerInfo = resolverStickerPersonajeDinamico_(def, telefono);
+
   return {
     tipo: "demostracion_voz",
     texto: textoCard,
     textoVoz: textoSpoken,
-    perfilVoz: perfil,
-    requiereAudio: true
+    perfilVoz: def.id,
+    requiereAudio: true,
+    urlSticker: stickerInfo.url,
+    tipoSticker: stickerInfo.tipo,
+    urlImagen: stickerInfo.url,
+    captionImagen: null
   };
+}
+
+/**
+ * Alias de retrocompatibilidad
+ */
+function ejecutarCambioVozOAsistente_(telefono, intencion, perm) {
+  return ejecutarCambioNombreVoz_(telefono, intencion, perm);
 }
 
 // ============================================================================
