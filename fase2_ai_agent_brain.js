@@ -639,14 +639,17 @@ function procesarMensajeTexto(telefono, textoUsuario, historialChat) {
       if (posPendingRaw) {
         const t = String(textoUsuario).toLowerCase().trim();
         let entidadElegida = null;
-        if (t === "1" || t === "1." || t.includes("paper") || t.includes("more paper") || t === "papeleria" || t === "papelería") {
+        if (t === "1" || t === "1." || t.includes("paper") || t.includes("more paper") || t === "papeleria" || t === "papelería" || t.includes("papel")) {
           entidadElegida = "More Paper";
-        } else if (t === "2" || t === "2." || t.includes("design") || t.includes("more design") || t === "diseno" || t === "diseño" || t === "agencia") {
+        } else if (t === "2" || t === "2." || t.includes("design") || t.includes("more design") || t === "diseno" || t === "diseño" || t.includes("desing") || t.includes("moredesing") || t.includes("amor design") || t.includes("amordesign") || t === "agencia" || t.includes("publicidad")) {
           entidadElegida = "More Design";
         }
 
         if (entidadElegida) {
-          cache.remove("PENDING_POS_CLOSE_" + telLimpio);
+          if (cache) {
+            cache.remove("PENDING_POS_CLOSE_" + telLimpio);
+            cache.remove("PENDING_INTERACTIVE_FLOW_" + telLimpio);
+          }
           const closureData = JSON.parse(posPendingRaw);
           const resPOS = ejecutarAsentamientoCierreTurnoPOS_(ss, entidadElegida, closureData);
           if (solicitaAudio) resPOS.requiereAudio = true;
@@ -1720,19 +1723,42 @@ function procesarImagenComprobante(telefono, imagenBase64, mimeType, textoAcompa
       // Determinar entidad: primero por texto acompañante, luego por detección visual
       let entidad = null;
       const tAcomp = String(textoAcompanante || "").toLowerCase().replace(/[\s_-]/g, "");
-      if (tAcomp.includes("paper") || tAcomp.includes("morepaper") || tAcomp.includes("mopepaper") || tAcomp.includes("mope")) {
+      if (tAcomp.includes("paper") || tAcomp.includes("morepaper") || tAcomp.includes("mopepaper") || tAcomp.includes("mope") || tAcomp.includes("papeleria") || tAcomp.includes("papelería") || tAcomp.includes("papel")) {
         entidad = "More Paper";
-      } else if (tAcomp.includes("design") || tAcomp.includes("moredesign")) {
+      } else if (tAcomp.includes("design") || tAcomp.includes("moredesign") || tAcomp.includes("desing") || tAcomp.includes("moredesing") || tAcomp.includes("amordesign") || tAcomp.includes("diseno") || tAcomp.includes("diseño") || tAcomp.includes("agencia") || tAcomp.includes("publicidad")) {
         entidad = "More Design";
       } else if (dataVision.entidad_detectada === "More Paper" || dataVision.entidad_detectada === "More Design") {
         entidad = dataVision.entidad_detectada;
+      }
+
+      // Herencia conversacional desde flujo interactivo previo:
+      // Si el usuario envió un mensaje previo indicando el negocio (ej: "venta more design" o "more design") y luego envió la foto
+      if (!entidad) {
+        try {
+          const cache = CacheService.getUserCache();
+          const pendingFlowRaw = cache ? cache.get("PENDING_INTERACTIVE_FLOW_" + telLimpio) : null;
+          if (pendingFlowRaw) {
+            const flowData = JSON.parse(pendingFlowRaw);
+            const entPrevia = flowData.datosParciales ? flowData.datosParciales.entidad : null;
+            if (entPrevia === "More Design" || entPrevia === "More Paper") {
+              entidad = entPrevia;
+              cache.remove("PENDING_INTERACTIVE_FLOW_" + telLimpio);
+              Logger.log(`🔄 Local POS heredado con éxito desde contexto previo: ${entidad}`);
+            }
+          }
+        } catch (eHeredar) {
+          Logger.log("Aviso heredando local de flujo interactivo previo: " + eHeredar.message);
+        }
       }
 
       // COMPUERTA DE CLARIFICACIÓN: Si no está 100% claro el local, pausar y preguntar
       if (!entidad) {
         try {
           const cache = CacheService.getUserCache();
-          cache.put("PENDING_POS_CLOSE_" + telLimpio, JSON.stringify(closureData), 600); // 10 minutos
+          if (cache) {
+            cache.put("PENDING_POS_CLOSE_" + telLimpio, JSON.stringify(closureData), 600); // 10 minutos
+            cache.remove("PENDING_INTERACTIVE_FLOW_" + telLimpio); // Evitar colisión de flujos
+          }
         } catch (eCache) {
           Logger.log("Aviso guardando caché POS: " + eCache.message);
         }
@@ -2951,8 +2977,8 @@ function extraerJsonLimpio_(texto) {
       const vTotal = totalMatch ? limpiarNumeroFinanciero_(totalMatch[1]) : (vEfectivo + vBancarizado);
 
       let entDetectada = null;
-      if (tLower.includes("more design") || tLower.includes("design")) entDetectada = "More Design";
-      else if (tLower.includes("more paper") || tLower.includes("paper")) entDetectada = "More Paper";
+      if (tLower.includes("more design") || tLower.includes("design") || tLower.includes("desing") || tLower.includes("diseño") || tLower.includes("diseno") || tLower.includes("amor design") || tLower.includes("amordesign") || tLower.includes("agencia")) entDetectada = "More Design";
+      else if (tLower.includes("more paper") || tLower.includes("paper") || tLower.includes("papeleria") || tLower.includes("papelería") || tLower.includes("papel")) entDetectada = "More Paper";
 
       return {
         tipo_documento: "cierre_turno_pos",
@@ -2977,8 +3003,8 @@ function extraerJsonLimpio_(texto) {
 function normalizarEntidad_(ent) {
   if (!ent) return "Personal";
   const e = String(ent).toLowerCase();
-  if (e.includes("paper")) return "More Paper";
-  if (e.includes("design")) return "More Design";
+  if (e.includes("paper") || e.includes("papel")) return "More Paper";
+  if (e.includes("design") || e.includes("desing") || e.includes("diseño") || e.includes("diseno") || e.includes("amor design") || e.includes("amordesign") || e.includes("agencia") || e.includes("publicidad")) return "More Design";
   if (e.includes("global") || e.includes("nomina") || e.includes("nómina") || e.includes("consolidado") || e.includes("corporativ") || e.includes("7194") || e.includes("cuenta more") || e.includes("comun") || e.includes("común")) return "Consolidado";
   return "Personal";
 }
