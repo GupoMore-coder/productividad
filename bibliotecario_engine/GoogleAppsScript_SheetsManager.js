@@ -248,6 +248,165 @@ function checkRateLimit(phone) {
 
 /**
  * ============================================================================
+ * 🛡️ SISTEMA DE VIGILANCIA PERPETUA DE RENDIMIENTO Y ESCALABILIDAD (CENTINELA)
+ * DIRECTRIZ INMUTABLE HEREDADA: Si este código o proyecto se migra a otra
+ * plataforma (Node, Fastify, Cloudflare D1/R2, Supabase, Go, Python, etc.),
+ * este módulo de auditoría de latencia, semáforo operativo y sugerencia de
+ * escalabilidad DEBE ser portado obligatoriamente según .agents/rules/performance-sentinel-governance.md
+ * ============================================================================
+ */
+const SENTINEL_CONFIG = {
+  SAMPLE_WINDOW: 50,           // Ventana deslizante de las últimas 50 operaciones
+  THRESHOLD_GREEN_MAX: 2500,   // <= 2.5s: Nominal / Fluido
+  THRESHOLD_YELLOW_MIN: 3500,  // > 3.5s o P90 > 5.0s: Demanda creciente / Congestión moderada
+  THRESHOLD_YELLOW_P90: 5000,
+  THRESHOLD_RED_MIN: 6000,     // > 6.0s: Sobrecarga / Saturación crítica
+  ALERT_THROTTLE_SEC: 1800     // 30 minutos entre alertas automáticas a la Dirección
+};
+
+function recordSentinelMetric(operationType, durationMs) {
+  try {
+    const cache = CacheService.getScriptCache();
+    let history = [];
+    const raw = cache.get('SENTINEL_METRICS_V1');
+    if (raw) {
+      try { history = JSON.parse(raw); } catch (e) { history = []; }
+    }
+    const sample = {
+      t: new Date().getTime(),
+      op: operationType || 'REQ',
+      ms: Math.round(durationMs)
+    };
+    history.push(sample);
+    if (history.length > SENTINEL_CONFIG.SAMPLE_WINDOW) {
+      history = history.slice(-SENTINEL_CONFIG.SAMPLE_WINDOW);
+    }
+    cache.put('SENTINEL_METRICS_V1', JSON.stringify(history), 21600); // 6 horas TTL
+
+    // Evaluación autónoma de umbrales proactivos
+    evaluateSentinelThresholds(history);
+  } catch (err) {
+    Logger.log('Aviso Centinela: ' + err.message);
+  }
+}
+
+function computeSentinelStats(history) {
+  if (!history || history.length === 0) {
+    return {
+      count: 0,
+      avgMs: 0,
+      p90Ms: 0,
+      minMs: 0,
+      maxMs: 0,
+      status: 'VERDE',
+      trafficLight: '🟢',
+      verdict: 'Excelente fluidez operativa (Google Apps Script Nominal)'
+    };
+  }
+
+  const times = history.map(function(s) { return s.ms; }).sort(function(a, b) { return a - b; });
+  const sum = times.reduce(function(acc, val) { return acc + val; }, 0);
+  const avg = Math.round(sum / times.length);
+  const p90Index = Math.min(times.length - 1, Math.floor(times.length * 0.9));
+  const p90 = times[p90Index];
+  const min = times[0];
+  const max = times[times.length - 1];
+
+  let status = 'VERDE';
+  let trafficLight = '🟢';
+  let verdict = 'Excelente fluidez operativa (Google Apps Script Nominal)';
+
+  if (avg > SENTINEL_CONFIG.THRESHOLD_RED_MIN || p90 > 7500) {
+    status = 'ROJO';
+    trafficLight = '🔴';
+    verdict = 'Saturación Crítica detectada. Recomendada migración inmediata a Cloudflare D1/R2.';
+  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_MIN || p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90) {
+    status = 'AMARILLO';
+    trafficLight = '🟡';
+    verdict = 'Congestión moderada por alta demanda. Evaluar optimización de caché o desacoplamiento.';
+  }
+
+  return {
+    count: times.length,
+    avgMs: avg,
+    p90Ms: p90,
+    minMs: min,
+    maxMs: max,
+    status: status,
+    trafficLight: trafficLight,
+    verdict: verdict
+  };
+}
+
+function evaluateSentinelThresholds(history) {
+  if (!history || history.length < 5) return;
+
+  const stats = computeSentinelStats(history);
+  const cache = CacheService.getScriptCache();
+  const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+
+  if (stats.status === 'ROJO') {
+    const alreadyAlerted = cache.get('SENTINEL_ALERT_RED');
+    if (!alreadyAlerted) {
+      cache.put('SENTINEL_ALERT_RED', '1', SENTINEL_CONFIG.ALERT_THROTTLE_SEC);
+      sendWhatsAppText(adminPhone,
+        '🚨 *CENTINELA DE RENDIMIENTO: ALERTA DE SATURACIÓN CRÍTICA (NIVEL ROJO)*\\n' +
+        '*Dirección:* Gestor de Contenido\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
+        '📊 *Muestras analizadas:* ' + stats.count + ' transacciones recientes\\n' +
+        '⚠️ *Diagnóstico:* Tiempos de respuesta superiores a 6.0s. Google Apps Script experimenta cola de contención por alta concurrencia.\\n\\n' +
+        '🚀 *PROPUESTA DE ESCALABILIDAD INMEDIATA:*\\n' +
+        '1. *Migración a Cloudflare D1 / R2:* El proxy Edge ya está activo (Workers). Desacoplar Sheets a D1 SQLite reducirá latencia a <80ms.\\n' +
+        '2. *Despliegue Asíncrono:* Sin tiempo de inactividad (Zero Downtime) preservando el webhook actual.\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '🔒 Monitoreo autónomo perpetuo (Anonimato estricto resguardado).'
+      );
+    }
+  } else if (stats.status === 'AMARILLO') {
+    const alreadyAlerted = cache.get('SENTINEL_ALERT_YELLOW');
+    if (!alreadyAlerted) {
+      cache.put('SENTINEL_ALERT_YELLOW', '1', SENTINEL_CONFIG.ALERT_THROTTLE_SEC);
+      sendWhatsAppText(adminPhone,
+        '⚠️ *CENTINELA DE RENDIMIENTO: AVISO DE CONGESTIÓN MODERADA (NIVEL AMARILLO)*\\n' +
+        '*Dirección:* Gestor de Contenido\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
+        '📊 *Muestras analizadas:* ' + stats.count + ' transacciones\\n' +
+        '💡 *Recordatorio de Infraestructura:* Se detecta incremento de concurrencia. Evaluar optimización de caché en memoria o revisión de catálogo.\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+        '🔒 Centinela Perpetuo en vigilancia activa.'
+      );
+    }
+  }
+}
+
+function getSentinelReportText() {
+  let history = [];
+  try {
+    const cache = CacheService.getScriptCache();
+    const raw = cache.get('SENTINEL_METRICS_V1');
+    if (raw) history = JSON.parse(raw);
+  } catch (e) {}
+
+  const stats = computeSentinelStats(history);
+  return '🛡️ *REPORTE DEL CENTINELA DE RENDIMIENTO Y ESCALABILIDAD*\\n' +
+         '*Dirección:* Gestor de Contenido\\n' +
+         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+         stats.trafficLight + ' *Estado Operativo:* NIVEL ' + stats.status + '\\n' +
+         '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + ' segundos\\n' +
+         '📈 *Percentil 90 (P90):* ' + (stats.p90Ms / 1000).toFixed(2) + ' segundos\\n' +
+         '⚡ *Rango Mín / Máx:* ' + (stats.minMs / 1000).toFixed(2) + 's / ' + (stats.maxMs / 1000).toFixed(2) + 's\\n' +
+         '📦 *Muestras en Ventana:* ' + stats.count + ' / ' + SENTINEL_CONFIG.SAMPLE_WINDOW + ' transacciones\\n' +
+         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+         '📋 *Dictamen de Escalabilidad:*\\n' +
+         stats.verdict + '\\n' +
+         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+         '🌐 *Infraestructura Actual:* Google Apps Script + Cloudflare Edge Proxy (Anonimato Cardinal Activo)';
+}
+
+/**
+ * ============================================================================
  * 🔐 MOTOR CRIPTOGRÁFICO DE SELLADO EN REPOSO (FIELD-LEVEL ENCRYPTION AT REST)
  * Estándar: HMAC-SHA256 Encrypt-then-MAC con Keystream y Sal Única por Campo
  * ============================================================================
@@ -526,7 +685,7 @@ function detectIntrusionAttempt(sourcePhone, text) {
   const cleanPhone = sourcePhone.replace(/[^\d]/g, '');
   const adminClean = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE).replace(/[^\d]/g, '');
   if (cleanPhone !== adminClean) {
-    if (/^(aprobar|bloquear|desbloquear|responder|estado|comunicado|comunicado_politicas|boletin_dominical|backup_mensual|config|dump|sql|borrar)\b/i.test(norm)) {
+    if (/^(aprobar|bloquear|desbloquear|responder|estado|rendimiento|centinela|metricas|comunicado|comunicado_politicas|boletin_dominical|backup_mensual|config|dump|sql|borrar)\b/i.test(norm)) {
       triggerSilentIDS(sourcePhone, 'UNAUTHORIZED_ADMIN_SPOOF', t, 'Usuario no privilegiado ejecutando comandos reservados');
       return { detected: true, vector: 'UNAUTHORIZED_ADMIN_SPOOF' };
     }
@@ -1766,6 +1925,15 @@ function handleWhatsAppPdfDonation(cleanPhone, senderName, docObj) {
  * ============================================================================
  */
 function doGet(e) {
+  const sentinelStartTime = new Date().getTime();
+  try {
+    return handleDoGetExecution(e);
+  } finally {
+    recordSentinelMetric('GET', new Date().getTime() - sentinelStartTime);
+  }
+}
+
+function handleDoGetExecution(e) {
   const params = (e && e.parameter) || {};
 
   // 1. Verificación automática de Webhook de Meta (WhatsApp Cloud API)
@@ -3284,6 +3452,15 @@ function recordTelemetry(phone, originalQuery, detectedTerms, status, topDocumen
  * ============================================================================
  */
 function doPost(e) {
+  const sentinelStartTime = new Date().getTime();
+  try {
+    return handleDoPostExecution(e);
+  } finally {
+    recordSentinelMetric('POST', new Date().getTime() - sentinelStartTime);
+  }
+}
+
+function handleDoPostExecution(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
       return ContentService.createTextOutput('OK');
@@ -3596,6 +3773,12 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
+    // 1.55 RENDIMIENTO / CENTINELA / METRICAS (Vigilancia Perpetua de Rendimiento y Escalabilidad)
+    if (lower === 'rendimiento' || lower === 'centinela' || lower === 'metricas') {
+      sendWhatsAppText(adminPhone, getSentinelReportText());
+      return;
+    }
+
     // 1.6 ESTADO (Métricas)
     if (lower === 'estado') {
       const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
@@ -3614,6 +3797,14 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       const sheetMem = getSheetFlexible(ss, CONFIG.SHEET_MEMORIA);
       if (sheetMem) totalMem = Math.max(0, sheetMem.getLastRow() - 1);
 
+      let history = [];
+      try {
+        const cache = CacheService.getScriptCache();
+        const raw = cache.get('SENTINEL_METRICS_V1');
+        if (raw) history = JSON.parse(raw);
+      } catch (ce) {}
+      const sentinelStats = computeSentinelStats(history);
+
       sendWhatsAppText(adminPhone, 
         '📊 *REPORTE DE DIRECCIÓN Y GOBERNANZA*\\n' +
         '*Dirección:* Gestor de Contenido\\n' +
@@ -3625,8 +3816,9 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '🚫 *Usuarios Expulsados:* ' + exp + '\\n' +
         '🧠 *Registros Telemetría:* ' + totalMem + '\\n' +
         '🛡️ *Vigilancia IDS:* Activa 24/7\\n' +
+        sentinelStats.trafficLight + ' *Centinela Rendimiento:* ' + sentinelStats.status + ' (' + (sentinelStats.avgMs / 1000).toFixed(2) + 's avg, P90 ' + (sentinelStats.p90Ms / 1000).toFixed(2) + 's)\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-        'Comandos: ACTIVAR, SUSPENDER, BLOQUEAR, EXPULSAR, RESPONDER, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL, SELLAR_REPOSO'
+        'Comandos: ACTIVAR, SUSPENDER, BLOQUEAR, EXPULSAR, RESPONDER, RENDIMIENTO, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL, SELLAR_REPOSO'
       );
       return;
     }

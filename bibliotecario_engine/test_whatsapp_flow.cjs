@@ -716,6 +716,35 @@ async function startSuite() {
     assert.strictEqual(replyRes.alertToGerente.message.includes('MENSAJE'), true);
   });
 
+  // JORNADA 27: Centinela Perpetuo de Rendimiento y Escalabilidad Heredada
+  await runAsyncTest('Jornada 27: Gestor de Contenido consulta "RENDIMIENTO" y "ESTADO" -> Auditoría activa del Centinela', async () => {
+    // 1. Consulta explícita de RENDIMIENTO
+    const perfRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'RENDIMIENTO'
+    });
+
+    assert.strictEqual(perfRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(perfRes.replyText.includes('CENTINELA DE RENDIMIENTO Y ESCALABILIDAD'), true);
+    assert.strictEqual(perfRes.replyText.includes('Estado Operativo:'), true);
+    assert.strictEqual(perfRes.replyText.includes('Latencia Media:'), true);
+    assert.strictEqual(perfRes.replyText.includes('Percentil 90'), true);
+    assert.strictEqual(perfRes.replyText.includes('Dictamen de Escalabilidad:'), true);
+    assert.strictEqual(perfRes.replyText.includes('Google Apps Script'), true);
+
+    // 2. Consulta de ESTADO incluye Centinela
+    const estadoRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'ESTADO'
+    });
+
+    assert.strictEqual(estadoRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(estadoRes.replyText.includes('Centinela Rendimiento:'), true);
+    assert.strictEqual(estadoRes.replyText.includes('RENDIMIENTO'), true);
+  });
+
   console.log('\n================================================================');
   console.log(`📊 RESULTADOS FINALES: ${passed} / ${total} PRUEBAS EXITOSAS (${Math.round((passed/total)*100)}%)`);
   console.log('================================================================\n');

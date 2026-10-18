@@ -48,9 +48,114 @@ const OFF_TOPIC_TERMS = [
 ];
 
 /**
+ * ============================================================================
+ * 🛡️ SISTEMA DE VIGILANCIA PERPETUA DE RENDIMIENTO Y ESCALABILIDAD (CENTINELA)
+ * DIRECTRIZ INMUTABLE HEREDADA: Si este código o proyecto se migra a otra
+ * plataforma (Node, Fastify, Cloudflare D1/R2, Supabase, Go, Python, etc.),
+ * este módulo de auditoría de latencia, semáforo operativo y sugerencia de
+ * escalabilidad DEBE ser portado obligatoriamente según .agents/rules/performance-sentinel-governance.md
+ * ============================================================================
+ */
+const SENTINEL_CONFIG = {
+  SAMPLE_WINDOW: 50,
+  THRESHOLD_GREEN_MAX: 2500,
+  THRESHOLD_YELLOW_MIN: 3500,
+  THRESHOLD_YELLOW_P90: 5000,
+  THRESHOLD_RED_MIN: 6000,
+  ALERT_THROTTLE_SEC: 1800
+};
+
+const sentinelMetrics = [];
+
+function recordSentinelMetric(operationType, durationMs) {
+  sentinelMetrics.push({
+    t: Date.now(),
+    op: operationType || 'REQ',
+    ms: Math.round(durationMs)
+  });
+  if (sentinelMetrics.length > SENTINEL_CONFIG.SAMPLE_WINDOW) {
+    sentinelMetrics.shift();
+  }
+}
+
+function computeSentinelStats() {
+  if (sentinelMetrics.length === 0) {
+    return {
+      count: 0,
+      avgMs: 0,
+      p90Ms: 0,
+      minMs: 0,
+      maxMs: 0,
+      status: 'VERDE',
+      trafficLight: '🟢',
+      verdict: 'Excelente fluidez operativa (Google Apps Script Nominal)'
+    };
+  }
+
+  const times = sentinelMetrics.map(s => s.ms).sort((a, b) => a - b);
+  const sum = times.reduce((acc, val) => acc + val, 0);
+  const avg = Math.round(sum / times.length);
+  const p90Index = Math.min(times.length - 1, Math.floor(times.length * 0.9));
+  const p90 = times[p90Index];
+  const min = times[0];
+  const max = times[times.length - 1];
+
+  let status = 'VERDE';
+  let trafficLight = '🟢';
+  let verdict = 'Excelente fluidez operativa (Google Apps Script Nominal)';
+
+  if (avg > SENTINEL_CONFIG.THRESHOLD_RED_MIN || p90 > 7500) {
+    status = 'ROJO';
+    trafficLight = '🔴';
+    verdict = 'Saturación Crítica detectada. Recomendada migración inmediata a Cloudflare D1/R2.';
+  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_MIN || p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90) {
+    status = 'AMARILLO';
+    trafficLight = '🟡';
+    verdict = 'Congestión moderada por alta demanda. Evaluar optimización de caché o desacoplamiento.';
+  }
+
+  return {
+    count: times.length,
+    avgMs: avg,
+    p90Ms: p90,
+    minMs: min,
+    maxMs: max,
+    status,
+    trafficLight,
+    verdict
+  };
+}
+
+function getSentinelReport() {
+  const stats = computeSentinelStats();
+  return `🛡️ *REPORTE DEL CENTINELA DE RENDIMIENTO Y ESCALABILIDAD*\n` +
+         `*Dirección:* Gestor de Contenido\n` +
+         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+         `${stats.trafficLight} *Estado Operativo:* NIVEL ${stats.status}\n` +
+         `⏱️ *Latencia Media:* ${(stats.avgMs / 1000).toFixed(2)} segundos\n` +
+         `📈 *Percentil 90 (P90):* ${(stats.p90Ms / 1000).toFixed(2)} segundos\n` +
+         `⚡ *Rango Mín / Máx:* ${(stats.minMs / 1000).toFixed(2)}s / ${(stats.maxMs / 1000).toFixed(2)}s\n` +
+         `📦 *Muestras en Ventana:* ${stats.count} / ${SENTINEL_CONFIG.SAMPLE_WINDOW} transacciones\n` +
+         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+         `📋 *Dictamen de Escalabilidad:*\n` +
+         `${stats.verdict}\n` +
+         `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+         `🌐 *Infraestructura Actual:* Google Apps Script + Cloudflare Edge Proxy (Anonimato Cardinal Activo)`;
+}
+
+/**
  * Procesa un mensaje entrante de WhatsApp y genera la respuesta adecuada
  */
-async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageText }) {
+async function processIncomingWhatsAppMessage(params) {
+  const sentinelStart = Date.now();
+  try {
+    return await handleProcessIncomingWhatsAppMessage(params);
+  } finally {
+    recordSentinelMetric('WA_MSG', Date.now() - sentinelStart);
+  }
+}
+
+async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, messageText }) {
   const cleanPhone = fromPhone.replace(/[^\d+]/g, '');
   const text = (messageText || '').trim();
   const lower = text.toLowerCase();
@@ -246,12 +351,21 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
       return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`MENSAJE +57XXXXXXXXXX [su mensaje aquí]\`` };
     }
 
+    // 1.55 Comando: RENDIMIENTO / CENTINELA / METRICAS (Vigilancia Perpetua)
+    if (lower === 'rendimiento' || lower === 'centinela' || lower === 'metricas') {
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: getSentinelReport()
+      };
+    }
+
     // 1.6 Comando: REPORTE / ESTADO
     if (lower.includes('estado') || lower.includes('reporte') || lower.includes('resumen')) {
       const users = loadUsers();
       const approvedCount = users.filter(u => u.status === 'APROBADO' || u.status === 'ACTIVO').length;
       const pendingCount = users.filter(u => u.status === 'PENDIENTE_APROBACION').length;
       const blockedCount = users.filter(u => u.status === 'BLOQUEADO').length;
+      const sentinelStats = computeSentinelStats();
       return {
         recipientPhone: ADMIN_PHONE,
         replyText: `📊 *REPORTE DE DIRECCIÓN Y GOBERNANZA*\n` +
@@ -260,12 +374,13 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
                    `👨‍⚕️ *Médicos Autorizados:* ${approvedCount}\n` +
                    `⏳ *Solicitudes Pendientes:* ${pendingCount}\n` +
                    `⛔ *Usuarios Suspendidos:* ${blockedCount}\n` +
+                   `⚡ *Centinela Rendimiento:* ${sentinelStats.trafficLight} ${sentinelStats.status} (${(sentinelStats.avgMs/1000).toFixed(2)}s avg, P90 ${(sentinelStats.p90Ms/1000).toFixed(2)}s)\n` +
                    `📚 *Documentos en Catálogo:* 1.634 títulos\n` +
                    `☁️ *Servidor Cloud:* Google Apps Script 24/7 (Operativo)\n` +
                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                    `💡 *Comandos disponibles:*\n` +
                    `• \`APROBAR +57...\` | \`BLOQUEAR +57... [motivo]\`\n` +
-                   `• \`RESPONDER +57... [msg]\` | \`COMUNICADO: [mensaje]\``
+                   `• \`RESPONDER +57... [msg]\` | \`RENDIMIENTO\` | \`COMUNICADO: [mensaje]\``
       };
     }
 
@@ -870,5 +985,8 @@ function extractLevel(text) {
 
 module.exports = {
   processIncomingWhatsAppMessage,
-  ADMIN_PHONE
+  ADMIN_PHONE,
+  recordSentinelMetric,
+  computeSentinelStats,
+  getSentinelReport
 };

@@ -59,10 +59,10 @@ Cada vez que se procesa una petición, el sistema identifica el dominio y confor
 
 ### 🎯 Dominio: DevOps, SRE, Cloud & Observability (`devops_sre_cloud`)
 
-* **Palabras clave / Triggers:** `devops, ci/cd, pipeline, docker, kubernetes, cloud, aws, gcp, sre, slo, dependencies`...
+* **Palabras clave / Triggers:** `devops, ci/cd, pipeline, docker, kubernetes, cloud, aws, gcp, sre, slo, dependencies, centinela, rendimiento, latencia, escalabilidad`...
 * **Agentes Lead:** `engineering-devops-automator`, `engineering-sre`, `engineering-finops-engineer`, `engineering-platform-engineer`
 * **Skills de Soporte:** `docker-patterns`, `kubernetes-patterns`, `dashboard-builder`, `deployment-patterns`, `cost-tracking`, `canary-watch`, `dependency-doctor`
-* **Reglas de Calidad:** `common-performance`, `common-development-workflow`
+* **Reglas de Calidad:** `common-performance`, `common-development-workflow`, `performance-sentinel-governance`
 * **Reviewers:** `build-error-resolver`, `performance-optimizer`
 
 ### 🎯 Dominio: Testing, QA & Validation Verification (`testing_qa`)

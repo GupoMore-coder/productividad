@@ -161,6 +161,7 @@ function gestionarClarificacionInteractiva_(ss, telefono, data, perm, compromiso
   let flowData = {
     tipo: motivo,
     datosParciales: datosParciales,
+    textoOriginal: data.textoUsuario || "",
     timestamp: new Date().getTime()
   };
 
@@ -381,6 +382,42 @@ function resolverClarificacionInteractiva_(ss, telefono, textoUsuario, perm, flo
       };
 
       return ejecutarRegistroTransacciones_(ss, txPayload, perm);
+    } else {
+      // Manejar respuesta donde el usuario indica que NO tiene monto fijo o es variable/recordatorio
+      const tLower = String(textoUsuario || "").toLowerCase();
+      const esVariable = tLower.includes("variable") || tLower.includes("no tiene monto") ||
+        tLower.includes("no tiene valor") || tLower.includes("sin monto") ||
+        tLower.includes("recordatorio") || tLower.includes("ciclo") || tLower.includes("ciclio") || tLower.includes("ciclico") ||
+        tLower.includes("no se") || tLower.includes("no sé") || tLower.includes("indeterminado") || tLower.includes("cada mes");
+
+      if (esVariable) {
+        if (cache) cache.remove("PENDING_INTERACTIVE_FLOW_" + telLimpio);
+        const ent = datosParciales.entidad || "Personal";
+        const concepto = datosParciales.concepto || "Compromiso cíclico de monto variable";
+        const proveedor = datosParciales.proveedor_tercero || datosParciales.concepto || "Tarjeta / Servicio";
+
+        const textoCombinado = String(textoUsuario) + " " + String(flowData.textoOriginal || "");
+        const matchFecha = textoCombinado.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-zA-Z]+(?:\s+de\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|d[ií]as?\s+\d{1,2}(?:\s+de\s+cada\s+mes)?|\d{1,2}\s+de\s+cada\s+mes|el\s+\d{1,2}\s+de\s+cada\s+mes|ciclio\s+el\s+\d{1,2}|ciclo\s+el\s+\d{1,2})\b/i);
+        let fechaVenc = matchFecha ? normalizarFechaTexto_(matchFecha[0]) : "";
+        if (!fechaVenc) {
+          const mDia = textoCombinado.match(/\b(?:el|dia|día|corte)\s+(\d{1,2})\b/i);
+          if (mDia) fechaVenc = normalizarFechaTexto_(`${mDia[1]} de cada mes`);
+        }
+
+        const compPayload = {
+          tipo: "nuevo_compromiso",
+          entidad: ent,
+          proveedor: proveedor,
+          concepto: concepto,
+          monto: 0,
+          tiene_vencimiento: !!fechaVenc,
+          fecha_vencimiento: fechaVenc,
+          es_recurrente: true,
+          es_monto_variable: true
+        };
+
+        return ejecutarNuevoCompromiso_(ss, compPayload, perm);
+      }
     }
   }
 
@@ -841,6 +878,15 @@ function procesarMensajeTexto(telefono, textoUsuario, historialChat) {
       case "registro_transaccion":
         // Si el usuario intentó registrar una transacción pero no se especificó un monto numérico válido (>0)
         if (!interpretacion.movimientos || !interpretacion.movimientos.some(m => Number(m.valor) > 0)) {
+          const tLow = String(textoUsuario || "").toLowerCase();
+          if (tLow.includes("compromiso") || tLow.includes("por pagar") || tLow.includes("ciclo") || tLow.includes("ciclio") || tLow.includes("ciclico") || tLow.includes("cíclico") || tLow.includes("recordatorio") || tLow.includes("tarjeta") || tLow.includes("cada mes")) {
+            const parsedComp = parserSemanticoReglas_(textoUsuario);
+            if (parsedComp && parsedComp.tipo === "nuevo_compromiso") {
+              resultado = ejecutarNuevoCompromiso_(ss, parsedComp, perm);
+              break;
+            }
+          }
+
           const conc = (interpretacion.movimientos && interpretacion.movimientos[0] && interpretacion.movimientos[0].concepto) || textoUsuario;
           resultado = gestionarClarificacionInteractiva_(ss, telLimpio, {
             motivo: "falta_monto",
@@ -848,7 +894,8 @@ function procesarMensajeTexto(telefono, textoUsuario, historialChat) {
               entidad: interpretacion.entidad || "More Paper",
               concepto: conc,
               esGasto: interpretacion.movimientos && interpretacion.movimientos[0] ? interpretacion.movimientos[0].esGasto : true
-            }
+            },
+            textoUsuario: textoUsuario
           }, perm, compromisosActivos, saldos);
           break;
         }
@@ -864,7 +911,8 @@ function procesarMensajeTexto(telefono, textoUsuario, historialChat) {
               esGasto: m0.esGasto,
               concepto: m0.concepto,
               categoria: m0.categoria
-            }
+            },
+            textoUsuario: textoUsuario
           }, perm, compromisosActivos, saldos);
           break;
         }
@@ -872,20 +920,46 @@ function procesarMensajeTexto(telefono, textoUsuario, historialChat) {
         resultado = ejecutarRegistroTransacciones_(ss, interpretacion, perm);
         break;
 
-      case "nuevo_compromiso":
-        if (Number(interpretacion.monto) <= 0) {
+      case "nuevo_compromiso": {
+        const tLower = String(textoUsuario || "").toLowerCase();
+        const esVariableORecurrente = interpretacion.es_recurrente || 
+          interpretacion.es_monto_variable ||
+          tLower.includes("ciclo") || tLower.includes("ciclio") || tLower.includes("ciclico") || tLower.includes("cíclico") ||
+          tLower.includes("cada mes") || tLower.includes("mensual") || tLower.includes("recurrente") ||
+          tLower.includes("recordatorio") || tLower.includes("alerta") || tLower.includes("tarjeta") ||
+          tLower.includes("credito") || tLower.includes("crédito") || tLower.includes("variable") ||
+          tLower.includes("sin monto") || tLower.includes("no tiene monto");
+
+        if (Number(interpretacion.monto) <= 0 && !esVariableORecurrente) {
           resultado = gestionarClarificacionInteractiva_(ss, telLimpio, {
             motivo: "falta_monto",
             datos_parciales: {
               entidad: interpretacion.entidad || "Personal",
-              concepto: interpretacion.proveedor || "Nuevo compromiso",
+              concepto: interpretacion.proveedor || interpretacion.concepto || "Nuevo compromiso",
               esGasto: true
-            }
+            },
+            textoUsuario: textoUsuario
           }, perm, compromisosActivos, saldos);
           break;
         }
+
+        // Si es recurrente/variable sin monto, fijar monto en 0 y marcar es_recurrente
+        if (Number(interpretacion.monto) <= 0 && esVariableORecurrente) {
+          interpretacion.monto = 0;
+          interpretacion.es_recurrente = true;
+          interpretacion.es_monto_variable = true;
+          if (!interpretacion.fecha_vencimiento) {
+            const matchFecha = textoUsuario.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-zA-Z]+(?:\s+de\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|d[ií]as?\s+\d{1,2}(?:\s+de\s+cada\s+mes)?|\d{1,2}\s+de\s+cada\s+mes|el\s+\d{1,2}\s+de\s+cada\s+mes|ciclio\s+el\s+\d{1,2}|ciclo\s+el\s+\d{1,2})\b/i);
+            if (matchFecha) {
+              interpretacion.fecha_vencimiento = normalizarFechaTexto_(matchFecha[0]);
+              interpretacion.tiene_vencimiento = true;
+            }
+          }
+        }
+
         resultado = ejecutarNuevoCompromiso_(ss, interpretacion, perm);
         break;
+      }
 
       case "accion_compromiso":
         if (interpretacion.accion === "abono" && (!interpretacion.proveedor || interpretacion.proveedor.trim() === "" || interpretacion.proveedor.toLowerCase() === "proveedor")) {
@@ -1139,22 +1213,26 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
     const totalAbonado = 0;
     const saldoPendiente = montoTotal;
     const conceptoLimpio = (String(concepto) + " " + String(proveedor)).toLowerCase();
-    const esCiclico = item.es_recurrente || 
+    const esMontoVariable = (montoTotal <= 0) || item.es_monto_variable || conceptoLimpio.includes("variable");
+    const esCiclico = item.es_recurrente || esMontoVariable ||
       conceptoLimpio.includes("arriendo") || conceptoLimpio.includes("alquiler") ||
       conceptoLimpio.includes("servicio") || conceptoLimpio.includes("internet") ||
       conceptoLimpio.includes("energia") || conceptoLimpio.includes("luz") ||
       conceptoLimpio.includes("agua") || conceptoLimpio.includes("impuesto") ||
-      conceptoLimpio.includes("recurrente") || conceptoLimpio.includes("mensual");
+      conceptoLimpio.includes("recurrente") || conceptoLimpio.includes("mensual") ||
+      conceptoLimpio.includes("tarjeta") || conceptoLimpio.includes("credito") || conceptoLimpio.includes("crédito") ||
+      conceptoLimpio.includes("ciclo") || conceptoLimpio.includes("ciclio") || conceptoLimpio.includes("ciclico") || conceptoLimpio.includes("cíclico");
 
     const tieneVencimiento = (item.tiene_vencimiento || item.fecha_vencimiento) ? "SI" : "NO";
     const fechaVencimiento = item.fecha_vencimiento ? normalizarFechaTexto_(item.fecha_vencimiento) : "";
     const estado = "Pendiente";
     const estadoAlerta = tieneVencimiento === "SI" ? "Sin_Alerta" : "";
+    const notasIniciales = esMontoVariable ? "Compromiso cíclico de monto variable" : "";
 
     sheet.appendRow([
       id, fechaCreacion, proveedor, concepto, montoTotal, 
       totalAbonado, saldoPendiente, tieneVencimiento, 
-      fechaVencimiento, estado, estadoAlerta, ""
+      fechaVencimiento, estado, estadoAlerta, notasIniciales
     ]);
 
     const esPorCobrar = conceptoLimpio.includes("cobrar") || conceptoLimpio.includes("cobro") || conceptoLimpio.includes("a favor") || conceptoLimpio.includes("me debe") || conceptoLimpio.includes("deudor") || conceptoLimpio.includes("prestamo a");
@@ -1179,6 +1257,7 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
       tieneVencimiento: tieneVencimiento,
       fechaVencimiento: fechaVencimiento,
       esCiclico: esCiclico,
+      esMontoVariable: esMontoVariable,
       esPorCobrar: esPorCobrar
     });
   }
@@ -1194,21 +1273,29 @@ function ejecutarNuevoCompromiso_(ss, data, perm) {
   // Si fue un registro individual
   if (resultados.length === 1) {
     const r = resultados[0];
-    let mensaje = r.esPorCobrar
-      ? `¡Anotado, ${nombreHumano}! 💰 Ya registré la **Cuenta por Cobrar (dinero a tu favor)** con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}** (cartera activa en verde).\n\n`
-      : `¡Anotado, ${nombreHumano}! 🤝 Ya guardé el compromiso con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}**.\n\n`;
+    let mensaje = "";
+    if (r.esPorCobrar) {
+      mensaje = `¡Anotado, ${nombreHumano}! 💰 Ya registré la **Cuenta por Cobrar (dinero a tu favor)** con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}** (cartera activa en verde).\n\n`;
+    } else if (r.esMontoVariable) {
+      mensaje = `¡Anotado, ${nombreHumano}! 🤝 Ya dejé programado tu **recordatorio de compromiso cíclico** para **${r.proveedor}** (${r.concepto}) en **${r.entidad}**.\n\n` +
+        `🔄 **Monto:** Variable mes a mes (se definirá al momento del corte o pago).\n`;
+    } else {
+      mensaje = `¡Anotado, ${nombreHumano}! 🤝 Ya guardé el compromiso con **${r.proveedor}** por **$${r.montoTotal.toLocaleString("es-CO")} COP** (${r.concepto}) en **${r.entidad}**.\n\n`;
+    }
 
     if (r.tieneVencimiento === "SI" && r.fechaVencimiento) {
-      mensaje += `📅 **Fecha de pago:** ${r.fechaVencimiento}\nDespreocúpate que te enviaré un recordatorio un día antes para tenerlo presente sin estrés.`;
+      mensaje += `📅 **Próximo vencimiento:** ${r.fechaVencimiento}\nDespreocúpate que te enviaré un recordatorio un día antes para tenerlo presente sin estrés.`;
     } else {
       mensaje += `📅 **Plazo:** Sin fecha límite fija (abierto).`;
     }
 
     if (r.esCiclico) {
-      mensaje += `\n\n🔄 *Compromiso mensual recurrente:* Al registrar su pago total, el sistema renovará automáticamente la fecha para el próximo mes.`;
+      mensaje += `\n\n🔄 *Compromiso mensual recurrente:* Al registrar su pago o cumplirse la fecha, el ciclo se renovará automáticamente para el siguiente mes.`;
     }
 
-    const textoVozComp = `Listo, ${nombreHumano}. Guardé el compromiso con ${r.proveedor} por ${Number(r.montoTotal).toLocaleString("es-CO")} pesos en ${r.entidad}. Queda bajo monitoreo.`;
+    const textoVozComp = r.esMontoVariable
+      ? `Listo, ${nombreHumano}. Dejé programado tu recordatorio mensual para ${r.proveedor} con vencimiento el ${r.fechaVencimiento}. Queda bajo monitoreo permanente.`
+      : `Listo, ${nombreHumano}. Guardé el compromiso con ${r.proveedor} por ${Number(r.montoTotal).toLocaleString("es-CO")} pesos en ${r.entidad}. Queda bajo monitoreo.`;
     return {
       tipo: "compromiso_creado",
       idCompromiso: r.id,
@@ -1978,7 +2065,10 @@ function escanearCompromisosPorVencer(entidadesAChequear, nombreDestinatario) {
       const estado = String(r[9]).trim();
       const ultimaAlerta = r[11] ? new Date(r[11]) : null;
 
-      if (estado === "Pendiente" && saldo > 0) {
+      const txtMeta = String(concepto + " " + proveedor + " " + r[10] + " " + r[11]).toLowerCase();
+      const esMontoVariable = (monto === 0 && saldo === 0) || txtMeta.includes("variable") || txtMeta.includes("tarjeta") || txtMeta.includes("ciclo");
+
+      if (estado === "Pendiente" && (saldo > 0 || (esMontoVariable && tieneVenc && fechaVencVal))) {
         let esAlertaProcedente = false;
         let urgencia = "";
         let fechaParaMensaje = null;
@@ -1986,12 +2076,23 @@ function escanearCompromisosPorVencer(entidadesAChequear, nombreDestinatario) {
         const hoyStr = Utilities.formatDate(hoy, Session.getScriptTimeZone(), "yyyy-MM-dd");
         const ultimaAlertaStr = ultimaAlerta ? Utilities.formatDate(ultimaAlerta, Session.getScriptTimeZone(), "yyyy-MM-dd") : "";
 
-        // Caso 1: Obligación con fecha fija de caducidad
+        // Caso 1: Obligación con fecha fija de caducidad o ciclo
         if (tieneVenc && fechaVencVal) {
           const fechaVenc = fechaVencVal instanceof Date ? fechaVencVal : new Date(fechaVencVal);
           fechaVenc.setHours(0, 0, 0, 0);
           fechaParaMensaje = fechaVenc;
           const diffDias = Math.round((fechaVenc.getTime() - hoy.getTime()) / (1000 * 3600 * 24));
+
+          // Si la fecha ya venció y es un compromiso cíclico de monto variable, renovar automáticamente para el próximo mes
+          if (diffDias < 0 && esMontoVariable) {
+            const proximoMes = new Date(fechaVenc);
+            proximoMes.setMonth(proximoMes.getMonth() + 1);
+            const proximaFechaStr = Utilities.formatDate(proximoMes, Session.getScriptTimeZone(), "yyyy-MM-dd");
+            sheet.getRange(i + 2, 9).setValue(proximaFechaStr);
+            sheet.getRange(i + 2, 11).setValue("Sin_Alerta");
+            sheet.getRange(i + 2, 12).setValue(new Date());
+            continue;
+          }
 
           if (diffDias <= 1) {
             urgencia = diffDias < 0 ? "VENCIDO" : (diffDias === 0 ? "VENCE_HOY" : "VENCE_MANANA");
@@ -2042,26 +2143,35 @@ function formatearMensajeAlertaWhatsApp_(entidad, proveedor, concepto, saldo, fe
   const nombreHumano = (typeof sanitizarNombreHumano_ === "function" && nombreDestinatario)
     ? sanitizarNombreHumano_(nombreDestinatario)
     : "Fernando";
-  const saldoFmt = Number(saldo || 0).toLocaleString("es-CO");
+  const esVariable = (Number(saldo) <= 0) || String(concepto + " " + proveedor).toLowerCase().includes("tarjeta") || String(concepto + " " + proveedor).toLowerCase().includes("variable");
+  const saldoFmt = esVariable ? "Monto variable (según extracto)" : `$${Number(saldo || 0).toLocaleString("es-CO")} COP`;
   const unidadTexto = (entidad === "Personal") ? "tus finanzas personales" : `**${entidad}**`;
 
   if (urgencia === "PASIVO_ABIERTO") {
     return `📋 *Hola ${nombreHumano}, paso a dejarte un chequeo preventivo de obligaciones pendientes:*\n\n` +
-      `En tus registros figura una cuenta con **${proveedor}** (${concepto} en ${unidadTexto}) con saldo abierto de **$${saldoFmt} COP** sin fecha límite estipulada.\n\n` +
-      `¿Sigue pendiente o realizaste algún abono recientemente? Cuéntame por aquí para mantener tus balances y pasivos 100% auditados.`;
+      `En tus registros figura una cuenta con **${proveedor}** (${concepto} en ${unidadTexto}) con saldo de **${saldoFmt}** sin fecha límite estipulada.\n\n` +
+      `¿Sigue pendiente o realizaste algún pago recientemente? Cuéntame por aquí para mantener tus balances y pasivos 100% auditados.`;
   } else if (urgencia === "VENCE_HOY") {
-    return `⏰ *¡Hola, ${nombreHumano}! Paso a recordarte que hoy vence un pago pendiente:*\n\n` +
-      `Deuda con **${proveedor}** (${concepto} en ${unidadTexto}).\n` +
-      `Saldo por cubrir: **$${saldoFmt} COP**.\n\n` +
-      `¿Ya lo realizaste o abonaste algo? Escríbemelo por aquí (ej: *"pagué todo a ${proveedor}"* o *"aboné 50.000 a ${proveedor}"*) y te lo dejo cuadrado de una vez.`;
+    const detalleAccion = esVariable
+      ? `Recuerda verificar tu extracto o saldo al corte de **${proveedor}** para realizar el pago correspondiente. Si ya lo cubriste, indícamelo (ej: *"pagué 150.000 a ${proveedor}"*) y lo asiento de inmediato.`
+      : `¿Ya lo realizaste o abonaste algo? Escríbemelo por aquí (ej: *"pagué todo a ${proveedor}"* o *"aboné 50.000 a ${proveedor}"*) y te lo dejo cuadrado de una vez.`;
+
+    return `⏰ *¡Hola, ${nombreHumano}! Paso a recordarte que hoy vence tu ciclo de pago:*\n\n` +
+      `Compromiso con **${proveedor}** (${concepto} en ${unidadTexto}).\n` +
+      `Monto estimado: **${saldoFmt}**.\n\n` +
+      detalleAccion;
   } else if (urgencia === "VENCE_MANANA") {
+    const detalleManana = esVariable
+      ? `Te aviso con tiempo para que verifiques el extracto y programes el pago con total tranquilidad.`
+      : `Te aviso con tiempo para que lo puedas programar en tu flujo de caja de mañana con total tranquilidad.`;
+
     return `🔔 *Hola ${nombreHumano}, te recuerdo un compromiso que vence mañana:*\n\n` +
-      `Tienes programado el pago a **${proveedor}** (${concepto} en ${unidadTexto}).\n` +
-      `Monto: **$${saldoFmt} COP**.\n\n` +
-      `Te aviso con tiempo para que lo puedas programar en tu flujo de caja de mañana con total tranquilidad.`;
+      `Tienes programado el ciclo de pago a **${proveedor}** (${concepto} en ${unidadTexto}).\n` +
+      `Monto estimado: **${saldoFmt}**.\n\n` +
+      detalleManana;
   } else {
     return `⚠️ *Hola ${nombreHumano}, paso a dejarte un apunte sobre un compromiso pendiente de días anteriores:*\n\n` +
-      `Tenemos pendiente con **${proveedor}** (${concepto} en ${unidadTexto}) un saldo de **$${saldoFmt} COP**.\n\n` +
+      `Tenemos pendiente con **${proveedor}** (${concepto} en ${unidadTexto}) con saldo de **${saldoFmt}**.\n\n` +
       `Si ya realizaste algún abono o el pago completo, avísame por acá para actualizar tus balances.`;
   }
 }
@@ -2154,13 +2264,14 @@ function construirPromptSistemaFinanciero_(hoy, perm, categorias, compromisos, s
       : `   - La entidad siempre debe ser '${entidadAsignada}'.`,
     "   - SALDO INICIAL O SALDO A FAVOR: Si el usuario indica registrar saldo a favor, saldo inicial, o reporta el dinero del que dispone actualmente en su cuenta bancaria/banco (ej: 'registra saldo a favor actual en mi cuenta bancaria es de 1247646 pesos en dia de hoy', 'tengo 1.500.000 en el banco', 'saldo inicial 800.000'), CLASIFÍCALO SIEMPRE COMO 'registro_transaccion' de tipo 'Ingreso', categoría 'Capital / Aportes', concepto 'Saldo a favor en cuenta bancaria' y método de pago 'Transferencia' o 'Bancolombia'. NUNCA lo clasifiques como consulta.",
     "   - PAGO DE NÓMINA O GASTO OPERATIVO GLOBAL: Si el usuario reporta el pago de nómina, quincena, sueldos o gastos operativos generales corporativos (ej: 'pagué nómina de 1.200.000', 'pago quincena empleados 1.500.000'), CLASIFÍCALO COMO 'registro_transaccion' con entidad='Consolidado', tipo='Gasto Operativo Global', categoría='Gasto Operativo Global / Nómina' y método de pago 'Ahorros ***7194 (Negocios)'.",
-    "2. 'nuevo_compromiso': Cuando el usuario adquiere una deuda, factura a crédito, compra aplazada con un proveedor, o compromisos cíclicos recurrentes como arriendos, servicios públicos o impuestos. Si el usuario indica que se repite o es cíclico/mensual, marca 'es_recurrente': true.",
+    "2. 'nuevo_compromiso': Cuando el usuario adquiere una deuda, factura a crédito, compra aplazada con un proveedor, o crea alertas/recordatorios de compromisos cíclicos recurrentes (ej: 'tarjetas de crédito', 'servicios públicos', 'arriendos', 'planes móviles', 'el 20 de cada mes', 'ciclo').",
+    "   - COMPROMISOS CÍCLICOS DE MONTO VARIABLE O RECORDATORIOS: Si el compromiso es recurrente/cíclico y no tiene un monto fijo establecido o su valor varía mes a mes (ej: 'Tarjeta de Crédito VISA', 'pagar ciclo el 20 de cada mes', 'luz', 'agua', 'no tiene monto preciso', 'es variable'), CLASIFÍCALO SIEMPRE COMO 'nuevo_compromiso' con monto: 0, es_recurrente: true, tiene_vencimiento: true, y fecha_vencimiento con la fecha del próximo ciclo (ej: si hoy es 18 y el ciclo es el 20 -> YYYY-MM-20). NUNCA uses 'clarificacion_interactiva' ni 'falta_monto' para compromisos cíclicos variables.",
     "3. 'accion_compromiso': Cuando el usuario:",
     "   a) Ya pagó o abonó a una deuda: accion='abono' o 'pagar_total'.",
     "   b) Solicita reprogramar, aplazar o cambiar la fecha límite de pago: accion='reprogramar_fecha', extrae el acreedor en 'proveedor' y calcula la 'nueva_fecha' en formato YYYY-MM-DD.",
     "4. 'consulta': Cuando el usuario PREGUNTE por su dinero, saldos, balances o resúmenes (ej: '¿cuál es mi saldo?', '¿cuánto dinero tengo?', 'resumen financiero', 'gastos de hoy'). NUNCA uses 'consulta' si el usuario está ordenando registrar un saldo a favor o reportando un monto para incorporar a sus cuentas.",
     "5. 'conversacion': Saludos, preguntas generales o despedidas.",
-    "6. 'clarificacion_interactiva': DIRECTIVA HUMANA CRÍTICA. Cuando la indicación del usuario no sea completamente clara, esté incompleta o falte algún dato indispensable para procesarla con rigor contable (ej: falta el monto del gasto, no se sabe si la venta es de More Paper o More Design, se abonó pero no se dijo a qué acreedor, o la petición es ambigua). NUNCA generes un error técnico ni inventes valores. En su lugar:",
+    "6. 'clarificacion_interactiva': DIRECTIVA HUMANA CRÍTICA. Cuando la indicación del usuario no sea completamente clara, esté incompleta o falte algún dato indispensable para procesarla con rigor contable (ej: falta el monto de un gasto o compra ordinaria puntual, no se sabe si la venta es de More Paper o More Design, se abonó pero no se dijo a qué acreedor, o la petición es ambigua). NUNCA uses 'falta_monto' si el usuario está programando un compromiso cíclico o recordatorio de monto variable. NUNCA generes un error técnico ni inventes valores. En su lugar:",
     "   - Asigna tipo: 'clarificacion_interactiva'.",
     "   - Asigna motivo: 'falta_monto' | 'falta_entidad' | 'falta_acreedor' | 'intencion_ambigua'.",
     "   - Formula 'pregunta_humana': Pregunta cálida, empática y cercana pidiendo el dato faltante.",
@@ -2417,18 +2528,37 @@ function parserSemanticoReglas_(texto) {
   }
 
   // 3. Nuevo compromiso o compromiso cíclico individual
-  if (t.includes("credito") || t.includes("debo") || t.includes("compromiso") || t.includes("vence") || t.includes("arriendo") || t.includes("servicio") || t.includes("impuesto") || t.includes("poliza") || (t.includes("pago") && (t.includes("mes") || t.includes("cuota")))) {
-    const matchFecha = texto.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-zA-Z]+(?:\s+de\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|d[ií]as?\s+\d{1,2}(?:\s+de\s+cada\s+mes)?|\d{1,2}\s+de\s+cada\s+mes)\b/i);
-    const esRec = t.includes("arriendo") || t.includes("servicio") || t.includes("impuesto") || t.includes("luz") || t.includes("agua") || t.includes("internet") || t.includes("mensual") || t.includes("recurrente") || t.includes("cada mes");
+  if (t.includes("credito") || t.includes("debo") || t.includes("compromiso") || t.includes("vence") || 
+      t.includes("arriendo") || t.includes("servicio") || t.includes("impuesto") || t.includes("poliza") || 
+      t.includes("tarjeta") || t.includes("ciclo") || t.includes("ciclio") || t.includes("recordatorio") ||
+      (t.includes("pago") && (t.includes("mes") || t.includes("cuota") || t.includes("cada")))) {
+    const matchFecha = texto.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-zA-Z]+(?:\s+de\s+\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|d[ií]as?\s+\d{1,2}(?:\s+de\s+cada\s+mes)?|\d{1,2}\s+de\s+cada\s+mes|el\s+\d{1,2}\s+de\s+cada\s+mes|ciclio\s+el\s+\d{1,2}|ciclo\s+el\s+\d{1,2})\b/i);
+    let fechaVenc = matchFecha ? normalizarFechaTexto_(matchFecha[0]) : "";
+    if (!fechaVenc) {
+      const mDia = texto.match(/\b(?:el|dia|día|corte)\s+(\d{1,2})\b/i);
+      if (mDia) fechaVenc = normalizarFechaTexto_(`${mDia[1]} de cada mes`);
+    }
+
+    const esRec = t.includes("arriendo") || t.includes("servicio") || t.includes("impuesto") || 
+      t.includes("luz") || t.includes("agua") || t.includes("internet") || t.includes("mensual") || 
+      t.includes("recurrente") || t.includes("cada mes") || t.includes("tarjeta") || 
+      t.includes("ciclo") || t.includes("ciclio");
+
+    const esVariable = (valor <= 0) || t.includes("variable") || t.includes("sin monto") || t.includes("no tiene monto");
+    let prov = extraerNombreProveedor_(texto);
+    if (!prov && t.includes("tarjeta")) prov = "Tarjeta de Crédito";
+    if (!prov) prov = "Compromiso Financiero";
+
     return {
       tipo: "nuevo_compromiso",
       entidad: entidad,
-      proveedor: extraerNombreProveedor_(texto),
-      monto: valor,
-      tiene_vencimiento: !!matchFecha,
-      fecha_vencimiento: matchFecha ? normalizarFechaTexto_(matchFecha[0]) : "",
+      proveedor: prov,
+      monto: valor > 0 ? valor : 0,
+      tiene_vencimiento: !!fechaVenc,
+      fecha_vencimiento: fechaVenc,
       es_recurrente: esRec,
-      concepto: esRec ? "Obligación recurrente mensual" : "Compra a crédito registrada por chat"
+      es_monto_variable: esVariable,
+      concepto: esVariable ? "Compromiso cíclico de monto variable" : (esRec ? "Obligación recurrente mensual" : "Compra a crédito / Compromiso registrado por chat")
     };
   }
 
@@ -2579,13 +2709,23 @@ function extraerMontoInteligente_(texto) {
 
 function extraerNombreProveedor_(texto) {
   if (!texto) return "";
-  // Caso 1: Crédito o préstamo con entidad o máscara (ej: "crédito Bancolombia ***09196", "tarjeta Nu ***1234")
+  // Caso 1: Tarjetas de crédito específicas o préstamos
+  const mTarj = texto.match(/(?:tarjeta\s+(?:de\s+cr[eé]dito\s+)?(?:de\s+|con\s+)?|cr[eé]dito\s+(?:de\s+|con\s+|a\s+)?|pr[eé]stamo\s+(?:de\s+|con\s+|a\s+)?|deuda\s+(?:de\s+|con\s+|a\s+)?)([A-Za-z0-9\s*_-]+?)(?:\s+(?:los\s+d[ií]as|d[ií]as|cada\s+mes|el|por|de|vence|con|\$)|\.|,|$)/i);
+  if (mTarj && mTarj[1].trim()) {
+    let prov = mTarj[1].trim();
+    if (texto.toLowerCase().includes("tarjeta") && !prov.toLowerCase().includes("tarjeta")) {
+      prov = "Tarjeta " + prov;
+    }
+    return prov;
+  }
+
+  // Caso 2: Crédito o préstamo con entidad o máscara (ej: "crédito Bancolombia ***09196", "tarjeta Nu ***1234")
   const mCred = texto.match(/(?:cr[eé]dito|tarjeta|pr[eé]stamo|deuda)\s+(?:de\s+|con\s+|a\s+)?([A-Za-z0-9\s*_-]+?)(?:\s+(?:por|de|vence|el|con|\$)|\.|,|$)/i);
   if (mCred && mCred[1].trim()) {
     return mCred[1].trim();
   }
 
-  // Caso 2: Proveedor estándar con preposiciones
+  // Caso 3: Proveedor estándar con preposiciones
   const m = texto.match(/\b(?:a|con|de|proveedor)\s+([A-Za-z0-9\s*_-]+?)(?:\s+(?:por|en|el|con|con\s+vencimiento|\$)|,|\.|$)/i);
   if (m) {
     let r = m[1].replace(/^(?:cr[eé]dito\s+(?:a\s+)?|la\s+deuda\s+(?:de\s+)?|la\s+factura\s+(?:de\s+)?)/i, "").trim();

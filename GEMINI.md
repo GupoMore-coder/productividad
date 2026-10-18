@@ -101,6 +101,7 @@ User Prompt ──► [Intent Analysis] ──► Optimal Triad:
 | **Permanent Free LLM API Registry & Zero-Cost Routing** (Awesome Free LLMs, Quotas) | `engineering-backend-architect`<br>`engineering-finops-engineer` | `free-tier-llm-router`<br>`llm-pool-opencodex`<br>`token-budget-advisor` | `common-development-workflow.md`<br>`common-performance.md` |
 | **Multi-Agent Tournament & Evolutionary Selection** (Arena Skill, Cross-Critique) | `agency-software-architect`<br>`testing-qa-lead` | `multi-agent-arena`<br>`ruflo-swarm-orchestrator`<br>`santa-loop` | `common-development-workflow.md`<br>`common-testing.md` |
 | **OSINT Identity Reconnaissance & Brand Footprint** (Aliens Eye, 840+ Sites, ML) | `specialized-security-bounty-hunter`<br>`marketing-growth-hacker` | `osint-identity-footprint`<br>`social-web-reach`<br>`ai-recon-nebula` | `common-security.md`<br>`web-security.md` |
+| **Perpetual Performance & Scalability Sentinel** (Centinela, Latency, Zero-Downtime Migration) | `engineering-sre`<br>`agency-software-architect` | `dependency-doctor`<br>`canary-watch`<br>`contract-first` | `performance-sentinel-governance.md`<br>`common-performance.md` |
 
 ---
 
