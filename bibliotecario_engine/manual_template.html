@@ -839,7 +839,7 @@
         <button class="btn-lang-pill" id="btnLangFR" onclick="switchManualLanguage('FR')" style="padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;" title="Français">🇫🇷 FR</button>
         <button class="btn-lang-pill" id="btnLangIT" onclick="switchManualLanguage('IT')" style="padding:2px 6px; border-radius:3px; border:none; background:transparent; color:var(--slate-700); font-size:7.2pt; font-weight:700; cursor:pointer;" title="Italiano">🇮🇹 IT</button>
       </div>
-      <a href="https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec?mode=buzon" target="_blank" class="btn-action buzon-direct-link" data-i18n="btn_buzon" style="background:#0d9488; color:#fff; border-color:#0d9488;">📤 Buzón Digital</a>
+      <a href="?mode=buzon" target="_blank" class="btn-action buzon-direct-link" data-i18n="btn_buzon" style="background:#0d9488; color:#fff; border-color:#0d9488;">📤 Buzón Digital</a>
       <button class="btn-action" data-i18n="btn_print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
       <button class="btn-action btn-action-primary" data-i18n="btn_sim" onclick="scrollToSection('seccion-simulador')">🩺 Simulador WhatsApp</button>
     </div>
@@ -1253,7 +1253,7 @@
         <div class="card-swiss">
           <div class="card-heading" data-i18n="card_option_a_title">📁 Opción A: Buzón Digital Seguro Web</div>
           <p data-i18n="card_option_a_desc">Los colaboradores pueden depositar literatura médica de manera confidencial y blindada a través del portal institucional anónimo embebido, sin exponer cuentas personales ni interfaces externas.</p>
-          <a href="https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec?mode=buzon" target="_blank" class="btn-buzon-interactivo buzon-direct-link" data-i18n="btn_buzon_share">
+          <a href="?mode=buzon" target="_blank" class="btn-buzon-interactivo buzon-direct-link" data-i18n="btn_buzon_share">
             📤 Comparte tu información en el Buzón Digital
           </a>
         </div>
@@ -1418,7 +1418,7 @@
             🎯 <b>Clasificación AO:</b> 31-A2<br>
             ━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>
             🔗 <b>Descarga Segura Institucional:</b><br>
-            <a href="#" onclick="alert('Enlace firmado de descarga directa'); return false;">https://script.google.com/macros/s/.../exec?token=eyJ0eX...</a>
+            <a href="#" onclick="alert('Enlace firmado de descarga directa'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=eyJ0eX...</a>
           </div>
         </div>
       </div>
@@ -1450,23 +1450,23 @@
   const simScenarios = {
     'AO 31-A2': {
       user: 'AO 31-A2',
-      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>✍️ <b>Autor:</b> AO Foundation (2024)<br>📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>🎯 <b>Clasificación AO:</b> 31-A2<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href="#" onclick="alert(\'Enlace firmado de descarga directa\'); return false;">https://script.google.com/macros/s/.../exec?token=eyJ0eX...</a>'
+      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Osteosíntesis de Fracturas Trocantéricas con Clavo Cefalomedular<br>✍️ <b>Autor:</b> AO Foundation (2024)<br>📁 <b>Especialidad:</b> Fémur Proximal y Cadera<br>🎯 <b>Clasificación AO:</b> 31-A2<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href="#" onclick="alert(\'Enlace firmado de descarga directa\'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=eyJ0eX...</a>'
     },
     'EVIDENCIA: Lesiones Radiales Menisco': {
       user: 'EVIDENCIA: requiero evidencia para el tratamiento de lesiones radiales de meniscos',
-      bot: '🌐 <b>SÍNTESIS DE EVIDENCIA BIOMÉDICA (PubMed)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>❓ <b>Consulta:</b> "tratamiento de lesiones radiales de meniscos"<br><br>💡 <b>Síntesis Clínica:</b><br>Los estudios recuperados reflejan una tendencia actual orientada a la preservación biológica, fijación estable y movilización precoz.<br><br><b>Estudios Principales Recuperados:</b><br>1. <i>Cohen D et al.</i> - Meniscal root tears: A state of the art (J ISAKOS, 2026 Oct).<br>2. <i>Rivarola H et al.</i> - Rotational instability spectrum of ACL deficiency (J ISAKOS, 2026 Oct).<br>3. <i>Boonrod A et al.</i> - Diagnostic accuracy of MRI for meniscal tear patterns (Skeletal Radiol, 2026 Oct).<br><br>🔗 <a href="#">PubMed #42600745</a> | <a href="#">DOI: 10.1016/j.jisako.2026</a> | <a href="#">Consensus Search</a><br><br>📥 <b>Ficha de Evidencia PDF:</b> <a href="#" onclick="alert(\'Ficha PDF firmada\'); return false;">https://script.google.com/.../exec?token=evid_...</a>'
+      bot: '🌐 <b>SÍNTESIS DE EVIDENCIA BIOMÉDICA (PubMed)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>❓ <b>Consulta:</b> "tratamiento de lesiones radiales de meniscos"<br><br>💡 <b>Síntesis Clínica:</b><br>Los estudios recuperados reflejan una tendencia actual orientada a la preservación biológica, fijación estable y movilización precoz.<br><br><b>Estudios Principales Recuperados:</b><br>1. <i>Cohen D et al.</i> - Meniscal root tears: A state of the art (J ISAKOS, 2026 Oct).<br>2. <i>Rivarola H et al.</i> - Rotational instability spectrum of ACL deficiency (J ISAKOS, 2026 Oct).<br>3. <i>Boonrod A et al.</i> - Diagnostic accuracy of MRI for meniscal tear patterns (Skeletal Radiol, 2026 Oct).<br><br>🔗 <a href="#">PubMed #42600745</a> | <a href="#">DOI: 10.1016/j.jisako.2026</a> | <a href="#">Consensus Search</a><br><br>📥 <b>Ficha de Evidencia PDF:</b> <a href="#" onclick="alert(\'Ficha PDF firmada\'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=evid_...</a>'
     },
     'ANALIZAR: 2 Artículos LCA': {
       user: 'ANALIZAR: Comparar plastia HTH vs Tendón Cuadricipital [Adjunta 2 PDFs]',
-      bot: '🔬 <b>LECTURA CRÍTICA NOTEBOOKLM (2 Artículos Procesados)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Objetivo PICO:</b> Comparación de estabilidad anteroposterior y dolor anterior de rodilla en reconstrucción de LCA.<br><br><b>Matriz Comparativa Cruzada:</b><br>• <i>Estudio 1 (Müller 2024):</i> HTH muestra 8% más dolor anterior al arrodillarse; fijación ósea más rápida.<br>• <i>Estudio 2 (Chen 2025):</i> Tendón cuadricipital presenta menor morbilidad de zona donante sin diferencia en tasa de rerrotura a 2 años (p=0.48).<br><br><b>Nivel de Evidencia:</b> Nivel II (Ensayos prospectivos aleatorizados).<br><br>💡 <i>El documento "Chen 2025" no existía en la colección y ha sido incorporado automáticamente al catálogo de la biblioteca.</i><br><br>📥 <b>Informe de Lectura Crítica PDF:</b> <a href="#" onclick="alert(\'Informe PDF firmado\'); return false;">https://script.google.com/.../exec?token=crit_...</a>'
+      bot: '🔬 <b>LECTURA CRÍTICA NOTEBOOKLM (2 Artículos Procesados)</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><b>Objetivo PICO:</b> Comparación de estabilidad anteroposterior y dolor anterior de rodilla en reconstrucción de LCA.<br><br><b>Matriz Comparativa Cruzada:</b><br>• <i>Estudio 1 (Müller 2024):</i> HTH muestra 8% más dolor anterior al arrodillarse; fijación ósea más rápida.<br>• <i>Estudio 2 (Chen 2025):</i> Tendón cuadricipital presenta menor morbilidad de zona donante sin diferencia en tasa de rerrotura a 2 años (p=0.48).<br><br><b>Nivel de Evidencia:</b> Nivel II (Ensayos prospectivos aleatorizados).<br><br>💡 <i>El documento "Chen 2025" no existía en la colección y ha sido incorporado automáticamente al catálogo de la biblioteca.</i><br><br>📥 <b>Informe de Lectura Crítica PDF:</b> <a href="#" onclick="alert(\'Informe PDF firmado\'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=crit_...</a>'
     },
     'Synthes LCP': {
       user: 'Synthes LCP',
-      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Synthes LCP Locking Compression Plate System Technique Guide<br>✍️ <b>Autor:</b> DePuy Synthes Trauma (2022)<br>📁 <b>Especialidad:</b> Catálogos e Instrumental Quirúrgico<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href="#" onclick="alert(\'Enlace seguro de descarga\'); return false;">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'
+      bot: '📖 <b>LITERATURA ENCONTRADA EN EL CATÁLOGO</b><br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>📌 <b>Título:</b> Synthes LCP Locking Compression Plate System Technique Guide<br>✍️ <b>Autor:</b> DePuy Synthes Trauma (2022)<br>📁 <b>Especialidad:</b> Catálogos e Instrumental Quirúrgico<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>🔗 <b>Descarga Segura Institucional:</b><br><a href="#" onclick="alert(\'Enlace seguro de descarga\'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=eyJhbG...</a>'
     },
     'MANUAL': {
       user: 'MANUAL',
-      bot: '📖 <b>MANUAL DE USO Y GOBERNANZA DEL PROYECTO</b><br><b>Dirección:</b> Dirección del Proyecto<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Este documento contiene las directrices completas para:<br>• Búsquedas quirúrgicas en el catálogo especializado.<br>• Consulta de evidencia en PubMed (EVIDENCIA:).<br>• Lectura crítica y comparativa (ANALIZAR: máx 2 PDFs).<br>• Buzón digital seguro y donaciones por WhatsApp.<br>• Código de Conducta y Régimen Disciplinario.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>📥 <b>Manual Oficial Interactivo & PDF:</b><br><a href="#" onclick="alert(\'Abre el portal oficial del manual\'); return false;">https://script.google.com/macros/s/.../exec?token=eyJhbG...</a>'
+      bot: '📖 <b>MANUAL DE USO Y GOBERNANZA DEL PROYECTO</b><br><b>Dirección:</b> Dirección del Proyecto<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br>Este documento contiene las directrices completas para:<br>• Búsquedas quirúrgicas en el catálogo especializado.<br>• Consulta de evidencia en PubMed (EVIDENCIA:).<br>• Lectura crítica y comparativa (ANALIZAR: máx 2 PDFs).<br>• Buzón digital seguro y donaciones por WhatsApp.<br>• Código de Conducta y Régimen Disciplinario.<br>━━━━━━━━━━━━━━━━━━━━━━━━━━<br><br>📥 <b>Manual Oficial Interactivo & PDF:</b><br><a href="#" onclick="alert(\'Abre el portal oficial del manual\'); return false;">https://portal-biblioteca-ortopedia.workers.dev?token=eyJhbG...</a>'
     },
     'MENSAJE A LA DIRECCION': {
       user: 'MENSAJE A LA DIRECCION: Solicitamos valorar la adquisición de la última edición de Green Operative Hand Surgery.',
@@ -2180,10 +2180,23 @@
       filterInput.placeholder = I18N_DICTIONARY[lang].search_placeholder;
     }
 
-    // 4. Persistir preferencia de idioma en el navegador del usuario
+    // 4. Persistir preferencia de idioma en el navegador del usuario y contexto global
+    window.currentManualLang = lang;
     try {
       localStorage.setItem('ortho_manual_lang', lang);
     } catch(e) {}
+
+    // 4.5. Actualizar dinámicamente todos los hipervínculos del Buzón Digital con la política soberana de idioma
+    document.querySelectorAll('.buzon-direct-link, a[href*="mode=buzon"]').forEach(el => {
+      const href = el.getAttribute('href');
+      if (href) {
+        try {
+          const u = new URL(href, window.location.origin);
+          u.searchParams.set('lang', lang);
+          el.setAttribute('href', u.toString());
+        } catch(e) {}
+      }
+    });
 
     // 5. Sincronizar escenario pedagógico en el simulador
     if (lang === 'EN') activateSimScenario('LANGUAGE: EN');
@@ -2196,7 +2209,7 @@
     const toastMessages = {
       ES: 'Preferencia de idioma activa: Español (ES)',
       EN: 'Active language preference: English (EN)',
-      PT: 'Preferência de idioma ativa: Português (PT)',
+      PT: 'Preferência de idioma activa: Português (PT)',
       FR: 'Préférence de langue active : Français (FR)',
       IT: 'Preferenza di lingua attiva: Italiano (IT)'
     };
@@ -2211,32 +2224,52 @@
     }
   }
 
-  // Inicializar idioma guardado automáticamente al cargar el documento
+  // Inicializar idioma gobernante automáticamente al cargar el documento
   window.addEventListener('DOMContentLoaded', () => {
-    let savedLang = 'ES';
+    let savedLang = (typeof window.INITIAL_LANG !== 'undefined' && window.INITIAL_LANG) ? window.INITIAL_LANG : '';
     try {
-      savedLang = localStorage.getItem('ortho_manual_lang') || 'ES';
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryLang = urlParams.get('lang');
+      if (queryLang && I18N_DICTIONARY[queryLang.toUpperCase()]) {
+        savedLang = queryLang.toUpperCase();
+      } else if (!savedLang) {
+        savedLang = localStorage.getItem('ortho_manual_lang') || 'ES';
+      }
     } catch(e) {}
-    if (savedLang && savedLang !== 'ES' && I18N_DICTIONARY[savedLang]) {
-      switchManualLanguage(savedLang);
+    if (!savedLang || !I18N_DICTIONARY[savedLang]) {
+      savedLang = 'ES';
     }
+    switchManualLanguage(savedLang);
   });
 </script>
 
 <script>
-  // Enrutamiento seguro y canónico para el Buzón Digital
+  // Enrutamiento seguro, canónico y multilingüe soberano para el Buzón Digital
   (function() {
-    const DEFAULT_WEB_APP = 'https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec';
+    const DEFAULT_WEB_APP = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://portal-biblioteca-ortopedia.workers.dev';
     function getCanonicalBuzonUrl() {
       const baseUrl = (typeof window.CANONICAL_APP_URL !== 'undefined' && window.CANONICAL_APP_URL)
         ? window.CANONICAL_APP_URL
         : DEFAULT_WEB_APP;
       const currentParams = new URLSearchParams(window.location.search);
       const token = currentParams.get('token');
+      let activeLang = window.currentManualLang;
+      if (!activeLang) {
+        try { activeLang = localStorage.getItem('ortho_manual_lang'); } catch(e) {}
+      }
+      if (!activeLang) {
+        activeLang = currentParams.get('lang') || 'ES';
+      }
+      activeLang = String(activeLang).toUpperCase();
+      if (!['ES', 'EN', 'PT', 'FR', 'IT'].includes(activeLang)) {
+        activeLang = 'ES';
+      }
+
       let target = baseUrl.split('?')[0] + '?mode=buzon';
       if (token) {
         target += '&token=' + encodeURIComponent(token);
       }
+      target += '&lang=' + encodeURIComponent(activeLang);
       return target;
     }
 

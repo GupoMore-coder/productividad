@@ -372,6 +372,31 @@ function approveUser(phone) {
 }
 
 /**
+ * 2.1 RECHAZO DE SOLICITUD POR EL GESTOR DE CONTENIDO
+ */
+function rejectUser(phone, reason = 'No cumple con los criterios de admisión institucional en esta oportunidad.') {
+  const users = loadUsers();
+  const cleanPhone = phone.replace(/[^\d+]/g, '');
+  const user = users.find(u => u.phone === cleanPhone);
+
+  if (!user) return { success: false, error: 'USER_NOT_FOUND' };
+
+  user.status = 'RECHAZADO';
+  user.rejectedAt = new Date().toISOString();
+  user.rejectionReason = reason;
+  saveUsers(users);
+
+  let messageForUser = `📋 *ESTADO DE SOLICITUD DE ACCESO*\n` +
+                       `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                       `Estimado(a) ${user.name}:\n` +
+                       `La Dirección del Proyecto informa que su solicitud de acceso a la Biblioteca Médica no ha sido aprobada en esta oportunidad.\n\n` +
+                       `📋 *Detalle:* ${reason}\n` +
+                       `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  return { success: true, user, messageForUser };
+}
+
+/**
  * 3. BLOQUEO DISCIPLINARIO DE USUARIO
  */
 function blockUser(phone, reason = 'Incumplimiento de las reglas de uso apropiado', defaultName = 'Usuario No Registrado') {
@@ -587,6 +612,7 @@ module.exports = {
   COUNTRY_DIAL_MAP,
   translateAnnouncement,
   approveUser,
+  rejectUser,
   blockUser,
   unblockUser,
   suspendUser,

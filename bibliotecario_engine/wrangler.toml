@@ -1,0 +1,5 @@
+name = "biblioteca-medica"
+main = "cloudflare_worker_production.js"
+compatibility_date = "2026-10-17"
+workers_dev = true
+preview_urls = false
