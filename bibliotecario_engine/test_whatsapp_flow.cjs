@@ -633,6 +633,89 @@ async function startSuite() {
     assert.strictEqual(searchRes.replyText.includes(LIVE_WEBAPP_URL), true);
   });
 
+  // JORNADA 24: Botón / Comando RECHAZAR Solicitud de Acceso
+  await runAsyncTest('Jornada 24: Gestor de Contenido rechaza solicitud -> Notificación enviada al postulante', async () => {
+    const REJ_PHONE = `+58414${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: REJ_PHONE,
+      senderName: 'Dr. Solicitante Incompleto',
+      messageText: 'Dr. Solicitante, sin_hospital@correo.com, Residente'
+    });
+
+    // Rechazo con botón o comando RECHAZAR
+    const rejRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `RECHAZAR ${REJ_PHONE} No adjuntó constancia hospitalaria`
+    });
+
+    assert.strictEqual(rejRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(rejRes.replyText.includes('Solicitud de Acceso Rechazada'), true);
+    assert.strictEqual(Boolean(rejRes.notifyUser), true);
+    assert.strictEqual(rejRes.notifyUser.phone, REJ_PHONE);
+    assert.strictEqual(rejRes.notifyUser.message.includes('no ha sido aprobada'), true);
+    assert.strictEqual(rejRes.notifyUser.message.includes('No adjuntó constancia hospitalaria'), true);
+  });
+
+  // JORNADA 25: Botón / Comando MENSAJE para Enviar Mensaje Dirigido al Postulante
+  await runAsyncTest('Jornada 25: Gestor de Contenido envía mensaje dirigido específicamente al postulante', async () => {
+    const MSG_PHONE = `+58424${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: MSG_PHONE,
+      senderName: 'Dr. Carlos Mendoza',
+      messageText: 'Carlos Mendoza, carlos@hospital.com, Hospital Central, Residente R2'
+    });
+
+    // 1. Gestor pulsa botón MENSAJE (sin texto aún)
+    const promptRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `msg_${MSG_PHONE}`
+    });
+    assert.strictEqual(promptRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(promptRes.replyText.includes('Redactar Mensaje'), true);
+
+    // 2. Gestor despacha el mensaje específico
+    const sendRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `MENSAJE ${MSG_PHONE} Estimado Doctor, por favor confirme en qué servicio realiza su rotación.`
+    });
+
+    assert.strictEqual(sendRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(sendRes.replyText.includes('Mensaje Despachado al Usuario'), true);
+    assert.strictEqual(Boolean(sendRes.notifyUser), true);
+    assert.strictEqual(sendRes.notifyUser.phone, MSG_PHONE);
+    assert.strictEqual(sendRes.notifyUser.message.includes('confirme en qué servicio realiza su rotación'), true);
+    assert.strictEqual(sendRes.notifyUser.message.includes('DIRECCIÓN DEL PROYECTO'), true);
+  });
+
+  // JORNADA 26: Postulante en PENDIENTE responde y Gestor recibe alerta con botones de acción rápida
+  await runAsyncTest('Jornada 26: Postulante pendiente responde -> Gestor recibe alerta con opciones de acción rápida', async () => {
+    const PEND_PHONE = `+58412${Date.now().toString().slice(-7)}`;
+    await processIncomingWhatsAppMessage({
+      fromPhone: PEND_PHONE,
+      senderName: 'Dr. Edicson Matos',
+      messageText: 'Edicson Matos, javier@correo.com, Hospital Vargas, Residente R3'
+    });
+
+    // El postulante envía un mensaje aclaratorio mientras está en PENDIENTE_APROBACION
+    const replyRes = await processIncomingWhatsAppMessage({
+      fromPhone: PEND_PHONE,
+      senderName: 'Dr. Edicson Matos',
+      messageText: 'Adjunto confirmación de rotación en Cirugía de Columna en Hospital Vargas.'
+    });
+
+    assert.strictEqual(replyRes.recipientPhone, PEND_PHONE);
+    assert.strictEqual(replyRes.replyText.includes('Información Recibida por la Dirección'), true);
+    assert.strictEqual(Boolean(replyRes.alertToGerente), true);
+    assert.strictEqual(replyRes.alertToGerente.phone, ADMIN_PHONE);
+    assert.strictEqual(replyRes.alertToGerente.message.includes('RESPUESTA / MENSAJE DE POSTULANTE PENDIENTE'), true);
+    assert.strictEqual(replyRes.alertToGerente.message.includes('ACTIVAR'), true);
+    assert.strictEqual(replyRes.alertToGerente.message.includes('RECHAZAR'), true);
+    assert.strictEqual(replyRes.alertToGerente.message.includes('MENSAJE'), true);
+  });
+
   console.log('\n================================================================');
   console.log(`📊 RESULTADOS FINALES: ${passed} / ${total} PRUEBAS EXITOSAS (${Math.round((passed/total)*100)}%)`);
   console.log('================================================================\n');

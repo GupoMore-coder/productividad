@@ -3657,7 +3657,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const reason = text.replace(/^(act_|\+?activar|\+?desbloquear|\+?aprobar)\s*(\\+?\\d{10,14})?/i, '').trim() || 'Acceso concedido / reactivado por la Dirección';
+        const reason = text.replace(/^(act_|\\+?activar|\\+?desbloquear|\\+?aprobar)\\s*(\\+?\\d{10,14})?/i, '').trim() || 'Acceso concedido / reactivado por la Dirección';
         const res = aplicarCambioEstatusUsuario(targetPhone, 'ACTIVO', reason);
         if (res.success) {
           sendWhatsAppText(adminPhone, 
@@ -3679,7 +3679,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       const match = text.match(/\\+?\\d{10,14}/);
       if (match) {
         const targetPhone = match[0].startsWith('+') ? match[0] : '+' + match[0];
-        const customReason = text.replace(/^(rej_|\+?rechazar)\s*(\\+?\\d{10,14})?/i, '').trim();
+        const customReason = text.replace(/^(rej_|\\+?rechazar)\\s*(\\+?\\d{10,14})?/i, '').trim();
         const reason = customReason || 'No cumple con los criterios de admisión para el acervo institucional en esta oportunidad.';
         const res = aplicarCambioEstatusUsuario(targetPhone, 'RECHAZADO', reason);
         if (res.success) {
@@ -3716,7 +3716,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       if (lower.startsWith('msg_')) {
         messageContent = '';
       } else {
-        messageContent = text.replace(/^(mensaje|responder)\s*(\\+?\\d{10,14})?\s*/i, '').trim();
+        messageContent = text.replace(/^(mensaje|responder)\\s*(\\+?\\d{10,14})?\\s*/i, '').trim();
       }
 
       if (targetPhone && !messageContent) {
@@ -4167,7 +4167,47 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   }
 
   if (userRow[4] === 'PENDIENTE_APROBACION') {
-    sendWhatsAppText(cleanPhone, '⏳ Su solicitud aún se encuentra en proceso de validación autónoma (~24 horas).');
+    const applicantName = userRow[1] || 'Postulante';
+    const applicantCountry = userRow[13] || 'Desconocido';
+    const applicantFlag = userRow[12] || '🌎';
+
+    sendWhatsAppText(cleanPhone, 
+      '📩 *Información Recibida por la Dirección*\\\\n\\\\n' +
+      'Hemos recibido su mensaje:\\\\n' +
+      '"' + text + '"\\\\n\\\\n' +
+      'La Dirección del Proyecto está revisando los detalles para resolver su habilitación de acceso.'
+    );
+
+    const pendingAlertText = 
+      '📩 *RESPUESTA / MENSAJE DE POSTULANTE PENDIENTE*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      '👤 *Médico:* ' + applicantName + '\\\\n' +
+      '📱 *WhatsApp:* ' + cleanPhone + '\\\\n' +
+      '🌍 *Procedencia:* ' + applicantFlag + ' ' + applicantCountry + '\\\\n' +
+      '💬 *Mensaje recibido:*\\\\n"' + text + '"\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      '⚡ *Acciones Rápidas (Toque un botón o responda):*\\\\n' +
+      '1️⃣ *ACTIVAR ' + cleanPhone + '*\\\\n' +
+      '2️⃣ *RECHAZAR ' + cleanPhone + '*\\\\n' +
+      '3️⃣ *MENSAJE ' + cleanPhone + ' [respuesta]*';
+
+    const pendingButtons = [
+      { id: 'ACT_' + cleanPhone, title: 'Activar' },
+      { id: 'REJ_' + cleanPhone, title: 'Rechazar' },
+      { id: 'MSG_' + cleanPhone, title: 'Mensaje' }
+    ];
+
+    sendWhatsAppInteractiveButtons(adminPhone, pendingAlertText, pendingButtons);
+    return;
+  }
+
+  if (userRow[4] === 'RECHAZADO') {
+    sendWhatsAppText(cleanPhone, 
+      '📋 *SOLICITUD PREVIA NO ADMITIDA*\\\\n\\\\n' +
+      'Su solicitud previa de acceso no fue admitida por la Dirección.\\\\n' +
+      '📋 *Motivo:* ' + (descifrarCampoEnReposo(userRow[9]) || 'No cumple con los requisitos institucionales.') + '\\\\n\\\\n' +
+      'Si desea presentar nuevas credenciales institucionales o aclarar su caso, puede enviar sus datos a este chat para reconsideración.'
+    );
     return;
   }
 
@@ -4296,6 +4336,63 @@ function isOffTopic(text) {
     if (regex.test(lower)) return true;
   }
   return false;
+}
+
+function sendWhatsAppInteractiveButtons(toPhone, textBody, buttons) {
+  const cleanTo = toPhone.replace(/[^\\d]/g, '');
+  let token = getSecureProperty('META_ACCESS_TOKEN', CONFIG.META_ACCESS_TOKEN);
+  const phoneId = getSecureProperty('PHONE_NUMBER_ID', CONFIG.PHONE_NUMBER_ID);
+  const formattedBody = String(textBody || '').replace(/\\\\n/g, '\\n');
+
+  if (token && buttons && buttons.length > 0) {
+    try {
+      const url = 'https://graph.facebook.com/v21.0/' + phoneId + '/messages';
+      const formattedButtons = buttons.slice(0, 3).map(function(btn) {
+        return {
+          type: 'reply',
+          reply: {
+            id: String(btn.id).substring(0, 256),
+            title: String(btn.title).substring(0, 20)
+          }
+        };
+      });
+
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanTo,
+        type: 'interactive',
+        interactive: {
+          type: 'button',
+          body: { text: formattedBody },
+          action: { buttons: formattedButtons }
+        }
+      };
+
+      let response = UrlFetchApp.fetch(url, {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      let resCode = response.getResponseCode();
+      let resBody = response.getContentText();
+
+      if (resCode >= 400) {
+        Logger.log('⚠️ Aviso botones interactivos [' + resCode + ']: ' + resBody + ' -> Despachando formato textual compatible.');
+        sendWhatsAppText(toPhone, formattedBody);
+      } else {
+        Logger.log('✅ Botones Interactivos despachados exitosamente [' + resCode + ']');
+      }
+      return;
+    } catch (err) {
+      Logger.log('⚠️ Excepción enviando botones interactivos: ' + err.message + ' -> Despachando formato textual.');
+      sendWhatsAppText(toPhone, formattedBody);
+      return;
+    }
+  }
+  sendWhatsAppText(toPhone, formattedBody);
 }
 
 function sendWhatsAppText(toPhone, textBody) {

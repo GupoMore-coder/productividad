@@ -20,6 +20,7 @@ const {
   COUNTRY_DIAL_MAP,
   translateAnnouncement,
   approveUser,
+  rejectUser,
   blockUser,
   unblockUser,
   suspendUser,
@@ -60,8 +61,8 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
   const isAdmin = cleanPhone === ADMIN_PHONE.replace(/[^\d+]/g, '') || cleanPhone === '573008880001';
 
   if (isAdmin) {
-    // 1.1 Comando: APROBAR / ACTIVAR +57...
-    if (lower.startsWith('aprobar') || lower.startsWith('activar')) {
+    // 1.1 Comando: APROBAR / ACTIVAR / ACT_...
+    if (lower.startsWith('aprobar') || lower.startsWith('activar') || lower.startsWith('act_')) {
       const targetPhoneMatch = text.match(/\+?\d{10,14}/);
       if (targetPhoneMatch) {
         const targetPhone = targetPhoneMatch[0];
@@ -80,7 +81,29 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
           return { recipientPhone: ADMIN_PHONE, replyText: `⚠️ *Aviso:* No se encontró ningún registro con el número ${targetPhone}.` };
         }
       }
-      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`APROBAR +57XXXXXXXXXX\`` };
+      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`ACTIVAR +57XXXXXXXXXX\`` };
+    }
+
+    // 1.1b Comando: RECHAZAR / REJ_...
+    if (lower.startsWith('rechazar') || lower.startsWith('rej_')) {
+      const targetPhoneMatch = text.match(/\+?\d{10,14}/);
+      if (targetPhoneMatch) {
+        const targetPhone = targetPhoneMatch[0];
+        const reason = text.replace(/^(rej_|\+?rechazar)\s*(\+?\d{10,14})?/i, '').trim() || 'No cumple con los criterios de admisión para el acervo institucional en esta oportunidad.';
+        const res = rejectUser(targetPhone, reason);
+        if (res.success) {
+          return {
+            recipientPhone: ADMIN_PHONE,
+            replyText: `❌ *Solicitud de Acceso Rechazada*\nEl registro de ${res.user.name} (${targetPhone}) ha sido rechazado.\nMotivo: "${reason}".\nNotificación enviada al solicitante.`,
+            notifyUser: {
+              phone: targetPhone,
+              message: res.messageForUser
+            }
+          };
+        }
+        return { recipientPhone: ADMIN_PHONE, replyText: `⚠️ No se encontró registro con el número ${targetPhone}.` };
+      }
+      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`RECHAZAR +57XXXXXXXXXX [motivo opcional]\`` };
     }
 
     // 1.2 Comando: SUSPENDER +57... [24h|48h|72h] [motivo]
@@ -190,12 +213,18 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
       return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`ELIMINAR +57XXXXXXXXXX\`` };
     }
 
-    // 1.5 Comando: RESPONDER +57... [mensaje] (Canal Intermediado Anónimo)
-    if (lower.startsWith('responder')) {
+    // 1.5 Comando: MENSAJE / RESPONDER / MSG_... [mensaje] (Canal Intermediado Anónimo)
+    if (lower.startsWith('responder') || lower.startsWith('mensaje') || lower.startsWith('msg_')) {
       const targetPhoneMatch = text.match(/\+?\d{10,14}/);
       if (targetPhoneMatch) {
         const targetPhone = targetPhoneMatch[0];
-        const responseBody = text.replace(/responder\s+\+?\d{10,14}/i, '').trim();
+        let responseBody = '';
+        if (lower.startsWith('msg_')) {
+          responseBody = '';
+        } else {
+          responseBody = text.replace(/^(responder|mensaje)\s+\+?\d{10,14}\s*/i, '').trim();
+        }
+
         if (responseBody.length > 0) {
           return {
             recipientPhone: ADMIN_PHONE,
@@ -207,9 +236,14 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
                        `_Nota: Puede responder a este mensaje directamente en este chat si requiere aclaración adicional._`
             }
           };
+        } else {
+          return {
+            recipientPhone: ADMIN_PHONE,
+            replyText: `💬 *Redactar Mensaje para ${targetPhone}:*\nEscriba: \`MENSAJE ${targetPhone} [escriba aquí su mensaje]\`\nSu mensaje será entregado al solicitante preservando su anonimato absoluto.`
+          };
         }
       }
-      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`RESPONDER +57XXXXXXXXXX [su mensaje aquí]\`` };
+      return { recipientPhone: ADMIN_PHONE, replyText: `💡 Formato: \`MENSAJE +57XXXXXXXXXX [su mensaje aquí]\`` };
     }
 
     // 1.6 Comando: REPORTE / ESTADO
@@ -455,9 +489,31 @@ async function processIncomingWhatsAppMessage({ fromPhone, senderName, messageTe
   if (existingUser && existingUser.status === 'PENDIENTE_APROBACION' && !isAdmin) {
     return {
       recipientPhone: cleanPhone,
-      replyText: `⏳ *Solicitud en Proceso de Autorización*\n\n` +
-                 `Estimado(a) ${existingUser.name}: Su solicitud se encuentra en proceso de validación autónoma conforme a los lineamientos del proyecto (~24 horas).\n\n` +
-                 `Le notificaremos en cuanto su acceso sea habilitado.`
+      replyText: `📩 *Información Recibida por la Dirección*\n\nHemos recibido su mensaje:\n"${text}"\n\nLa Dirección del Proyecto está revisando los detalles para resolver su habilitación de acceso.`,
+      alertToGerente: {
+        phone: ADMIN_PHONE,
+        message: `📩 *RESPUESTA / MENSAJE DE POSTULANTE PENDIENTE*\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `👤 *Médico:* ${existingUser.name}\n` +
+                 `📱 *WhatsApp:* ${cleanPhone}\n` +
+                 `💬 *Mensaje recibido:*\n"${text}"\n` +
+                 `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                 `⚡ *Acciones Rápidas:*\n` +
+                 `1️⃣ *ACTIVAR ${cleanPhone}*\n` +
+                 `2️⃣ *RECHAZAR ${cleanPhone}*\n` +
+                 `3️⃣ *MENSAJE ${cleanPhone} [respuesta]*`
+      }
+    };
+  }
+
+  // Si está RECHAZADO
+  if (existingUser && existingUser.status === 'RECHAZADO' && !isAdmin) {
+    return {
+      recipientPhone: cleanPhone,
+      replyText: `📋 *SOLICITUD PREVIA NO ADMITIDA*\n\n` +
+                 `Su solicitud previa de acceso no fue admitida por la Dirección.\n` +
+                 `📋 *Motivo:* ${existingUser.rejectionReason || 'No cumple con los requisitos institucionales.'}\n\n` +
+                 `Si desea presentar nuevas credenciales institucionales o aclarar su caso, puede enviar sus datos a este chat para reconsideración.`
     };
   }
 

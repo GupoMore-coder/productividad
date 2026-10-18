@@ -69,11 +69,15 @@ async function main() {
   runStep('Ejecutando Suite de Auditoría Forense (22 Pruebas de Cero-Fuga)', 'node bibliotecario_engine/sandbox_audit/audit_suite_runner.cjs');
 
   // 4. Subida directa a Google Apps Script por API
-  runStep('Subiendo código a Google Apps Script vía clasp push', 'npx @google/clasp push -f');
+  runStep('Subiendo código a Google Apps Script vía clasp push', 'npx @google/clasp push -f', {
+    cwd: path.join(__dirname, '..', 'gas_dist')
+  });
 
   // 5. Creación de Nueva Versión y Actualización de la Implementación Web
   const deployCmd = `npx @google/clasp deploy -i ${DEPLOYMENT_ID} -d "${customDesc.replace(/"/g, '\\"')}"`;
-  runStep('Publicando Versión en Google Apps Script Web App', deployCmd);
+  runStep('Publicando Versión en Google Apps Script Web App', deployCmd, {
+    cwd: path.join(__dirname, '..', 'gas_dist')
+  });
 
   // 5.5 Sincronización y Despliegue del Cloudflare Worker
   runStep('Desplegando Cloudflare Worker vía Wrangler', 'npx wrangler deploy', {
