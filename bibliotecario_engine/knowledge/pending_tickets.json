@@ -1398,5 +1398,75 @@
     "createdAt": "2026-10-18T17:00:29.033Z",
     "resolvedAt": null,
     "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0101",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573127598897",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-19T13:46:39.026Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0102",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573127669252",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-19T13:47:49.317Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0103",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573128137609",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-19T13:55:37.741Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0104",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573120564937",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-19T14:36:05.009Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0105",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573121711897",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-19T14:55:11.968Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
   }
 ]

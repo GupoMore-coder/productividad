@@ -58,10 +58,16 @@ const OFF_TOPIC_TERMS = [
  */
 const SENTINEL_CONFIG = {
   SAMPLE_WINDOW: 50,
+  MIN_SAMPLES_FOR_EVAL: 5,
   THRESHOLD_GREEN_MAX: 2500,
-  THRESHOLD_YELLOW_MIN: 3500,
-  THRESHOLD_YELLOW_P90: 5000,
-  THRESHOLD_RED_MIN: 6000,
+  // Umbrales Nivel AMARILLO (Congestión Moderada)
+  THRESHOLD_YELLOW_AVG: 3500,  // Media > 3.5s
+  THRESHOLD_YELLOW_MED: 2500,  // Mediana > 2.5s
+  THRESHOLD_YELLOW_P90: 5000,  // O P90 > 5.0s
+  // Umbrales Nivel ROJO (Saturación Crítica)
+  THRESHOLD_RED_AVG: 6000,     // Media > 6.0s
+  THRESHOLD_RED_MED: 4000,     // Mediana > 4.0s
+  THRESHOLD_RED_P90: 8000,     // P90 > 8.0s
   ALERT_THROTTLE_SEC: 1800
 };
 
@@ -83,6 +89,7 @@ function computeSentinelStats() {
     return {
       count: 0,
       avgMs: 0,
+      medianMs: 0,
       p90Ms: 0,
       minMs: 0,
       maxMs: 0,
@@ -95,6 +102,10 @@ function computeSentinelStats() {
   const times = sentinelMetrics.map(s => s.ms).sort((a, b) => a - b);
   const sum = times.reduce((acc, val) => acc + val, 0);
   const avg = Math.round(sum / times.length);
+  const midIndex = Math.floor(times.length / 2);
+  const median = (times.length % 2 !== 0)
+    ? times[midIndex]
+    : Math.round((times[midIndex - 1] + times[midIndex]) / 2);
   const p90Index = Math.min(times.length - 1, Math.floor(times.length * 0.9));
   const p90 = times[p90Index];
   const min = times[0];
@@ -104,19 +115,31 @@ function computeSentinelStats() {
   let trafficLight = '🟢';
   let verdict = 'Excelente fluidez operativa (Google Apps Script Nominal)';
 
-  if (avg > SENTINEL_CONFIG.THRESHOLD_RED_MIN || p90 > 7500) {
+  // Evaluación combinada: Media Y Mediana
+  const isRedSystemic = (avg > SENTINEL_CONFIG.THRESHOLD_RED_AVG && median > SENTINEL_CONFIG.THRESHOLD_RED_MED);
+  const isRedSevereTail = (p90 > SENTINEL_CONFIG.THRESHOLD_RED_P90 && median > 3500);
+
+  const isYellowCongestion = (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_AVG && median > SENTINEL_CONFIG.THRESHOLD_YELLOW_MED);
+  const isYellowTail = (p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90 && median > 2000);
+
+  if (isRedSystemic || isRedSevereTail) {
     status = 'ROJO';
     trafficLight = '🔴';
-    verdict = 'Saturación Crítica detectada. Recomendada migración inmediata a Cloudflare D1/R2.';
-  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_MIN || p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90) {
+    verdict = 'Saturación Crítica confirmada (Media y Mediana elevadas). Recomendada migración inmediata a Cloudflare D1/R2.';
+  } else if (isYellowCongestion || isYellowTail) {
     status = 'AMARILLO';
     trafficLight = '🟡';
-    verdict = 'Congestión moderada por alta demanda. Evaluar optimización de caché o desacoplamiento.';
+    verdict = 'Congestión moderada sostenida (Demanda creciente). Evaluar optimización de caché o desacoplamiento.';
+  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_AVG && median <= SENTINEL_CONFIG.THRESHOLD_YELLOW_MED) {
+    status = 'VERDE';
+    trafficLight = '🟢';
+    verdict = 'Operación Nominal en Caliente. Se detectó un valor atípico transitorio (Cold-Start asimilado, Mediana en rango óptimo).';
   }
 
   return {
     count: times.length,
     avgMs: avg,
+    medianMs: median,
     p90Ms: p90,
     minMs: min,
     maxMs: max,
@@ -132,7 +155,7 @@ function getSentinelReport() {
          `*Dirección:* Gestor de Contenido\n` +
          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
          `${stats.trafficLight} *Estado Operativo:* NIVEL ${stats.status}\n` +
-         `⏱️ *Latencia Media:* ${(stats.avgMs / 1000).toFixed(2)} segundos\n` +
+         `⏱️ *Latencia Media:* ${(stats.avgMs / 1000).toFixed(2)}s | *Mediana (P50):* ${(stats.medianMs / 1000).toFixed(2)}s\n` +
          `📈 *Percentil 90 (P90):* ${(stats.p90Ms / 1000).toFixed(2)} segundos\n` +
          `⚡ *Rango Mín / Máx:* ${(stats.minMs / 1000).toFixed(2)}s / ${(stats.maxMs / 1000).toFixed(2)}s\n` +
          `📦 *Muestras en Ventana:* ${stats.count} / ${SENTINEL_CONFIG.SAMPLE_WINDOW} transacciones\n` +
@@ -374,7 +397,7 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
                    `👨‍⚕️ *Médicos Autorizados:* ${approvedCount}\n` +
                    `⏳ *Solicitudes Pendientes:* ${pendingCount}\n` +
                    `⛔ *Usuarios Suspendidos:* ${blockedCount}\n` +
-                   `⚡ *Centinela Rendimiento:* ${sentinelStats.trafficLight} ${sentinelStats.status} (${(sentinelStats.avgMs/1000).toFixed(2)}s avg, P90 ${(sentinelStats.p90Ms/1000).toFixed(2)}s)\n` +
+                   `⚡ *Centinela Rendimiento:* ${sentinelStats.trafficLight} ${sentinelStats.status} (Media ${(sentinelStats.avgMs/1000).toFixed(2)}s, Mediana ${(sentinelStats.medianMs/1000).toFixed(2)}s, P90 ${(sentinelStats.p90Ms/1000).toFixed(2)}s)\n` +
                    `📚 *Documentos en Catálogo:* 1.634 títulos\n` +
                    `☁️ *Servidor Cloud:* Google Apps Script 24/7 (Operativo)\n` +
                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -983,10 +1006,15 @@ function extractLevel(text) {
   return match ? match[0].trim() : null;
 }
 
+function clearSentinelMetrics() {
+  sentinelMetrics.length = 0;
+}
+
 module.exports = {
   processIncomingWhatsAppMessage,
   ADMIN_PHONE,
   recordSentinelMetric,
   computeSentinelStats,
-  getSentinelReport
+  getSentinelReport,
+  clearSentinelMetrics
 };

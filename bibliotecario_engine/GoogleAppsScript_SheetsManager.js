@@ -257,10 +257,16 @@ function checkRateLimit(phone) {
  */
 const SENTINEL_CONFIG = {
   SAMPLE_WINDOW: 50,           // Ventana deslizante de las últimas 50 operaciones
+  MIN_SAMPLES_FOR_EVAL: 5,     // Mínimo de muestras antes de disparar alertas
   THRESHOLD_GREEN_MAX: 2500,   // <= 2.5s: Nominal / Fluido
-  THRESHOLD_YELLOW_MIN: 3500,  // > 3.5s o P90 > 5.0s: Demanda creciente / Congestión moderada
-  THRESHOLD_YELLOW_P90: 5000,
-  THRESHOLD_RED_MIN: 6000,     // > 6.0s: Sobrecarga / Saturación crítica
+  // Umbrales Nivel AMARILLO (Congestión Moderada)
+  THRESHOLD_YELLOW_AVG: 3500,  // Media > 3.5s
+  THRESHOLD_YELLOW_MED: 2500,  // Mediana > 2.5s (confirma congestión general)
+  THRESHOLD_YELLOW_P90: 5000,  // O P90 > 5.0s
+  // Umbrales Nivel ROJO (Saturación Crítica)
+  THRESHOLD_RED_AVG: 6000,     // Media > 6.0s
+  THRESHOLD_RED_MED: 4000,     // Mediana > 4.0s (confirma saturación sistémica)
+  THRESHOLD_RED_P90: 8000,     // P90 > 8.0s (confirma saturación severa de cola)
   ALERT_THROTTLE_SEC: 1800     // 30 minutos entre alertas automáticas a la Dirección
 };
 
@@ -295,6 +301,7 @@ function computeSentinelStats(history) {
     return {
       count: 0,
       avgMs: 0,
+      medianMs: 0,
       p90Ms: 0,
       minMs: 0,
       maxMs: 0,
@@ -307,6 +314,10 @@ function computeSentinelStats(history) {
   const times = history.map(function(s) { return s.ms; }).sort(function(a, b) { return a - b; });
   const sum = times.reduce(function(acc, val) { return acc + val; }, 0);
   const avg = Math.round(sum / times.length);
+  const midIndex = Math.floor(times.length / 2);
+  const median = (times.length % 2 !== 0)
+    ? times[midIndex]
+    : Math.round((times[midIndex - 1] + times[midIndex]) / 2);
   const p90Index = Math.min(times.length - 1, Math.floor(times.length * 0.9));
   const p90 = times[p90Index];
   const min = times[0];
@@ -316,19 +327,31 @@ function computeSentinelStats(history) {
   let trafficLight = '🟢';
   let verdict = 'Excelente fluidez operativa (Google Apps Script Nominal)';
 
-  if (avg > SENTINEL_CONFIG.THRESHOLD_RED_MIN || p90 > 7500) {
+  // Evaluación combinada: Media Y Mediana
+  const isRedSystemic = (avg > SENTINEL_CONFIG.THRESHOLD_RED_AVG && median > SENTINEL_CONFIG.THRESHOLD_RED_MED);
+  const isRedSevereTail = (p90 > SENTINEL_CONFIG.THRESHOLD_RED_P90 && median > 3500);
+
+  const isYellowCongestion = (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_AVG && median > SENTINEL_CONFIG.THRESHOLD_YELLOW_MED);
+  const isYellowTail = (p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90 && median > 2000);
+
+  if (isRedSystemic || isRedSevereTail) {
     status = 'ROJO';
     trafficLight = '🔴';
-    verdict = 'Saturación Crítica detectada. Recomendada migración inmediata a Cloudflare D1/R2.';
-  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_MIN || p90 > SENTINEL_CONFIG.THRESHOLD_YELLOW_P90) {
+    verdict = 'Saturación Crítica confirmada (Media y Mediana elevadas). Recomendada migración inmediata a Cloudflare D1/R2.';
+  } else if (isYellowCongestion || isYellowTail) {
     status = 'AMARILLO';
     trafficLight = '🟡';
-    verdict = 'Congestión moderada por alta demanda. Evaluar optimización de caché o desacoplamiento.';
+    verdict = 'Congestión moderada sostenida (Demanda creciente). Evaluar optimización de caché o desacoplamiento.';
+  } else if (avg > SENTINEL_CONFIG.THRESHOLD_YELLOW_AVG && median <= SENTINEL_CONFIG.THRESHOLD_YELLOW_MED) {
+    status = 'VERDE';
+    trafficLight = '🟢';
+    verdict = 'Operación Nominal en Caliente. Se detectó un valor atípico transitorio (Cold-Start asimilado, Mediana en rango óptimo).';
   }
 
   return {
     count: times.length,
     avgMs: avg,
+    medianMs: median,
     p90Ms: p90,
     minMs: min,
     maxMs: max,
@@ -339,7 +362,7 @@ function computeSentinelStats(history) {
 }
 
 function evaluateSentinelThresholds(history) {
-  if (!history || history.length < 5) return;
+  if (!history || history.length < SENTINEL_CONFIG.MIN_SAMPLES_FOR_EVAL) return;
 
   const stats = computeSentinelStats(history);
   const cache = CacheService.getScriptCache();
@@ -353,9 +376,9 @@ function evaluateSentinelThresholds(history) {
         '🚨 *CENTINELA DE RENDIMIENTO: ALERTA DE SATURACIÓN CRÍTICA (NIVEL ROJO)*\\n' +
         '*Dirección:* Gestor de Contenido\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-        '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
+        '⏱️ *Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's | *Mediana (P50):* ' + (stats.medianMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
         '📊 *Muestras analizadas:* ' + stats.count + ' transacciones recientes\\n' +
-        '⚠️ *Diagnóstico:* Tiempos de respuesta superiores a 6.0s. Google Apps Script experimenta cola de contención por alta concurrencia.\\n\\n' +
+        '⚠️ *Diagnóstico:* Tiempos de respuesta confirmados por Media y Mediana. Google Apps Script experimenta cola de contención por alta concurrencia.\\n\\n' +
         '🚀 *PROPUESTA DE ESCALABILIDAD INMEDIATA:*\\n' +
         '1. *Migración a Cloudflare D1 / R2:* El proxy Edge ya está activo (Workers). Desacoplar Sheets a D1 SQLite reducirá latencia a <80ms.\\n' +
         '2. *Despliegue Asíncrono:* Sin tiempo de inactividad (Zero Downtime) preservando el webhook actual.\\n' +
@@ -371,9 +394,9 @@ function evaluateSentinelThresholds(history) {
         '⚠️ *CENTINELA DE RENDIMIENTO: AVISO DE CONGESTIÓN MODERADA (NIVEL AMARILLO)*\\n' +
         '*Dirección:* Gestor de Contenido\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-        '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
+        '⏱️ *Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's | *Mediana (P50):* ' + (stats.medianMs / 1000).toFixed(2) + 's (P90: ' + (stats.p90Ms / 1000).toFixed(2) + 's)\\n' +
         '📊 *Muestras analizadas:* ' + stats.count + ' transacciones\\n' +
-        '💡 *Recordatorio de Infraestructura:* Se detecta incremento de concurrencia. Evaluar optimización de caché en memoria o revisión de catálogo.\\n' +
+        '💡 *Recordatorio de Infraestructura:* Se detecta incremento de concurrencia confirmado en mediana. Evaluar optimización de caché en memoria o revisión de catálogo.\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
         '🔒 Centinela Perpetuo en vigilancia activa.'
       );
@@ -394,7 +417,7 @@ function getSentinelReportText() {
          '*Dirección:* Gestor de Contenido\\n' +
          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
          stats.trafficLight + ' *Estado Operativo:* NIVEL ' + stats.status + '\\n' +
-         '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + ' segundos\\n' +
+         '⏱️ *Latencia Media:* ' + (stats.avgMs / 1000).toFixed(2) + 's | *Mediana (P50):* ' + (stats.medianMs / 1000).toFixed(2) + 's\\n' +
          '📈 *Percentil 90 (P90):* ' + (stats.p90Ms / 1000).toFixed(2) + ' segundos\\n' +
          '⚡ *Rango Mín / Máx:* ' + (stats.minMs / 1000).toFixed(2) + 's / ' + (stats.maxMs / 1000).toFixed(2) + 's\\n' +
          '📦 *Muestras en Ventana:* ' + stats.count + ' / ' + SENTINEL_CONFIG.SAMPLE_WINDOW + ' transacciones\\n' +
@@ -639,12 +662,21 @@ function sellarCamposEnReposoSistema() {
  * 2. Emite Alerta Roja inmediata a la consola privada del Gestor de Contenido.
  * 3. Mantiene Cero Huella (respuesta neutra sin pistas forenses al atacante).
  */
-function triggerSilentIDS(sourcePhone, vectorName, payloadText, details) {
+function triggerSilentIDS(sourcePhone, vectorName, payloadText, details, severity) {
   try {
-    // 1. Registro silencioso en telemetría
+    // 1. Registro silencioso en telemetría para trazabilidad y auditoría
     recordTelemetry(sourcePhone, payloadText, 'IDS_VECTOR_' + vectorName, 'ALERTA_IDS_MITIGADA', details);
 
-    // 2. Despacho de Alerta Roja al WhatsApp del Gestor de Contenido
+    // 2. FILTRADO DE FALSOS POSITIVOS BENIGNOS:
+    // Los tokens expirados legítimos (EXPIRED_TOKEN_REPLAY) corresponden habitualmente a pestañas
+    // reanudadas en segundo plano o crawlers de vista previa de WhatsApp. Al tener firma HMAC auténtica,
+    // se registran en telemetría pero NO disparan Alerta Roja a WhatsApp para evitar fatiga de alertas.
+    if (vectorName === 'EXPIRED_TOKEN_REPLAY' && severity !== 'CRITICAL') {
+      secureLog('IDS Info: Token expirado mitigado en silencio sin alerta WhatsApp (Falso positivo evitado para ' + sourcePhone + ')');
+      return;
+    }
+
+    // 3. Despacho de Alerta Roja al WhatsApp del Gestor de Contenido (solo ante ataques reales)
     const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
     const alertMsg = 
       '🚨 *[IDS ALERTA ROJA - INTENTO DE INTRUSIÓN]*\\n' +
@@ -3816,7 +3848,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '🚫 *Usuarios Expulsados:* ' + exp + '\\n' +
         '🧠 *Registros Telemetría:* ' + totalMem + '\\n' +
         '🛡️ *Vigilancia IDS:* Activa 24/7\\n' +
-        sentinelStats.trafficLight + ' *Centinela Rendimiento:* ' + sentinelStats.status + ' (' + (sentinelStats.avgMs / 1000).toFixed(2) + 's avg, P90 ' + (sentinelStats.p90Ms / 1000).toFixed(2) + 's)\\n' +
+        sentinelStats.trafficLight + ' *Centinela Rendimiento:* ' + sentinelStats.status + ' (Media ' + (sentinelStats.avgMs / 1000).toFixed(2) + 's, Mediana ' + (sentinelStats.medianMs / 1000).toFixed(2) + 's, P90 ' + (sentinelStats.p90Ms / 1000).toFixed(2) + 's)\\n' +
         '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
         'Comandos: ACTIVAR, SUSPENDER, BLOQUEAR, EXPULSAR, RESPONDER, RENDIMIENTO, COMUNICADO, BOLETIN_DOMINICAL, BACKUP_MENSUAL, SELLAR_REPOSO'
       );

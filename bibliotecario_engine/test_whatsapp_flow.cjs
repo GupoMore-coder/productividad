@@ -16,7 +16,7 @@
  */
 
 const assert = require('assert');
-const { processIncomingWhatsAppMessage, ADMIN_PHONE } = require('./whatsapp_conversational_engine.cjs');
+const { processIncomingWhatsAppMessage, ADMIN_PHONE, computeSentinelStats, recordSentinelMetric, clearSentinelMetrics } = require('./whatsapp_conversational_engine.cjs');
 const { LIVE_WEBAPP_URL } = require('./anonymous_proxy.cjs');
 
 console.log('================================================================');
@@ -716,7 +716,7 @@ async function startSuite() {
     assert.strictEqual(replyRes.alertToGerente.message.includes('MENSAJE'), true);
   });
 
-  // JORNADA 27: Centinela Perpetuo de Rendimiento y Escalabilidad Heredada
+  // JORNADA 27: Centinela Perpetuo de Rendimiento y Escalabilidad Heredada (Media + Mediana)
   await runAsyncTest('Jornada 27: Gestor de Contenido consulta "RENDIMIENTO" y "ESTADO" -> Auditoría activa del Centinela', async () => {
     // 1. Consulta explícita de RENDIMIENTO
     const perfRes = await processIncomingWhatsAppMessage({
@@ -729,6 +729,7 @@ async function startSuite() {
     assert.strictEqual(perfRes.replyText.includes('CENTINELA DE RENDIMIENTO Y ESCALABILIDAD'), true);
     assert.strictEqual(perfRes.replyText.includes('Estado Operativo:'), true);
     assert.strictEqual(perfRes.replyText.includes('Latencia Media:'), true);
+    assert.strictEqual(perfRes.replyText.includes('Mediana (P50):'), true);
     assert.strictEqual(perfRes.replyText.includes('Percentil 90'), true);
     assert.strictEqual(perfRes.replyText.includes('Dictamen de Escalabilidad:'), true);
     assert.strictEqual(perfRes.replyText.includes('Google Apps Script'), true);
@@ -742,7 +743,23 @@ async function startSuite() {
 
     assert.strictEqual(estadoRes.recipientPhone, ADMIN_PHONE);
     assert.strictEqual(estadoRes.replyText.includes('Centinela Rendimiento:'), true);
+    assert.strictEqual(estadoRes.replyText.includes('Mediana'), true);
     assert.strictEqual(estadoRes.replyText.includes('RENDIMIENTO'), true);
+  });
+
+  // JORNADA 28: Prueba de Robustez Estadística (Valor Atípico / Cold-Start no dispara falso ROJO)
+  await runAsyncTest('Jornada 28: Simulación de Cold-Start (Media alta, Mediana 1.4s) -> Permanece VERDE sin falso ROJO', async () => {
+    clearSentinelMetrics();
+    // Registramos 1 muestra atípica de 120s (ej. cold start de despliegue) y 10 muestras normales de 1.4s (total 11 muestras reales)
+    recordSentinelMetric('COLD_START', 120000);
+    for (let i = 0; i < 10; i++) {
+      recordSentinelMetric('NORMAL_REQ', 1400);
+    }
+    const stats = computeSentinelStats();
+    assert.strictEqual(stats.avgMs > 6000, true);
+    assert.strictEqual(stats.medianMs <= 2500, true);
+    assert.strictEqual(stats.status, 'VERDE');
+    assert.strictEqual(stats.verdict.includes('Cold-Start asimilado'), true);
   });
 
   console.log('\n================================================================');
