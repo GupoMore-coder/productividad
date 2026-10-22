@@ -13,6 +13,11 @@ if (fs.existsSync(pdfPath)) {
 
 // Escapamos el HTML para incrustarlo de forma limpia en el script de Google Apps Script
 const cleanHtmlEscaped = JSON.stringify(templateHtml);
+const superpowersBundlePath = path.join(__dirname, 'superpowers_gas_bundle.js');
+let superpowersBundleCode = '';
+if (fs.existsSync(superpowersBundlePath)) {
+  superpowersBundleCode = fs.readFileSync(superpowersBundlePath, 'utf8');
+}
 
 const BUZON_I18N = {
   "ES": {
@@ -267,6 +272,8 @@ const CONFIG = {
   PHONE_NUMBER_ID: '1279591731914022', // ID exclusivo de la línea +57 320 5955993
   WEBHOOK_VERIFY_TOKEN: 'biblioteca_ortho_webhook_token_2026',
   PUBLIC_PORTAL_URL: 'https://biblioteca-medica.ortopedia.workers.dev',
+  SHORT_BASE: 'https://biblioteca-medica.ortopedia.workers.dev/r/',
+  SHEET_APORTES_DIARIOS: 'Aportes_Diarios',
   WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbxvKxFuTtTpcXXo3XgdAo1WAiIl4WhYlgd2ldPA2ePfC7Mmlo7VDu03BOhL9ybWL_Nv/exec',
   META_ACCESS_TOKEN: 'EAAT88VhyjgIBSpNapO95mWFSWSn8YIPVayqtwyq8wrWveguPb38q0sM6ZCZCeHEhQdEsUKJVt8C5W4AhgYmJwRRB7rxoyAhK3K3ZBaIfTqURwCF9NJBdBZCv3RAdxrvTM4ZCJTbj8RoCpjrmsW5TExQZC82Kms6RnyQnNAEBfUmSI5nLwcD7pz2NQwGfAxZAwZDZD',
   DRIVE_SHARED_MAILBOX_ID: '1UDQtuZqOiiGYnphbN5xaOxaLZvGNvLI1', // Carpeta Buzón Compartido en Drive
@@ -3704,7 +3711,7 @@ function generateAnonymousDownloadLink(driveId, userPhone) {
     .replace(/=+$/, '');
 
   const token = b64Payload + '.' + signature;
-  return getPublicPortalBaseUrl() + '?token=' + token;
+  return (CONFIG.SHORT_BASE || 'https://biblioteca-medica.ortopedia.workers.dev/r/') + 'd_' + token;
 }
 
 /**
@@ -3918,6 +3925,15 @@ function handleDoPostExecution(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
+
+    // Auto-programación resiliente del disparador diario de las 18:00 (Self-Healing)
+    try {
+      const cache = CacheService.getScriptCache();
+      if (!cache.get('TRIGGER_18H_INITIALIZED')) {
+        configurarTriggerInformeDiario18h();
+        cache.put('TRIGGER_18H_INITIALIZED', '1', 21600);
+      }
+    } catch (te) {}
 
     // Soporte directo para depósito en el Buzón Digital Seguro
     if (body.action === 'upload_buzon') {
@@ -4317,6 +4333,18 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
         '🔒 *Garantía de Confidencialidad:*\\\\n' +
         'Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más fue invitado, y se preserva el anonimato absoluto de la Dirección.'
       );
+      return;
+    }
+
+    // 1.53 CUMPLIMIENTO DE ADQUISICIÓN DE LITERATURA FALTANTE (SUPERPODER 5)
+    if (lower.startsWith('adquirido:') || lower.startsWith('adquirido ')) {
+      cumplirSolicitudAdquisicionGAS(adminPhone, text);
+      return;
+    }
+
+    // 1.54 CONSOLIDADO DIARIO DE APORTES (ACCIÓN ADICIONAL 18:00)
+    if (lower === 'consolidado_aportes' || lower === 'aportes_hoy' || lower === 'aportes') {
+      generarInformeDiarioAportes18h();
       return;
     }
 
@@ -4803,6 +4831,70 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
+    // =========================================================================
+    // 🌟 SUPERPODERES CLÍNICOS ORTOPÉDICOS (100% CIENTÍFICOS & VERIFICADOS)
+    // =========================================================================
+
+    // Superpoder 1: Calculadora de Scores y Escalas Quirúrgicas al Instante
+    if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ')) {
+      const calcRes = handleCalculatorRequest(text);
+      if (calcRes && calcRes.handled) {
+        sendWhatsAppText(cleanPhone, calcRes.replyText);
+        return;
+      }
+    }
+
+    // Superpoder 2: Copiloto Pre-Operatorio ("Briefing Quirúrgico de la Noche Anterior")
+    if (lower.startsWith('caso:') || lower.startsWith('caso ') || lower.startsWith('preop:') || lower.startsWith('preop ') || lower.startsWith('abordaje:') || lower.startsWith('abordaje ')) {
+      const preopRes = handlePreopCopilotRequest(text);
+      if (preopRes && preopRes.handled) {
+        sendWhatsAppText(cleanPhone, preopRes.replyText);
+        return;
+      }
+    }
+
+    // Superpoder 3: Ficha Técnica Rápida de Implantes e Instrumentación
+    if (lower.startsWith('implante:') || lower.startsWith('implante ') || lower.startsWith('ficha:') || lower.startsWith('ficha ') || lower.startsWith('instrumental:') || lower.startsWith('instrumental ')) {
+      const impRes = handleImplantRequest(text);
+      if (impRes && impRes.handled) {
+        sendWhatsAppText(cleanPhone, impRes.replyText);
+        return;
+      }
+    }
+
+    // Superpoder 4: Interconsulta de Urgencias Estructurada (Voz o Texto)
+    if (lower.startsWith('interconsulta:') || lower.startsWith('interconsulta ') || lower.startsWith('urgencia:') || lower.startsWith('urgencia ') || lower.startsWith('caso urgencia:') || lower.startsWith('esquema:')) {
+      const consultRes = handleEmergencyConsultRequest(text);
+      if (consultRes && consultRes.handled) {
+        sendWhatsAppText(cleanPhone, consultRes.replyText);
+        return;
+      }
+    }
+
+    // Superpoder 5: Solicitud de Artículos de Pago (Circuito de Solicitud/Adquisición)
+    if (lower.startsWith('solicitar:') || lower.startsWith('solicitar ')) {
+      const artId = text.replace(/^solicitar:?\s*/i, '').trim();
+      const reqRes = handleUserRequestPaperGAS(cleanPhone, userRow[1] || senderName, artId);
+      sendWhatsAppText(cleanPhone, reqRes.userReplyText);
+      if (reqRes.adminNotificationText) {
+        sendWhatsAppText(adminPhone, reqRes.adminNotificationText);
+      }
+      return;
+    }
+
+    if (lower.startsWith('descartar:') || lower.startsWith('descartar ')) {
+      sendWhatsAppText(cleanPhone, 'ℹ️ *Entendido.* El artículo ha sido descartado y no se ha añadido a su lista de solicitudes bibliográficas.');
+      return;
+    }
+
+    // Superpoder 5: Búsqueda Open Access Directa
+    if (lower.startsWith('buscar_web:') || lower.startsWith('openaccess:') || lower.startsWith('open access:')) {
+      const q = text.replace(/^(buscar_web|openaccess|open access):?\s*/i, '').trim();
+      const items = searchOpenAccessLiterature(q);
+      sendWhatsAppText(cleanPhone, formatLiteratureSearchOutput(items, q));
+      return;
+    }
+
     // 4.3 Consulta de Evidencia Científica Global (PubMed & Semantic Scholar)
     if (isEvidenceSearchIntent(text)) {
       const clinicalQuery = extractEvidenceQuery(text);
@@ -5146,6 +5238,12 @@ function generateInvitationEmailHtml(toEmail) {
     '  </table>' +
     '</body></html>';
 }
+
+
+// ============================================================================
+// 🌟 BUNDLE DE SUPERPODERES INCRUSTADO DINAMICAMENTE
+// ============================================================================
+${superpowersBundleCode}
 
 /**
  * PRUEBAS DIRECTAS Y SINCRONIZACIÓN EN GOOGLE APPS SCRIPT

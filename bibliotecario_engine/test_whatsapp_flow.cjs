@@ -975,6 +975,175 @@ async function startSuite() {
     delete global.MOCK_RESEND_KEY;
   });
 
+  // =========================================================================
+  // JORNADAS DE SUPERPODERES CLÍNICOS Y GOBERNANZA AVANZADA
+  // =========================================================================
+
+  // Jornada 34: Superpoder 1: Calculadora Quirúrgica y Scores Clínicos (MESS y Gustilo)
+  await runAsyncTest('Jornada 34: Superpoder 1: Calculadora de Scores Quirúrgicos con enlaces directos verificados', async () => {
+    // 1. Consulta guiada de MESS
+    const resGuide = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'SCORE: MESS'
+    });
+    assert.strictEqual(resGuide.replyText.includes('MESS (Mangled Extremity Severity Score)'), true);
+    assert.strictEqual(resGuide.replyText.includes('Johansen et al. J Trauma 1990'), true);
+    assert.strictEqual(resGuide.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_2342140'), true);
+
+    // 2. Cálculo de MESS = 7 (Amputación primaria predicha)
+    const resCalc = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'CALCULAR MESS: 3 2 1 1'
+    });
+    assert.strictEqual(resCalc.replyText.includes('Puntaje Total:* *7 PUNTOS*'), true);
+    assert.strictEqual(resCalc.replyText.includes('AMPUTACIÓN PRIMARIA'), true);
+
+    // 3. Consulta de Gustilo-Anderson y protocolo antimicrobiano
+    const resGustilo = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'SCORE: GUSTILO'
+    });
+    assert.strictEqual(resGustilo.replyText.includes('Clasificación de Gustilo-Anderson'), true);
+    assert.strictEqual(resGustilo.replyText.includes('Cefazolina 2g IV'), true);
+    assert.strictEqual(resGustilo.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_773941'), true);
+  });
+
+  // Jornada 35: Superpoder 2: Copiloto Pre-Operatorio (Briefing Quirúrgico de la Noche Anterior)
+  await runAsyncTest('Jornada 35: Superpoder 2: Copiloto Pre-Operatorio con distinción DUAL Repositorio vs Web', async () => {
+    const resPreop = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'CASO: Clavo trocanterico'
+    });
+    assert.strictEqual(resPreop.replyText.includes('BRIEFING QUIRÚRGICO PRE-OPERATORIO'), true);
+    assert.strictEqual(resPreop.replyText.includes('Posicionamiento del Paciente'), true);
+    assert.strictEqual(resPreop.replyText.includes('Fluoroscopía y Arco en C'), true);
+    assert.strictEqual(resPreop.replyText.includes('Riesgo Anatómico:* Nervio glúteo superior'), true);
+    assert.strictEqual(resPreop.replyText.includes('TAD (Tip-Apex Distance) menor a 20 mm'), true);
+
+    // Verificación de la distinción DUAL explícita
+    assert.strictEqual(resPreop.replyText.includes('1. DOCUMENTOS EN EL REPOSITORIO DE LA BIBLIOTECA'), true);
+    assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/d_'), true);
+    assert.strictEqual(resPreop.replyText.includes('2. DOCUMENTOS Y GUÍAS CONSULTADAS EN LA WEB ACADÉMICA'), true);
+    assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_7790785'), true);
+    assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/ao_31-a'), true);
+  });
+
+  // Jornada 36: Superpoder 3: Ficha Técnica Rápida de Implantes e Instrumentación
+  await runAsyncTest('Jornada 36: Superpoder 3: Ficha de Implantes con sustento oficial de fabricante/AO', async () => {
+    // 1. Placa PHILOS
+    const resPhilos = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'IMPLANTE: Placa PHILOS'
+    });
+    assert.strictEqual(resPhilos.replyText.includes('FICHA TÉCNICA DE INSTRUMENTACIÓN OFICIAL'), true);
+    assert.strictEqual(resPhilos.replyText.includes('PHILOS'), true);
+    assert.strictEqual(resPhilos.replyText.includes('Broca calibrada 2.8 mm'), true);
+    assert.strictEqual(resPhilos.replyText.includes('Stardrive T15'), true);
+    assert.strictEqual(resPhilos.replyText.includes('DePuy Synthes Trauma - PHILOS Surgical Technique Guide'), true);
+    assert.strictEqual(resPhilos.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_18171958'), true);
+
+    // 2. Tornillo 3.5 Cortical
+    const resTornillo = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'IMPLANTE: Tornillo 3.5'
+    });
+    assert.strictEqual(resTornillo.replyText.includes('Broca de 2.5 mm'), true);
+    assert.strictEqual(resTornillo.replyText.includes('Macho de 3.5 mm'), true);
+    assert.strictEqual(resTornillo.replyText.includes('Small Fragment System Technical Guide'), true);
+  });
+
+  // Jornada 37: Superpoder 4: Interconsulta de Urgencias Estructurada (ATLS/AO y SOAP)
+  await runAsyncTest('Jornada 37: Superpoder 4: Interconsulta con personalización de esquema y datos faltantes', async () => {
+    // 1. Esquema ATLS/AO con datos faltantes detectados proactivamente
+    const resConsult = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'INTERCONSULTA: Paciente masculino de 32 años, caída en motocicleta, deformidad y dolor en tobillo izquierdo con herida de 2 cm'
+    });
+    assert.strictEqual(resConsult.replyText.includes('FICHA DE INTERCONSULTA Y URGENCIAS (ESTÁNDAR ATLS / AO)'), true);
+    assert.strictEqual(resConsult.replyText.includes('Fractura Maleolar de Tobillo'), true);
+    assert.strictEqual(resConsult.replyText.includes('DATOS CRÍTICOS PENDIENTES POR INTERROGAR O EVALUAR'), true);
+    assert.strictEqual(resConsult.replyText.includes('Estado Vascular Distal'), true);
+    assert.strictEqual(resConsult.replyText.includes('Vigilancia de Síndrome Compartimental'), true);
+    assert.strictEqual(resConsult.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_24872288'), true);
+
+    // 2. Personalización a Esquema SOAP
+    const resSoap = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'ESQUEMA: SOAP Paciente femenino de 78 años, caída en domicilio con dolor e impotencia en cadera derecha'
+    });
+    assert.strictEqual(resSoap.replyText.includes('ESQUEMA: SOAP (Subjetivo - Objetivo - Análisis - Plan)'), true);
+    assert.strictEqual(resSoap.replyText.includes('Fractura de Fémur Proximal'), true);
+  });
+
+  // Jornada 38: Superpoder 5: Agente Rastreador Open Access y Circuito de Adquisición
+  await runAsyncTest('Jornada 38: Superpoder 5: Open Access y Circuito de Solicitud/Adquisición de Literatura', async () => {
+    // 1. Búsqueda de literatura externa (despliega Open Access y Paywalled con opciones)
+    const resSearch = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'BUSCAR_WEB: fractura de pelvis'
+    });
+    assert.strictEqual(resSearch.replyText.includes('LITERATURA CIENTÍFICA GLOBAL'), true);
+    assert.strictEqual(resSearch.replyText.includes('LITERATURA OPEN ACCESS DISPONIBLE'), true);
+    assert.strictEqual(resSearch.replyText.includes('ARTÍCULOS CON ACCESO DE PAGO / SUSCRIPCIÓN'), true);
+    assert.strictEqual(resSearch.replyText.includes('SOLICITAR: PAY_PELVIS_2024'), true);
+    assert.strictEqual(resSearch.replyText.includes('DESCARTAR: PAY_PELVIS_2024'), true);
+
+    // 2. Usuario solicita artículo de pago con SOLICITAR: PAY_PELVIS_2024
+    const resReq = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'SOLICITAR: PAY_PELVIS_2024'
+    });
+    assert.strictEqual(resReq.replyText.includes('SOLICITUD DE ADQUISICIÓN REGISTRADA'), true);
+    assert.strictEqual(resReq.replyText.includes('PAY_PELVIS_2024'), true);
+    assert.strictEqual(resReq.alertToGerente.phone, ADMIN_PHONE);
+    assert.strictEqual(resReq.alertToGerente.message.includes('NUEVA SOLICITUD DE ARTÍCULO EXTERNO REGISTRADA'), true);
+    assert.strictEqual(resReq.alertToGerente.message.includes('ADQUIRIDO: PAY_PELVIS_2024'), true);
+
+    // 3. Gestor de Contenido incorpora el documento y responde ADQUIRIDO: PAY_PELVIS_2024
+    const resFulfill = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'ADQUIRIDO: PAY_PELVIS_2024'
+    });
+    assert.strictEqual(resFulfill.replyText.includes('DOCUMENTO ENTREGADO AUTOMÁTICAMENTE'), true);
+    assert.strictEqual(resFulfill.replyText.includes(TEST_RESIDENT_PHONE), true);
+    assert.strictEqual(resFulfill.notifyUsersList.length, 1);
+    assert.strictEqual(resFulfill.notifyUsersList[0].phone, TEST_RESIDENT_PHONE);
+    assert.strictEqual(resFulfill.notifyUsersList[0].message.includes('¡SU ARTÍCULO SOLICITADO YA ESTÁ DISPONIBLE!'), true);
+    assert.strictEqual(resFulfill.notifyUsersList[0].message.includes('https://biblioteca-medica.ortopedia.workers.dev/r/d_PAY_PELVIS_2024'), true);
+  });
+
+  // Jornada 39: Acción Adicional: Consolidado Diario de Aportes a las 18:00
+  await runAsyncTest('Jornada 39: Acción Adicional: Consolidado Diario de Aportes a las 18:00 sin spam inmediato', async () => {
+    const { registrarAporteDiario, generarInformeDiarioAportes18h } = require('./whatsapp_conversational_engine.cjs');
+    
+    // Simulación de dos aportes recibidos en el día
+    registrarAporteDiario({ phone: '+573001234567', name: 'Dr. Santiago Morales', fileName: 'Campbell_Tomo_4.pdf', size: '42 MB' });
+    registrarAporteDiario({ phone: '+573205559999', name: 'Dra. Paola Rodrigo', fileName: 'Luo_Tibial_Plateau_2024.pdf', size: '15 MB' });
+
+    // Gestor consulta el consolidado de aportes
+    const resDigest = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'CONSOLIDADO_APORTES'
+    });
+    assert.strictEqual(resDigest.replyText.includes('CONSOLIDADO DIARIO DE APORTES (18:00)'), true);
+    assert.strictEqual(resDigest.replyText.includes('Dr. Santiago Morales (+573001234567)'), true);
+    assert.strictEqual(resDigest.replyText.includes('Campbell_Tomo_4.pdf'), true);
+    assert.strictEqual(resDigest.replyText.includes('Dra. Paola Rodrigo (+573205559999)'), true);
+    assert.strictEqual(resDigest.replyText.includes('Luo_Tibial_Plateau_2024.pdf'), true);
+  });
+
   console.log('\n================================================================');
   console.log(`📊 RESULTADOS FINALES: ${passed} / ${total} PRUEBAS EXITOSAS (${Math.round((passed/total)*100)}%)`);
   console.log('================================================================\n');

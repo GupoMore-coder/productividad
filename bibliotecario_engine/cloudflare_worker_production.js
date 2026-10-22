@@ -57,6 +57,42 @@ export default {
       });
     }
 
+    // 1.5. Redireccionador de Enlaces Acortados Ultrarrápidos (Edge URL Shortener)
+    if (url.pathname.startsWith('/r/')) {
+      const code = url.pathname.slice(3).trim();
+      let destUrl = null;
+
+      if (code.startsWith('pm_')) {
+        const pmid = code.slice(3);
+        destUrl = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+      } else if (code.startsWith('doi_')) {
+        const rawDoi = code.slice(4).replace(/_/g, '/');
+        destUrl = `https://doi.org/${rawDoi}`;
+      } else if (code.startsWith('ao_')) {
+        const aoCode = code.slice(3);
+        destUrl = `https://surgeryreference.aofoundation.org/orthopedic-trauma/adult-trauma/${aoCode}`;
+      } else if (code.startsWith('d_')) {
+        const token = code.slice(2);
+        destUrl = `${url.origin}/?token=${token}`;
+      } else if (code.startsWith('u_')) {
+        try {
+          const rawB64 = code.slice(2).replace(/-/g, '+').replace(/_/g, '/');
+          const decoded = atob(rawB64);
+          if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+            destUrl = decoded;
+          }
+        } catch (e) {}
+      } else if (code === 'm' || code === 'manual') {
+        destUrl = url.origin;
+      } else if (code === 'b' || code === 'buzon') {
+        destUrl = `${url.origin}/?mode=buzon`;
+      }
+
+      if (destUrl) {
+        return Response.redirect(destUrl, 302);
+      }
+    }
+
     // 2. Destino hacia el backend de Google Apps Script
     let targetUrl;
     if (url.pathname.startsWith('/static/')) {

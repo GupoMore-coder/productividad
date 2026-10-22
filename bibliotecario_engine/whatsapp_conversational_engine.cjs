@@ -31,6 +31,60 @@ const {
 const { buildAnonymousDownloadUrl, LIVE_WEBAPP_URL } = require('./anonymous_proxy.cjs');
 const { searchClinicalLiterature, createLiteratureTicket, formatGerenteAlertMessage } = require('./ticketing_and_intermediary.cjs');
 
+// Importación de los 5 Superpoderes Clínicos y Quirúrgicos
+const { handleCalculatorRequest } = require('./orthopedic_clinical_calculators.cjs');
+const { handlePreopCopilotRequest } = require('./preoperative_copilot.cjs');
+const { handleImplantRequest } = require('./implant_technical_engine.cjs');
+const { handleEmergencyConsultRequest } = require('./clinical_emergency_consult_engine.cjs');
+const { 
+  searchOpenAccessLiterature, 
+  formatLiteratureSearchOutput, 
+  handleUserRequestPaper, 
+  handleAdminFulfillPaper 
+} = require('./open_access_tracker_engine.cjs');
+
+const DAILY_CONTRIBUTIONS = [];
+
+function registrarAporteDiario({ phone, name, fileName, size = '15 MB' }) {
+  DAILY_CONTRIBUTIONS.push({
+    phone,
+    name: name || 'Médico Aportante',
+    fileName: fileName || 'Documento_Ortopedia.pdf',
+    size,
+    timestamp: new Date()
+  });
+}
+
+function generarInformeDiarioAportes18h() {
+  if (DAILY_CONTRIBUTIONS.length === 0) {
+    return null;
+  }
+  const userMap = {};
+  for (const c of DAILY_CONTRIBUTIONS) {
+    const key = `${c.name} (${c.phone})`;
+    if (!userMap[key]) userMap[key] = [];
+    userMap[key].push(c);
+  }
+
+  let userBullets = '';
+  let count = 0;
+  for (const [userKey, docs] of Object.entries(userMap)) {
+    userBullets += `\n• *${userKey}:*\n`;
+    docs.forEach((d, idx) => {
+      count++;
+      userBullets += `  ${idx + 1}. 📄 _${d.fileName}_ (${d.size})\n`;
+    });
+  }
+
+  return `📦 *CONSOLIDADO DIARIO DE APORTES (18:00)*\n` +
+    `*Dirección:* Gestor de Contenido\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `Hoy se recibieron *${count} documento(s)* para el acervo institucional:\n` +
+    userBullets + `\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔒 Todos los documentos han sido resguardados en cuarentena segura en Drive para control de la Dirección.`;
+}
+
 const ADMIN_PHONE = '+573008880001';
 const MANUAL_DRIVE_ID = 'MANUAL_DE_USO_BIBLIOTECA_PDF'; // Token para descarga del manual oficial
 
@@ -379,6 +433,35 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
       return {
         recipientPhone: ADMIN_PHONE,
         replyText: getSentinelReport()
+      };
+    }
+
+    // 1.56 Comando: ADQUIRIDO: <ID> (Cumplimiento de Solicitud de Literatura Externa)
+    if (lower.startsWith('adquirido:') || lower.startsWith('adquirido ')) {
+      const artId = text.replace(/^adquirido:?\s*/i, '').trim();
+      const fulRes = handleAdminFulfillPaper(artId);
+      const notifications = [];
+      if (fulRes.fulfilledUsers && fulRes.fulfilledUsers.length > 0) {
+        fulRes.fulfilledUsers.forEach(fu => {
+          notifications.push({
+            phone: fu.phone,
+            message: fu.dispatchText
+          });
+        });
+      }
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: fulRes.adminConfirmationText,
+        notifyUsersList: notifications
+      };
+    }
+
+    // 1.57 Comando: CONSOLIDADO_APORTES / APORTES_HOY (Informe de Donaciones 18:00 on demand)
+    if (lower === 'consolidado_aportes' || lower === 'aportes_hoy' || lower === 'informe_aportes') {
+      const reportText = generarInformeDiarioAportes18h();
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: reportText || 'ℹ️ *CONSOLIDADO DE APORTES:*\nHoy no se han registrado nuevos aportes de literatura en el acervo.'
       };
     }
 
@@ -958,6 +1041,81 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
     };
   }
 
+  // 4.31 SUPERPODER 1: Calculadora de Scores y Escalas Quirúrgicas al Instante
+  if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ')) {
+    const calcRes = handleCalculatorRequest(text);
+    if (calcRes && calcRes.handled) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: calcRes.replyText
+      };
+    }
+  }
+
+  // 4.32 SUPERPODER 2: Copiloto Pre-Operatorio ("Briefing Quirúrgico de la Noche Anterior")
+  if (lower.startsWith('caso:') || lower.startsWith('caso ') || lower.startsWith('preop:') || lower.startsWith('preop ') || lower.startsWith('abordaje:') || lower.startsWith('abordaje ')) {
+    const preopRes = handlePreopCopilotRequest(text);
+    if (preopRes && preopRes.handled) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: preopRes.replyText
+      };
+    }
+  }
+
+  // 4.33 SUPERPODER 3: Ficha Técnica Rápida de Implantes e Instrumentación
+  if (lower.startsWith('implante:') || lower.startsWith('implante ') || lower.startsWith('ficha:') || lower.startsWith('ficha ') || lower.startsWith('instrumental:') || lower.startsWith('instrumental ')) {
+    const impRes = handleImplantRequest(text);
+    if (impRes && impRes.handled) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: impRes.replyText
+      };
+    }
+  }
+
+  // 4.34 SUPERPODER 4: Interconsulta de Urgencias Estructurada (Voz o Texto)
+  if (lower.startsWith('interconsulta:') || lower.startsWith('interconsulta ') || lower.startsWith('urgencia:') || lower.startsWith('urgencia ') || lower.startsWith('caso urgencia:') || lower.startsWith('esquema:')) {
+    const consultRes = handleEmergencyConsultRequest(text);
+    if (consultRes && consultRes.handled) {
+      return {
+        recipientPhone: cleanPhone,
+        replyText: consultRes.replyText
+      };
+    }
+  }
+
+  // 4.35 SUPERPODER 5: Solicitud de Artículos de Pago (Circuito de Solicitud/Adquisición)
+  if (lower.startsWith('solicitar:') || lower.startsWith('solicitar ')) {
+    const artId = text.replace(/^solicitar:?\s*/i, '').trim();
+    const reqRes = handleUserRequestPaper(cleanPhone, existingUser ? existingUser.name : senderName, artId);
+    return {
+      recipientPhone: cleanPhone,
+      replyText: reqRes.userReplyText,
+      alertToGerente: {
+        phone: ADMIN_PHONE,
+        message: reqRes.adminNotificationText
+      }
+    };
+  }
+
+  if (lower.startsWith('descartar:') || lower.startsWith('descartar ')) {
+    return {
+      recipientPhone: cleanPhone,
+      replyText: `ℹ️ *Entendido.* El artículo ha sido descartado y no se ha añadido a su lista de solicitudes bibliográficas.`
+    };
+  }
+
+  // 4.36 SUPERPODER 5: Búsqueda Open Access Directa
+  if (lower.startsWith('buscar_web:') || lower.startsWith('openaccess:') || lower.startsWith('open access:')) {
+    const q = text.replace(/^(buscar_web|openaccess|open access):?\s*/i, '').trim();
+    const items = await searchOpenAccessLiterature(q);
+    return {
+      recipientPhone: cleanPhone,
+      replyText: formatLiteratureSearchOutput(items, q)
+    };
+  }
+
   // 4.4 Filtro de Pertinencia Temática (Duda Clínica)
   const isOffTopic = OFF_TOPIC_TERMS.some(term => lower.includes(term));
   if (isOffTopic && !isAdmin) {
@@ -1056,7 +1214,16 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
     };
   }
 
-  // 4.7 No Encontrado
+  // 4.7 Búsqueda Proactiva Open Access si no está en el catálogo local
+  const oaResults = await searchOpenAccessLiterature(text);
+  if (oaResults && oaResults.length > 0) {
+    return {
+      recipientPhone: cleanPhone,
+      replyText: formatLiteratureSearchOutput(oaResults, text)
+    };
+  }
+
+  // 4.8 No Encontrado
   return {
     recipientPhone: cleanPhone,
     replyText: `🔍 *Documento no disponible en la colección actual.*\n\n` +
@@ -1324,6 +1491,8 @@ module.exports = {
   verifyDonorPhoneLocal,
   uploadBuzonFileLocal,
   sendTransactionalEmailResendLocal,
-  generateInvitationEmailHtml
+  generateInvitationEmailHtml,
+  registrarAporteDiario,
+  generarInformeDiarioAportes18h
 };
 
