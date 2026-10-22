@@ -16,7 +16,19 @@
  */
 
 const assert = require('assert');
-const { processIncomingWhatsAppMessage, ADMIN_PHONE, computeSentinelStats, recordSentinelMetric, clearSentinelMetrics } = require('./whatsapp_conversational_engine.cjs');
+const {
+  processIncomingWhatsAppMessage,
+  ADMIN_PHONE,
+  computeSentinelStats,
+  recordSentinelMetric,
+  clearSentinelMetrics,
+  signTrustTokenLocal,
+  validateTrustTokenLocal,
+  verifyDonorPhoneLocal,
+  uploadBuzonFileLocal,
+  sendTransactionalEmailResendLocal,
+  generateInvitationEmailHtml
+} = require('./whatsapp_conversational_engine.cjs');
 const { LIVE_WEBAPP_URL } = require('./anonymous_proxy.cjs');
 
 console.log('================================================================');
@@ -760,6 +772,207 @@ async function startSuite() {
     assert.strictEqual(stats.medianMs <= 2500, true);
     assert.strictEqual(stats.status, 'VERDE');
     assert.strictEqual(stats.verdict.includes('Cold-Start asimilado'), true);
+  });
+
+  // JORNADA 29: Buzón Digital Seguro - Validación de Teléfono Obligatorio y Bloqueo de Número No Registrado
+  await runAsyncTest('Jornada 29: Dispositivo desconocido con teléfono no registrado -> Bloqueo y enlace WhatsApp', async () => {
+    const UNKNOWN_PHONE = '+573998887766';
+    
+    // 1. Verificación directa de teléfono no registrado
+    const checkRes = verifyDonorPhoneLocal(UNKNOWN_PHONE);
+    assert.strictEqual(checkRes.valid, false);
+    assert.strictEqual(checkRes.notRegistered, true);
+    assert.strictEqual(checkRes.error.includes('no se encuentra registrado'), true);
+    assert.strictEqual(checkRes.waLink.includes('https://wa.me/573205955993'), true);
+    assert.strictEqual(checkRes.waLink.includes(encodeURIComponent('Hola, solicito registro y aprobación en la Biblioteca Médica para acceder al Buzón Digital. Mi número es ' + UNKNOWN_PHONE)), true);
+
+    // 2. Intento de subida de archivo bloqueado
+    const uploadRes = uploadBuzonFileLocal({
+      fileName: 'Caso_Clinico_Fractura.pdf',
+      donorPhone: UNKNOWN_PHONE,
+      trustDevice: true
+    });
+    assert.strictEqual(uploadRes.success, false);
+    assert.strictEqual(uploadRes.notRegistered, true);
+    assert.strictEqual(uploadRes.error.includes('no se encuentra registrado'), true);
+    assert.strictEqual(Boolean(uploadRes.waLink), true);
+  });
+
+  // JORNADA 30: Buzón Digital Seguro - Bloqueo de Teléfono en PENDIENTE o SUSPENDIDO
+  await runAsyncTest('Jornada 30: Teléfono registrado pero PENDIENTE o SUSPENDIDO -> Bloqueo y solicitud de aprobación', async () => {
+    const PEND_PHONE = `+57316${Date.now().toString().slice(-7)}`;
+    // Registramos usuario pero queda en PENDIENTE_APROBACION
+    await processIncomingWhatsAppMessage({
+      fromPhone: PEND_PHONE,
+      senderName: 'Dra. Andrea Morales',
+      messageText: 'Andrea Morales, andrea@hospital.org, Hospital Militar, Residente R1'
+    });
+
+    const checkRes = verifyDonorPhoneLocal(PEND_PHONE);
+    assert.strictEqual(checkRes.valid, false);
+    assert.strictEqual(checkRes.suspended, true);
+    assert.strictEqual(checkRes.error.includes('PENDIENTE_APROBACION'), true);
+    assert.strictEqual(checkRes.waLink.includes('https://wa.me/573205955993'), true);
+
+    const uploadRes = uploadBuzonFileLocal({
+      fileName: 'Tesis_Ortopedia.pdf',
+      donorPhone: PEND_PHONE,
+      trustDevice: false
+    });
+    assert.strictEqual(uploadRes.success, false);
+    assert.strictEqual(uploadRes.suspended, true);
+    assert.strictEqual(Boolean(uploadRes.waLink), true);
+  });
+
+  // JORNADA 31: Buzón Digital Seguro - Usuario Aprobado con [x] Recordar Dispositivo
+  await runAsyncTest('Jornada 31: Usuario registrado y aprobado deposita PDF con [x] Recordar Dispositivo -> Token emitido', async () => {
+    const APPR_PHONE = `+57318${Date.now().toString().slice(-7)}`;
+    // 1. Registro
+    await processIncomingWhatsAppMessage({
+      fromPhone: APPR_PHONE,
+      senderName: 'Dr. Fernando Restrepo',
+      messageText: 'Fernando Restrepo, fernando@clinica.com, Clínica Medellín, Especialista'
+    });
+    // 2. Aprobación por Gestor de Contenido
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${APPR_PHONE}`
+    });
+
+    // 3. Verificación de teléfono aprobado
+    const checkRes = verifyDonorPhoneLocal(APPR_PHONE);
+    assert.strictEqual(checkRes.valid, true);
+    assert.strictEqual(checkRes.user.nombre.includes('Fernando Restrepo'), true);
+    assert.strictEqual(Boolean(checkRes.trustToken), true);
+
+    // 4. Depósito de documento marcando "Recordar este dispositivo"
+    const uploadRes = uploadBuzonFileLocal({
+      fileName: 'Artroplastia_Total_Cadera.pdf',
+      donorPhone: APPR_PHONE,
+      trustDevice: true
+    });
+    assert.strictEqual(uploadRes.success, true);
+    assert.strictEqual(uploadRes.fileName, 'Artroplastia_Total_Cadera.pdf');
+    assert.strictEqual(uploadRes.donorRecord.includes('Fernando Restrepo'), true);
+    assert.strictEqual(uploadRes.donorRecord.includes(APPR_PHONE), true);
+    assert.strictEqual(uploadRes.donorRecord.includes('(Buzón Verificado WhatsApp)'), true);
+    assert.strictEqual(Boolean(uploadRes.trustToken), true);
+  });
+
+  // JORNADA 32: Conexión Futura - Dispositivo de Confianza Reconocido sin Pedir Teléfono
+  await runAsyncTest('Jornada 32: Dispositivo de confianza reanuda sesión con token -> Reconocimiento automático y depósito inmediato', async () => {
+    const TRUSTED_PHONE = `+57319${Date.now().toString().slice(-7)}`;
+    // Registro y aprobación previa
+    await processIncomingWhatsAppMessage({
+      fromPhone: TRUSTED_PHONE,
+      senderName: 'Dra. Valentina Gómez',
+      messageText: 'Valentina Gómez, valentina@univalle.edu.co, Hospital Universitario, Fellow'
+    });
+    await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `APROBAR ${TRUSTED_PHONE}`
+    });
+
+    // Emisión del token de confianza (1 año)
+    const token = signTrustTokenLocal(TRUSTED_PHONE);
+    assert.strictEqual(typeof token, 'string');
+    assert.strictEqual(token.includes('.'), true);
+
+    // Validación del token por el servidor en la próxima visita
+    const tokenCheck = validateTrustTokenLocal(token);
+    assert.strictEqual(tokenCheck.valid, true);
+    assert.strictEqual(tokenCheck.user.nombre.includes('Valentina Gómez'), true);
+    assert.strictEqual(tokenCheck.payload.type, 'TRUSTED_DEVICE');
+
+    // Carga de archivo desde dispositivo previamente verificado
+    const uploadRes = uploadBuzonFileLocal({
+      fileName: 'Guia_Manejo_Osteomielitis.pdf',
+      donorInfo: `${tokenCheck.user.nombre} | ${tokenCheck.user.hospital} (Verificado por WhatsApp)`
+    });
+    assert.strictEqual(uploadRes.success, true);
+    assert.strictEqual(uploadRes.donorRecord.includes('Valentina Gómez'), true);
+    assert.strictEqual(uploadRes.donorRecord.includes('(Verificado por WhatsApp)'), true);
+
+    // Prueba de seguridad: Token con firma adulterada es rechazado de inmediato
+    const tamperedToken = token.slice(0, -6) + 'XXXXXX';
+    const badTokenCheck = validateTrustTokenLocal(tamperedToken);
+    assert.strictEqual(badTokenCheck.valid, false);
+    assert.strictEqual(badTokenCheck.error.includes('Firma de autenticidad inválida'), true);
+  });
+
+  // JORNADA 33: Invitaciones Transaccionales Desacopladas (Resend Plug & Play 1-a-1)
+  await runAsyncTest('Jornada 33: Gestor envía INVITAR CORREO -> Modo Plug & Play y Despacho Atómico 1-a-1', async () => {
+    const TEST_EMAIL_1 = 'iran.tranii@gmail.com';
+    const TEST_EMAIL_2 = 'colega.trauma@hospital.org';
+
+    // 1. Caso A: Sin API Key de Resend (Modo Plug & Play)
+    delete process.env.RESEND_API_KEY;
+    delete global.MOCK_RESEND_KEY;
+
+    const plugPlayRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `INVITAR CORREO: ${TEST_EMAIL_1}, ${TEST_EMAIL_2}`
+    });
+
+    assert.strictEqual(plugPlayRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(plugPlayRes.plugAndPlayReady, true);
+    assert.strictEqual(plugPlayRes.detectedEmails.length, 2);
+    assert.strictEqual(plugPlayRes.detectedEmails.includes(TEST_EMAIL_1), true);
+    assert.strictEqual(plugPlayRes.detectedEmails.includes(TEST_EMAIL_2), true);
+    assert.strictEqual(plugPlayRes.replyText.includes('PLUG & PLAY'), true);
+    assert.strictEqual(plugPlayRes.replyText.includes('RESEND_API_KEY'), true);
+
+    // 2. Caso B: Con API Key de Resend configurada -> Despacho Atómico 1-a-1
+    global.MOCK_RESEND_KEY = 're_test_mock_123456789';
+
+    const dispatchRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: `INVITAR CORREO: ${TEST_EMAIL_1}, ${TEST_EMAIL_2}`
+    });
+
+    assert.strictEqual(dispatchRes.recipientPhone, ADMIN_PHONE);
+    assert.strictEqual(dispatchRes.replyText.includes('REPORTE DE INVITACIONES TRANSACCIONALES (1-a-1)'), true);
+    assert.strictEqual(dispatchRes.replyText.includes('Despachos Exitosos:* 2'), true);
+    assert.strictEqual(dispatchRes.dispatches.length, 2);
+
+    // Verificación de aislamiento estricto (1 a 1): Cada correo fue a un único destinatario
+    const dispatch1 = dispatchRes.dispatches[0];
+    const dispatch2 = dispatchRes.dispatches[1];
+
+    assert.strictEqual(dispatch1.email, TEST_EMAIL_1);
+    assert.strictEqual(dispatch1.payload.to.length, 1);
+    assert.strictEqual(dispatch1.payload.to[0], TEST_EMAIL_1);
+    assert.strictEqual(dispatch1.payload.html.includes(TEST_EMAIL_1), true);
+    // CERO fuga: El primer correo NO contiene la dirección del segundo
+    assert.strictEqual(dispatch1.payload.html.includes(TEST_EMAIL_2), false);
+
+    assert.strictEqual(dispatch2.email, TEST_EMAIL_2);
+    assert.strictEqual(dispatch2.payload.to.length, 1);
+    assert.strictEqual(dispatch2.payload.to[0], TEST_EMAIL_2);
+    assert.strictEqual(dispatch2.payload.html.includes(TEST_EMAIL_2), true);
+    // CERO fuga: El segundo correo NO contiene la dirección del primero
+    assert.strictEqual(dispatch2.payload.html.includes(TEST_EMAIL_1), false);
+
+    // Verificación de contenido institucional (WhatsApp + Cloudflare + Portafolio)
+    assert.strictEqual(dispatch1.payload.html.includes('https://wa.me/573205955993'), true);
+    assert.strictEqual(dispatch1.payload.html.includes('https://biblioteca-medica.ortopedia.workers.dev/'), true);
+    assert.strictEqual(dispatch1.payload.html.includes('Portafolio Clínico Ampliado'), true);
+    assert.strictEqual(dispatch1.payload.html.includes('Directrices de Uso y Convivencia'), true);
+
+    // 3. Caso C: Usuario común intenta usar INVITAR CORREO -> No tiene privilegios de envío
+    const unauthorizedRes = await processIncomingWhatsAppMessage({
+      fromPhone: '+573151112233',
+      senderName: 'Dr. Usuario Regular',
+      messageText: `INVITAR CORREO: sospechoso@externo.com`
+    });
+    assert.strictEqual(Boolean(unauthorizedRes.dispatches), false);
+    assert.strictEqual(unauthorizedRes.recipientPhone, '+573151112233');
+
+    delete global.MOCK_RESEND_KEY;
   });
 
   console.log('\n================================================================');

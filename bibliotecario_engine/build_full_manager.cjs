@@ -31,20 +31,27 @@ const BUZON_I18N = {
     "level_label": "Nivel de Formación:",
     "lock_note": "🔒 Identificación clínica asociada automáticamente a su número de WhatsApp autorizado. Registro confidencial exclusivo de la Dirección.",
     "unverified_badge": "⚠️ DISPOSITIVO EXTERNO / NO IDENTIFICADO",
-    "unverified_desc": "No se detectó una sesión autorizada de WhatsApp en este dispositivo. Para resguardar la trazabilidad médica institucional del acervo, los siguientes datos son de <strong>CARÁCTER ESTRICTAMENTE OBLIGATORIO</strong>:",
+    "unverified_desc": "No se detectó una sesión autorizada de WhatsApp en este dispositivo. Para resguardar la trazabilidad médica institucional del acervo, ingrese su número de WhatsApp registrado con código de país:",
+    "donor_phone_lbl": "Número de WhatsApp con código de país:",
+    "donor_phone_ph": "Ej: +573001234567",
+    "trust_device_lbl": "Recordar este dispositivo como de confianza (Dispositivo personal)",
     "donor_name_lbl": "Nombre Completo del Aportante:",
     "donor_name_ph": "Ej: Dr(a). Nombre y Apellido",
     "donor_hosp_lbl": "Hospital / Institución / Universidad:",
     "donor_hosp_ph": "Ej: Hospital Universitario Fundación Santa Fe",
     "req_tag": "* OBLIGATORIO",
-    "donor_note": "🔒 Registro estrictamente privado para control interno de la Dirección. Nunca se publicará externamente.",
+    "donor_note": "🔒 Validación automática contra el Directorio Médico. Registro estrictamente confidencial para control de la Dirección.",
     "opt_chunk": "Habilitar optimización clínica y fragmentación por bloques (Chunked Upload)",
     "btn_upload": "📤 Depositar en el Buzón Digital",
-    "btn_uploading": "⏳ Procesando y subiendo archivo...",
+    "btn_uploading": "⏳ Validando y procesando archivo...",
     "footer_note": "Biblioteca Médica Especializada de Cirugía Ortopédica y Traumatología<br>Dirección Institucional • Recepción Confidencial y Segura",
     "err_pdf_only": "⚠️ Solo se admiten documentos en formato PDF.",
+    "err_req_phone": "⚠️ <b>Número Requerido:</b> Ingrese su número de WhatsApp con código de país (ej: +573001234567).",
     "err_req_name": "⚠️ <b>Dato Obligatorio Faltante:</b> Ingrese su Nombre Completo antes de subir el documento.",
     "err_req_hosp": "⚠️ <b>Dato Obligatorio Faltante:</b> Ingrese su Institución u Hospital antes de subir el documento.",
+    "unauth_title": "⚠️ Acceso No Autorizado al Buzón Digital",
+    "unauth_desc": "El número ingresado no se encuentra registrado o aprobado en el Directorio Médico Institucional. Para realizar aportes al acervo, debe solicitar autorización previa en el chat oficial:",
+    "btn_request_wa": "📲 Solicitar Aprobación en WhatsApp",
     "success_msg": "✅ <b>¡Documento Depositado con Éxito!</b><br>ID de Registro: <code>{ID}</code><br>El documento ha sido resguardado en el acervo institucional bajo estricta confidencialidad.",
     "success_chunk": "✅ <b>¡Documento de Gran Volumen Depositado con Éxito!</b><br>Todos los bloques fueron ensamblados y catalogados con éxito bajo estricta confidencialidad."
   },
@@ -64,20 +71,27 @@ const BUZON_I18N = {
     "level_label": "Training Level:",
     "lock_note": "🔒 Clinical identity automatically linked to your authorized WhatsApp number. Strictly confidential internal record.",
     "unverified_badge": "⚠️ EXTERNAL / UNIDENTIFIED DEVICE",
-    "unverified_desc": "An authorized WhatsApp session was not detected on this device. To preserve the institutional medical traceability of the repository, the following details are <strong>STRICTLY MANDATORY</strong>:",
+    "unverified_desc": "An authorized WhatsApp session was not detected on this device. To preserve institutional traceability, please enter your registered WhatsApp number with country code:",
+    "donor_phone_lbl": "WhatsApp Number with country code:",
+    "donor_phone_ph": "e.g., +12025550199 or +573001234567",
+    "trust_device_lbl": "Remember this device as trusted (Personal device)",
     "donor_name_lbl": "Contributor Full Name:",
     "donor_name_ph": "e.g., Dr. Full Name",
     "donor_hosp_lbl": "Hospital / Institution / University:",
     "donor_hosp_ph": "e.g., University Hospital Orthopedics Dept.",
     "req_tag": "* MANDATORY",
-    "donor_note": "🔒 Strictly private internal record for Leadership oversight. Will never be published externally.",
+    "donor_note": "🔒 Automatic validation against the Medical Directory. Strictly private internal record.",
     "opt_chunk": "Enable clinical optimization and block chunking (Chunked Upload)",
     "btn_upload": "📤 Deposit in Digital Mailbox",
-    "btn_uploading": "⏳ Processing and uploading file...",
+    "btn_uploading": "⏳ Validating and processing file...",
     "footer_note": "Specialized Medical Library of Orthopedic Surgery and Traumatology<br>Institutional Leadership • Confidential & Secure Reception",
     "err_pdf_only": "⚠️ Only PDF documents are accepted.",
+    "err_req_phone": "⚠️ <b>Phone Required:</b> Please enter your WhatsApp number with country code (e.g., +573001234567).",
     "err_req_name": "⚠️ <b>Mandatory Field Missing:</b> Please enter your Full Name before uploading.",
     "err_req_hosp": "⚠️ <b>Mandatory Field Missing:</b> Please enter your Institution or Hospital before uploading.",
+    "unauth_title": "⚠️ Unauthorized Access to Digital Mailbox",
+    "unauth_desc": "The entered number is not registered or approved in the Institutional Directory. To contribute literature, please request prior authorization in the official chat:",
+    "btn_request_wa": "📲 Request Approval on WhatsApp",
     "success_msg": "✅ <b>Document Deposited Successfully!</b><br>Registry ID: <code>{ID}</code><br>The document has been archived in the institutional repository under strict confidentiality.",
     "success_chunk": "✅ <b>Large Volume Document Deposited Successfully!</b><br>All chunks were assembled and cataloged with strict confidentiality."
   },
@@ -97,20 +111,27 @@ const BUZON_I18N = {
     "level_label": "Nível de Formação:",
     "lock_note": "🔒 Identificação clínica associada automaticamente ao seu WhatsApp autorizado. Registro estritamente confidencial.",
     "unverified_badge": "⚠️ DISPOSITIVO EXTERNO / NÃO IDENTIFICADO",
-    "unverified_desc": "Nenhuma sessão autorizada do WhatsApp foi detectada neste dispositivo. Para resguardar a rastreabilidade médica institucional do acervo, os seguintes dados são de <strong>CARÁTER ESTRITAMENTE OBRIGATÓRIO</strong>:",
+    "unverified_desc": "Nenhuma sessão autorizada do WhatsApp foi detectada neste dispositivo. Para resguardar a rastreabilidade institucional, insira seu número de WhatsApp registrado com código do país:",
+    "donor_phone_lbl": "Número do WhatsApp com código do país:",
+    "donor_phone_ph": "Ex: +5511999998888 ou +573001234567",
+    "trust_device_lbl": "Lembrar deste dispositivo como confiável (Dispositivo pessoal)",
     "donor_name_lbl": "Nome Completo do Contribuidor:",
     "donor_name_ph": "Ex: Dr(a). Nome e Sobrenome",
     "donor_hosp_lbl": "Hospital / Instituição / Universidade:",
     "donor_hosp_ph": "Ex: Hospital Universitário de Ortopedia",
     "req_tag": "* OBRIGATÓRIO",
-    "donor_note": "🔒 Registro estritamente privado para controle interno da Direção. Nunca será exposto externamente.",
+    "donor_note": "🔒 Validação automática com o Diretório Médico. Registro estritamente confidencial.",
     "opt_chunk": "Habilitar otimização clínica e fragmentação por blocos (Chunked Upload)",
     "btn_upload": "📤 Depositar na Caixa Digital",
-    "btn_uploading": "⏳ Processando e enviando arquivo...",
+    "btn_uploading": "⏳ Validando e processando arquivo...",
     "footer_note": "Biblioteca Médica Especializada de Cirurgia Ortopédica e Traumatologia<br>Direção Institucional • Recepção Confidencial e Segura",
     "err_pdf_only": "⚠️ Apenas documentos em formato PDF são permitidos.",
+    "err_req_phone": "⚠️ <b>Número Obrigatório:</b> Digite seu número do WhatsApp com código do país (ex: +573001234567).",
     "err_req_name": "⚠️ <b>Dado Obrigatório Ausente:</b> Informe seu Nome Completo antes de enviar o documento.",
     "err_req_hosp": "⚠️ <b>Dado Obrigatório Ausente:</b> Informe sua Instituição ou Hospital antes de enviar o documento.",
+    "unauth_title": "⚠️ Acesso Não Autorizado à Caixa Digital",
+    "unauth_desc": "O número informado não está registrado ou aprovado no Diretório Institucional. Para contribuir com o acervo, solicite autorização prévia no chat oficial:",
+    "btn_request_wa": "📲 Solicitar Aprovação no WhatsApp",
     "success_msg": "✅ <b>Documento Depositado com Sucesso!</b><br>ID de Registro: <code>{ID}</code><br>O documento foi resguardado no acervo institucional com estrita confidencialidade.",
     "success_chunk": "✅ <b>Documento de Grande Volume Depositado com Sucesso!</b><br>Todos os blocos foram montados e catalogados sob estrita confidencialidade."
   },
@@ -130,20 +151,27 @@ const BUZON_I18N = {
     "level_label": "Niveau de Formation :",
     "lock_note": "🔒 Identité clinique automatiquement associée à votre numéro WhatsApp autorisé. Registre strictement confidentiel.",
     "unverified_badge": "⚠️ APPAREIL EXTERNE / NON IDENTIFIÉ",
-    "unverified_desc": "Aucune session WhatsApp autorisée n'a été détectée sur cet appareil. Pour préserver la traçabilité médicale institutionnelle, les données suivantes sont de <strong>CARACTÈRE STRICTEMENT OBLIGATOIRE</strong> :",
+    "unverified_desc": "Aucune session WhatsApp autorisée n'a été détectée sur cet appareil. Pour préserver la traçabilité institutionnelle, saisissez votre numéro WhatsApp enregistré avec indicatif du pays :",
+    "donor_phone_lbl": "Numéro WhatsApp avec indicatif du pays :",
+    "donor_phone_ph": "Ex : +33612345678 ou +573001234567",
+    "trust_device_lbl": "Mémoriser cet appareil comme fiable (Appareil personnel)",
     "donor_name_lbl": "Nom Complet du Contributeur :",
     "donor_name_ph": "Ex : Dr(e) Prénom et Nom",
     "donor_hosp_lbl": "Hôpital / Institution / Université :",
     "donor_hosp_ph": "Ex : Hôpital Universitaire d'Orthopédie",
     "req_tag": "* OBLIGATOIRE",
-    "donor_note": "🔒 Registre strictement privé sous contrôle interne de la Direction. Ne sera jamais diffusé publiquement.",
+    "donor_note": "🔒 Validation automatique auprès du Répertoire Médical. Registre strictement confidentiel.",
     "opt_chunk": "Activer l'optimisation clinique et le fractionnement par blocs (Chunked Upload)",
     "btn_upload": "📤 Déposer dans la Boîte Numérique",
-    "btn_uploading": "⏳ Traitement et envoi du fichier...",
+    "btn_uploading": "⏳ Validation et envoi du fichier...",
     "footer_note": "Bibliothèque Médicale Spécialisée de Chirurgie Orthopédique et Traumatologie<br>Direction Institutionnelle • Réception Confidentielle et Sécurisée",
     "err_pdf_only": "⚠️ Seuls les documents au format PDF sont acceptés.",
+    "err_req_phone": "⚠️ <b>Numéro Requis :</b> Veuillez saisir votre numéro WhatsApp avec indicatif du pays (ex : +573001234567).",
     "err_req_name": "⚠️ <b>Champ Obligatoire Manquant :</b> Veuillez saisir votre Nom Complet avant d'envoyer.",
     "err_req_hosp": "⚠️ <b>Champ Obligatoire Manquant :</b> Veuillez saisir votre Institution ou Hôpital avant d'envoyer.",
+    "unauth_title": "⚠️ Accès Non Autorisé à la Boîte Numérique",
+    "unauth_desc": "Le numéro saisi n'est pas enregistré ou approuvé dans le Répertoire Institutionnel. Pour contribuer au fonds, demandez une autorisation préalable dans le chat officiel :",
+    "btn_request_wa": "📲 Demander l'Approbation sur WhatsApp",
     "success_msg": "✅ <b>Document Déposé avec Succès !</b><br>ID d'Enregistrement : <code>{ID}</code><br>Le document a été archivé dans le fonds institutionnel en toute confidentialité.",
     "success_chunk": "✅ <b>Document Volumineux Déposé avec Succès !</b><br>Tous les blocs ont été assemblés et catalogués avec une stricte confidentialité."
   },
@@ -163,20 +191,27 @@ const BUZON_I18N = {
     "level_label": "Livello di Formazione:",
     "lock_note": "🔒 Identificazione clinica collegata automaticamente al tuo WhatsApp autorizzato. Registro strettamente confidenziale.",
     "unverified_badge": "⚠️ DISPOSITIVO ESTERNO / NON IDENTIFICATO",
-    "unverified_desc": "Nessuna sessione autorizzata di WhatsApp è stata rilevata su questo dispositivo. Per tutelare la tracciabilità medica istituzionale, i seguenti dati sono di <strong>CARATTERE STRETTAMENTE OBBLIGATORIO</strong>:",
+    "unverified_desc": "Nessuna sessione autorizzata di WhatsApp è stata rilevata su questo dispositivo. Per tutelare la tracciabilità istituzionale, inserisci il tuo numero WhatsApp registrato con prefisso internazionale:",
+    "donor_phone_lbl": "Numero WhatsApp con prefisso internazionale:",
+    "donor_phone_ph": "Es: +393401234567 o +573001234567",
+    "trust_device_lbl": "Ricorda questo dispositivo come attendibile (Dispositivo personale)",
     "donor_name_lbl": "Nome Completo del Contributore:",
     "donor_name_ph": "Es: Dott./Dott.ssa Nome e Cognome",
     "donor_hosp_lbl": "Ospedale / Istituzione / Università:",
     "donor_hosp_ph": "Es: Ospedale Universitario di Ortopedia",
     "req_tag": "* OBBLIGATORIO",
-    "donor_note": "🔒 Registro strettamente privato per il controllo interno della Direzione. Non sarà mai reso pubblico.",
+    "donor_note": "🔒 Convalida automatica con il Direttorio Medico. Registro strettamente riservato.",
     "opt_chunk": "Abilita ottimizzazione clinica e suddivisione in blocchi (Chunked Upload)",
     "btn_upload": "📤 Deposita nella Casella Digitale",
-    "btn_uploading": "⏳ Elaborazione e caricamento del file...",
+    "btn_uploading": "⏳ Convalida e caricamento del file...",
     "footer_note": "Biblioteca Medica Specializzata di Chirurgia Ortopedica e Traumatologia<br>Direzione Istituzionale • Ricezione Riservata e Sicura",
     "err_pdf_only": "⚠️ Si accettano esclusivamente documenti in formato PDF.",
+    "err_req_phone": "⚠️ <b>Numero Obbligatorio:</b> Inserisci il tuo numero WhatsApp con prefisso internazionale (es: +573001234567).",
     "err_req_name": "⚠️ <b>Dato Obbligatorio Mancante:</b> Inserisci il tuo Nome Completo prima di inviare.",
     "err_req_hosp": "⚠️ <b>Dato Obbligatorio Mancante:</b> Inserisci la tua Istituzione o Ospedale prima di inviare.",
+    "unauth_title": "⚠️ Accesso Non Autorizzato alla Casella Digitale",
+    "unauth_desc": "Il numero inserito non risulta registrato o approvato nel Direttorio Istituzionale. Per contribuire alla raccolta, richiedi l'autorizzazione nella chat ufficiale:",
+    "btn_request_wa": "📲 Richiedi Approvazione su WhatsApp",
     "success_msg": "✅ <b>Documento Depositato con Successo!</b><br>ID Registrazione: <code>{ID}</code><br>Il documento è stato archiviato nel catalogo istituzionale sotto stretta riservatezza.",
     "success_chunk": "✅ <b>Documento di Grandi Dimensioni Depositato con Successo!</b><br>Tutti i blocchi sono stati assemblati e catalogati con assoluta riservatezza."
   }
@@ -236,7 +271,11 @@ const CONFIG = {
   META_ACCESS_TOKEN: 'EAAT88VhyjgIBSpNapO95mWFSWSn8YIPVayqtwyq8wrWveguPb38q0sM6ZCZCeHEhQdEsUKJVt8C5W4AhgYmJwRRB7rxoyAhK3K3ZBaIfTqURwCF9NJBdBZCv3RAdxrvTM4ZCJTbj8RoCpjrmsW5TExQZC82Kms6RnyQnNAEBfUmSI5nLwcD7pz2NQwGfAxZAwZDZD',
   DRIVE_SHARED_MAILBOX_ID: '1UDQtuZqOiiGYnphbN5xaOxaLZvGNvLI1', // Carpeta Buzón Compartido en Drive
   PUBMED_API_BASE: 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/',
-  SEMANTIC_SCHOLAR_API_BASE: 'https://api.semanticscholar.org/graph/v1/'
+  SEMANTIC_SCHOLAR_API_BASE: 'https://api.semanticscholar.org/graph/v1/',
+  RESEND_API_KEY: '', // Configurar en Propiedades del Proyecto de Google Apps Script (RESEND_API_KEY)
+  RESEND_FROM_EMAIL: 'Biblioteca Médica de Ortopedia <direccionortopedia@gmail.com>',
+  SATELLITE_EMAIL_URL: 'https://script.google.com/macros/s/AKfycbwtuvMpXH4PxFNLSAirVBTA0B3SnZtK7gW_5mvpax20XuNtvXZJiBxRCZ1gthwYFIiR-w/exec',
+  SATELLITE_EMAIL_SECRET: 'BMO_SATELITE_SEC_2026_993f8e71a4c'
 };
 
 // Respaldo Base64 del Manual Oficial en PDF de Alta Resolución
@@ -315,6 +354,10 @@ function inicializarPropiedadesSeguras() {
   if (CONFIG.PHONE_NUMBER_ID) updates.PHONE_NUMBER_ID = CONFIG.PHONE_NUMBER_ID;
   if (CONFIG.ADMIN_PHONE) updates.ADMIN_PHONE = CONFIG.ADMIN_PHONE;
   if (CONFIG.PUBLIC_PORTAL_URL) updates.PUBLIC_PORTAL_URL = CONFIG.PUBLIC_PORTAL_URL;
+  if (CONFIG.RESEND_API_KEY) updates.RESEND_API_KEY = CONFIG.RESEND_API_KEY;
+  if (CONFIG.RESEND_FROM_EMAIL) updates.RESEND_FROM_EMAIL = CONFIG.RESEND_FROM_EMAIL;
+  if (CONFIG.SATELLITE_EMAIL_URL) updates.SATELLITE_EMAIL_URL = CONFIG.SATELLITE_EMAIL_URL;
+  if (CONFIG.SATELLITE_EMAIL_SECRET) updates.SATELLITE_EMAIL_SECRET = CONFIG.SATELLITE_EMAIL_SECRET;
 
   if (Object.keys(updates).length > 0) {
     props.setProperties(updates);
@@ -2373,14 +2416,17 @@ function serveBuzonDropzone(token, initialLang) {
             const data = sheetUsr.getDataRange().getValues();
             const cleanTarget = userPhone.replace(/[^\\d]/g, '');
             for (let r = 1; r < data.length; r++) {
-              const rowPhone = String(data[r][0] || '').replace(/[^\\d]/g, '');
-              if (rowPhone && (rowPhone === cleanTarget || rowPhone.endsWith(cleanTarget) || cleanTarget.endsWith(rowPhone))) {
-                identifiedUser = {
-                  nombre: String(data[r][1] || '').trim(),
-                  hospital: String(data[r][2] || '').trim(),
-                  nivel: String(data[r][3] || '').trim(),
-                  telefono: String(data[r][0] || '').trim()
-                };
+              const rowPhone = String(data[r][0] || '').replace(/[^\d]/g, '');
+              if (rowPhone && (rowPhone === cleanTarget || (rowPhone.length >= 8 && cleanTarget.length >= 8 && (rowPhone.endsWith(cleanTarget) || cleanTarget.endsWith(rowPhone))))) {
+                const status = String(data[r][4] || '').trim().toUpperCase();
+                if (status === 'ACTIVO' || status === 'APROBADO') {
+                  identifiedUser = {
+                    nombre: String(data[r][1] || '').trim(),
+                    hospital: String(data[r][2] || '').trim(),
+                    nivel: String(data[r][3] || '').trim(),
+                    telefono: String(data[r][0] || '').trim()
+                  };
+                }
                 break;
               }
             }
@@ -2407,6 +2453,7 @@ function serveBuzonDropzone(token, initialLang) {
       '  <div class="donor-lock-note" data-i18n="lock_note">' + dict.lock_note + '</div>' +
       '  <input type="hidden" id="donorName" value="' + sanitizeSheetValue(identifiedUser.nombre) + '">' +
       '  <input type="hidden" id="donorHospital" value="' + sanitizeSheetValue(identifiedUser.hospital) + '">' +
+      '  <input type="hidden" id="donorPhone" value="' + sanitizeSheetValue(identifiedUser.telefono) + '">' +
       '  <input type="hidden" id="isIdentified" value="true">' +
       '</div>';
   } else {
@@ -2415,19 +2462,16 @@ function serveBuzonDropzone(token, initialLang) {
       '  <div class="donor-badge-unverified" data-i18n="unverified_badge">' + dict.unverified_badge + '</div>' +
       '  <p class="donor-unverified-desc" data-i18n="unverified_desc">' + dict.unverified_desc + '</p>' +
       '  <div class="field-row">' +
-      '    <label class="donor-label" for="donorName">' +
-      '      <span id="lblDonorName" data-i18n="donor_name_lbl">' + dict.donor_name_lbl + '</span> ' +
+      '    <label class="donor-label" for="donorPhone">' +
+      '      <span id="lblDonorPhone" data-i18n="donor_phone_lbl">' + dict.donor_phone_lbl + '</span> ' +
       '      <span class="req-star" data-i18n="req_tag">' + dict.req_tag + '</span>' +
       '    </label>' +
-      '    <input type="text" id="donorName" class="donor-input" placeholder="' + sanitizeSheetValue(dict.donor_name_ph) + '">' +
+      '    <input type="tel" id="donorPhone" class="donor-input" placeholder="' + sanitizeSheetValue(dict.donor_phone_ph) + '" autocomplete="tel">' +
       '  </div>' +
-      '  <div class="field-row" style="margin-top:10px;">' +
-      '    <label class="donor-label" for="donorHospital">' +
-      '      <span id="lblDonorHosp" data-i18n="donor_hosp_lbl">' + dict.donor_hosp_lbl + '</span> ' +
-      '      <span class="req-star" data-i18n="req_tag">' + dict.req_tag + '</span>' +
-      '    </label>' +
-      '    <input type="text" id="donorHospital" class="donor-input" placeholder="' + sanitizeSheetValue(dict.donor_hosp_ph) + '">' +
-      '  </div>' +
+      '  <label class="opt-label" style="margin-top:10px;">' +
+      '    <input type="checkbox" id="chkTrustDevice" checked>' +
+      '    <span data-i18n="trust_device_lbl">' + sanitizeSheetValue(dict.trust_device_lbl) + '</span>' +
+      '  </label>' +
       '  <span class="donor-note" data-i18n="donor_note">' + dict.donor_note + '</span>' +
       '  <input type="hidden" id="isIdentified" value="false">' +
       '</div>';
@@ -2596,13 +2640,9 @@ function serveBuzonDropzone(token, initialLang) {
     '        el.innerHTML = BUZON_I18N[lang][key];' +
     '      }' +
     '    });' +
-    '    const nameInput = document.getElementById("donorName");' +
-    '    if (nameInput && nameInput.type === "text" && BUZON_I18N[lang].donor_name_ph) {' +
-    '      nameInput.placeholder = BUZON_I18N[lang].donor_name_ph;' +
-    '    }' +
-    '    const hospInput = document.getElementById("donorHospital");' +
-    '    if (hospInput && hospInput.type === "text" && BUZON_I18N[lang].donor_hosp_ph) {' +
-    '      hospInput.placeholder = BUZON_I18N[lang].donor_hosp_ph;' +
+    '    const phoneInput = document.getElementById("donorPhone");' +
+    '    if (phoneInput && phoneInput.type !== "hidden" && BUZON_I18N[lang] && BUZON_I18N[lang].donor_phone_ph) {' +
+    '      phoneInput.placeholder = BUZON_I18N[lang].donor_phone_ph;' +
     '    }' +
     '    if (btnBackLink) {' +
     '      const token = CURRENT_TOKEN || "";' +
@@ -2617,6 +2657,20 @@ function serveBuzonDropzone(token, initialLang) {
     '    } catch(e) {}' +
     '  }' +
     '  window.addEventListener("DOMContentLoaded", function() {' +
+    '    const isIdEl = document.getElementById("isIdentified");' +
+    '    const isId = isIdEl && isIdEl.value === "true";' +
+    '    const savedTrustToken = localStorage.getItem("BIBLIO_TRUST_TOKEN");' +
+    '    if (!CURRENT_TOKEN && savedTrustToken) {' +
+    '      try {' +
+    '        const u = new URL(window.location.href);' +
+    '        u.searchParams.set("token", savedTrustToken);' +
+    '        window.location.replace(u.toString());' +
+    '        return;' +
+    '      } catch(e) {}' +
+    '    }' +
+    '    if (CURRENT_TOKEN && !isId) {' +
+    '      try { localStorage.removeItem("BIBLIO_TRUST_TOKEN"); } catch(e) {}' +
+    '    }' +
     '    let resolved = currentLang;' +
     '    try {' +
     '      const urlParams = new URLSearchParams(window.location.search);' +
@@ -2665,17 +2719,42 @@ function serveBuzonDropzone(token, initialLang) {
     '    const activeDict = BUZON_I18N[currentLang] || BUZON_I18N.ES;' +
     '    updateProgress(100, "OK");' +
     '    if (res && res.success) {' +
+    '      if (res.trustToken) {' +
+    '        try { localStorage.setItem("BIBLIO_TRUST_TOKEN", res.trustToken); } catch(e) {}' +
+    '      }' +
     '      showStatus("success", activeDict.success_msg.replace("{ID}", res.indexingId || "MED-2026"));' +
     '      clearFile();' +
+    '    } else if (res && (res.notRegistered || res.waLink || res.suspended)) {' +
+    '      const waUrl = res.waLink || "https://wa.me/573205955993";' +
+    '      const errMsg = res.error || activeDict.unauth_desc;' +
+    '      showStatus("error",' +
+        '"<div style=\\"font-weight:700; margin-bottom:6px; font-size:10pt;\\">" + (activeDict.unauth_title || "⚠️ Acceso No Autorizado") + "</div>" +' +
+        '"<div style=\\"margin-bottom:12px; font-size:8.5pt; line-height:1.45;\\">" + errMsg + "</div>" +' +
+        '"<a href=\\"" + waUrl + "\\" target=\\"_blank\\" style=\\"display:inline-flex; align-items:center; gap:6px; background:#10b981; color:#ffffff; font-weight:700; font-size:9pt; padding:9px 18px; border-radius:8px; text-decoration:none; box-shadow:0 4px 14px rgba(16,185,129,0.35);\\">" +' +
+        '  (activeDict.btn_request_wa || "📲 Solicitar Aprobación en WhatsApp") +' +
+        '"</a>"' +
+      ');' +
     '    } else {' +
-    '      showStatus("error", "⚠️ " + (res.error || "Error al procesar."));' +
+    '      showStatus("error", "⚠️ " + ((res && res.error) || "Error al procesar."));' +
     '    }' +
     '    btnUpload.disabled = false;' +
     '    btnUpload.innerText = activeDict.btn_upload;' +
     '  }' +
     '  function handleUploadFailure(err) {' +
     '    const activeDict = BUZON_I18N[currentLang] || BUZON_I18N.ES;' +
-    '    showStatus("error", "⚠️ Error: " + err.message);' +
+    '    if (err && (err.notRegistered || err.waLink || err.suspended)) {' +
+    '      const waUrl = err.waLink || "https://wa.me/573205955993";' +
+    '      const errMsg = err.error || err.message || activeDict.unauth_desc;' +
+    '      showStatus("error",' +
+        '"<div style=\\"font-weight:700; margin-bottom:6px; font-size:10pt;\\">" + (activeDict.unauth_title || "⚠️ Acceso No Autorizado") + "</div>" +' +
+        '"<div style=\\"margin-bottom:12px; font-size:8.5pt; line-height:1.45;\\">" + errMsg + "</div>" +' +
+        '"<a href=\\"" + waUrl + "\\" target=\\"_blank\\" style=\\"display:inline-flex; align-items:center; gap:6px; background:#10b981; color:#ffffff; font-weight:700; font-size:9pt; padding:9px 18px; border-radius:8px; text-decoration:none; box-shadow:0 4px 14px rgba(16,185,129,0.35);\\">" +' +
+        '  (activeDict.btn_request_wa || "📲 Solicitar Aprobación en WhatsApp") +' +
+        '"</a>"' +
+      ');' +
+    '    } else {' +
+    '      showStatus("error", "⚠️ Error: " + ((err && err.message) || err));' +
+    '    }' +
     '    btnUpload.disabled = false;' +
     '    btnUpload.innerText = activeDict.btn_upload;' +
     '  }' +
@@ -2685,30 +2764,28 @@ function serveBuzonDropzone(token, initialLang) {
     '    statusBox.style.display = "none";' +
     '    const isId = document.getElementById("isIdentified").value === "true";' +
     '    let donorRecord = "";' +
+    '    let donorPhone = "";' +
+    '    let trustDevice = false;' +
     '    if (isId) {' +
     '      const nameVal = (document.getElementById("donorName").value || "").trim();' +
     '      const hospVal = (document.getElementById("donorHospital").value || "").trim();' +
+    '      donorPhone = (document.getElementById("donorPhone").value || "").trim();' +
     '      donorRecord = nameVal + " | " + hospVal + " (Verificado por WhatsApp)";' +
     '    } else {' +
-    '      const nameEl = document.getElementById("donorName");' +
-    '      const hospEl = document.getElementById("donorHospital");' +
-    '      const nameVal = (nameEl.value || "").trim();' +
-    '      const hospVal = (hospEl.value || "").trim();' +
-    '      nameEl.classList.remove("input-error");' +
-    '      hospEl.classList.remove("input-error");' +
-    '      if (!nameVal || nameVal.length < 3) {' +
-    '        showStatus("error", activeDict.err_req_name);' +
-    '        nameEl.classList.add("input-error");' +
-    '        nameEl.focus();' +
+    '      const phoneEl = document.getElementById("donorPhone");' +
+    '      const phoneVal = (phoneEl.value || "").trim();' +
+    '      const cleanP = phoneVal.replace(/[^\\d]/g, "");' +
+    '      phoneEl.classList.remove("input-error");' +
+    '      if (!phoneVal || cleanP.length < 8) {' +
+    '        showStatus("error", activeDict.err_req_phone);' +
+    '        phoneEl.classList.add("input-error");' +
+    '        phoneEl.focus();' +
     '        return;' +
     '      }' +
-    '      if (!hospVal || hospVal.length < 3) {' +
-    '        showStatus("error", activeDict.err_req_hosp);' +
-    '        hospEl.classList.add("input-error");' +
-    '        hospEl.focus();' +
-    '        return;' +
-    '      }' +
-    '      donorRecord = nameVal + " | " + hospVal + " (Aporte Externo No Vinculado)";' +
+    '      donorPhone = phoneVal;' +
+    '      const chkTrust = document.getElementById("chkTrustDevice");' +
+    '      trustDevice = chkTrust ? chkTrust.checked : false;' +
+    '      donorRecord = "Dispositivo No Vinculado (" + phoneVal + ")";' +
     '    }' +
     '    btnUpload.disabled = true;' +
     '    btnUpload.innerText = activeDict.btn_uploading;' +
@@ -2724,13 +2801,14 @@ function serveBuzonDropzone(token, initialLang) {
     '          const chunkB64 = await readBlobAsBase64(chunkBlob);' +
     '          const pct = Math.round(((i + 1) / totalChunks) * 100);' +
     '          updateProgress(pct, "Transmitiendo bloque " + (i + 1) + " / " + totalChunks + " (" + pct + "%)...");' +
-    '          await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donorRecord);' +
+    '          const chunkRes = await uploadChunkPromise(sessionId, i, totalChunks, chunkB64, selectedFile.name, selectedFile.type, donorRecord, donorPhone, trustDevice);' +
+    '          if (i === totalChunks - 1 && chunkRes) {' +
+    '            handleUploadSuccess(chunkRes);' +
+    '            return;' +
+    '          }' +
     '        }' +
-    '        updateProgress(100, "OK");' +
-    '        showStatus("success", activeDict.success_chunk);' +
-    '        clearFile();' +
     '      } catch (err) {' +
-    '        showStatus("error", "⚠️ Error en subida fraccionada: " + err.message);' +
+    '        handleUploadFailure(err);' +
     '      } finally {' +
     '        btnUpload.disabled = false;' +
     '        btnUpload.innerText = activeDict.btn_upload;' +
@@ -2740,12 +2818,12 @@ function serveBuzonDropzone(token, initialLang) {
     '      const reader = new FileReader();' +
     '      reader.onload = async function(e) {' +
     '        const base64Data = e.target.result.split(",")[1];' +
-    '        updateProgress(75, "Registrando en acervo...");' +
+    '        updateProgress(75, "Validando credenciales y registrando en acervo...");' +
     '        if (typeof google !== "undefined" && google.script && google.script.run) {' +
     '          google.script.run' +
     '            .withSuccessHandler(handleUploadSuccess)' +
     '            .withFailureHandler(handleUploadFailure)' +
-    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donorRecord);' +
+    '            .uploadBuzonFile(base64Data, selectedFile.name, selectedFile.type, donorRecord, donorPhone, trustDevice);' +
     '        } else {' +
     '          try {' +
     '            const resp = await fetch(window.location.href, {' +
@@ -2756,7 +2834,9 @@ function serveBuzonDropzone(token, initialLang) {
     '                base64Data: base64Data,' +
     '                fileName: selectedFile.name,' +
     '                mimeType: selectedFile.type,' +
-    '                donorInfo: donorRecord' +
+    '                donorInfo: donorRecord,' +
+    '                donorPhone: donorPhone,' +
+    '                trustDevice: trustDevice' +
     '              })' +
     '            });' +
     '            const res = await resp.json();' +
@@ -2777,13 +2857,13 @@ function serveBuzonDropzone(token, initialLang) {
     '      r.readAsDataURL(blob);' +
     '    });' +
     '  }' +
-    '  function uploadChunkPromise(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor) {' +
+    '  function uploadChunkPromise(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor, donorPhone, trustDevice) {' +
     '    return new Promise(async (resolve, reject) => {' +
     '      if (typeof google !== "undefined" && google.script && google.script.run) {' +
     '        google.script.run' +
-    '          .withSuccessHandler(res => { if (res && res.success) resolve(res); else reject(new Error(res.error || "Error")); })' +
+    '          .withSuccessHandler(res => { if (res && res.success) resolve(res); else reject(res || new Error((res && res.error) || "Error")); })' +
     '          .withFailureHandler(reject)' +
-    '          .uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor);' +
+    '          .uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donor, donorPhone, trustDevice);' +
     '      } else {' +
     '        try {' +
     '          const resp = await fetch(window.location.href, {' +
@@ -2797,12 +2877,14 @@ function serveBuzonDropzone(token, initialLang) {
     '              chunkB64: chunkB64,' +
     '              fileName: fileName,' +
     '              mimeType: mimeType,' +
-    '              donorInfo: donor' +
+    '              donorInfo: donor,' +
+    '              donorPhone: donorPhone,' +
+    '              trustDevice: trustDevice' +
     '            })' +
     '          });' +
     '          const res = await resp.json();' +
     '          if (res && res.success) resolve(res);' +
-    '          else reject(new Error(res.error || "Error en bloque"));' +
+    '          else reject(res || new Error("Error en bloque"));' +
     '        } catch (err) { reject(err); }' +
     '      }' +
     '    });' +
@@ -2815,8 +2897,126 @@ function serveBuzonDropzone(token, initialLang) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
+/**
+ * Valida un teléfono aportante contra Directorio_Usuarios (Col A) y su Estado_Acceso (Col E).
+ * Si es válido y activo/aprobado, genera un trustToken HMAC-SHA256 para recordar el dispositivo.
+ */
+function verifyDonorPhone(rawPhone) {
   try {
+    const cleanTarget = String(rawPhone || '').replace(/[^\\d]/g, '');
+    if (!cleanTarget || cleanTarget.length < 8) {
+      return {
+        valid: false,
+        error: 'El número telefónico debe incluir código de país (ej: +573001234567).'
+      };
+    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+    if (!sheetUsr) {
+      return { valid: false, error: 'Directorio de usuarios no disponible.' };
+    }
+    const data = sheetUsr.getDataRange().getValues();
+    let foundUser = null;
+    for (let r = 1; r < data.length; r++) {
+      const rowPhone = String(data[r][0] || '').replace(/[^\\d]/g, '');
+      if (rowPhone && (rowPhone === cleanTarget || (rowPhone.length >= 8 && cleanTarget.length >= 8 && (rowPhone.endsWith(cleanTarget) || cleanTarget.endsWith(rowPhone))))) {
+        const status = String(data[r][4] || '').trim().toUpperCase();
+        foundUser = {
+          telefono: String(data[r][0] || '').trim(),
+          nombre: String(data[r][1] || '').trim(),
+          hospital: String(data[r][2] || '').trim(),
+          nivel: String(data[r][3] || '').trim(),
+          estado: status
+        };
+        break;
+      }
+    }
+
+    if (!foundUser) {
+      const formattedPhone = String(rawPhone).startsWith('+') ? String(rawPhone) : ('+' + cleanTarget);
+      return {
+        valid: false,
+        notRegistered: true,
+        error: 'El número ' + formattedPhone + ' no se encuentra registrado en el Directorio Médico Institucional.',
+        waLink: 'https://wa.me/573205955993?text=' + encodeURIComponent('Hola, solicito registro y aprobación en la Biblioteca Médica para acceder al Buzón Digital. Mi número es ' + formattedPhone)
+      };
+    }
+
+    if (foundUser.estado !== 'ACTIVO' && foundUser.estado !== 'APROBADO') {
+      const formattedPhone = String(rawPhone).startsWith('+') ? String(rawPhone) : ('+' + cleanTarget);
+      return {
+        valid: false,
+        notRegistered: false,
+        suspended: true,
+        error: 'Su cuenta se encuentra en estado ' + foundUser.estado + '. Previamente debe ser aceptado en el chat antes de depositar documentos.',
+        waLink: 'https://wa.me/573205955993?text=' + encodeURIComponent('Hola, mi acceso al Buzón Digital se encuentra en estado ' + foundUser.estado + '. Solicito revisión y aprobación.')
+      };
+    }
+
+    // Usuario válido y autorizado: generación de Token de Confianza para el dispositivo
+    const salt = getSecureProperty('SECRET_SALT', CONFIG.SECRET_SALT);
+    const payloadObj = {
+      uPhone: foundUser.telefono,
+      exp: new Date().getTime() + (365 * 24 * 60 * 60 * 1000), // 1 año de validez en dispositivo de confianza
+      type: 'TRUSTED_DEVICE'
+    };
+    const payloadJson = JSON.stringify(payloadObj);
+    const rawPayload = Utilities.base64Encode(Utilities.newBlob(payloadJson).getBytes())
+      .replace(/\\+/g, '-')
+      .replace(/\\//g, '_')
+      .replace(/=+$/, '');
+    const sigRaw = Utilities.computeHmacSha256Signature(rawPayload, salt);
+    const sig = Utilities.base64Encode(sigRaw)
+      .replace(/\\+/g, '-')
+      .replace(/\\//g, '_')
+      .replace(/=+$/, '');
+    const trustToken = rawPayload + '.' + sig;
+
+    return {
+      valid: true,
+      user: foundUser,
+      trustToken: trustToken
+    };
+  } catch (err) {
+    return { valid: false, error: err.message };
+  }
+}
+
+function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo, donorPhone, trustDevice) {
+  try {
+    let donorRecord = donorInfo || '';
+    let trustTokenToReturn = null;
+    let isPreVerified = false;
+
+    if (donorRecord && donorRecord.indexOf('(Verificado por WhatsApp)') !== -1) {
+      isPreVerified = true;
+    }
+
+    if (!isPreVerified) {
+      if (!donorPhone) {
+        return {
+          success: false,
+          notRegistered: true,
+          error: 'Debe ingresar su número de WhatsApp con código de país.',
+          waLink: 'https://wa.me/573205955993?text=' + encodeURIComponent('Hola, solicito registro y aprobación en la Biblioteca Médica para acceder al Buzón Digital.')
+        };
+      }
+      const check = verifyDonorPhone(donorPhone);
+      if (!check.valid) {
+        return {
+          success: false,
+          notRegistered: check.notRegistered || false,
+          suspended: check.suspended || false,
+          error: check.error,
+          waLink: check.waLink
+        };
+      }
+      donorRecord = 'Dr(a). ' + check.user.nombre + ' | ' + check.user.hospital + ' (' + check.user.telefono + ') (Buzón Verificado WhatsApp)';
+      if (trustDevice) {
+        trustTokenToReturn = check.trustToken;
+      }
+    }
+
     const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
     const folder = DriveApp.getFolderById(folderId);
     const cleanName = (fileName || 'Aporte_Medico.pdf').replace(/[^\\w\\.\\-\\s]/gi, '_');
@@ -2824,7 +3024,6 @@ function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
     const blob = Utilities.newBlob(decodedBytes, mimeType || 'application/pdf', cleanName);
     const file = folder.createFile(blob);
     const cleanTitle = cleanName.replace(/\\.pdf$/i, '');
-    const donorRecord = donorInfo || 'Aporte Privado Anónimo Web';
     file.setDescription('Aporte Privado: ' + donorRecord);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -2859,6 +3058,7 @@ function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
       success: true,
       fileName: cleanName,
       indexingId: docId,
+      trustToken: trustTokenToReturn,
       message: 'Documento recibido y catalogado con éxito.'
     };
   } catch (err) {
@@ -2869,8 +3069,41 @@ function uploadBuzonFile(base64Data, fileName, mimeType, donorInfo) {
 /**
  * Recibe un bloque fraccionado (Chunk) para archivos de gran volumen (> 45 MB a 2 GB)
  */
-function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donorInfo) {
+function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName, mimeType, donorInfo, donorPhone, trustDevice) {
   try {
+    let donorRecord = donorInfo || '';
+    let trustTokenToReturn = null;
+    let isPreVerified = false;
+
+    if (donorRecord && donorRecord.indexOf('(Verificado por WhatsApp)') !== -1) {
+      isPreVerified = true;
+    }
+
+    if (!isPreVerified) {
+      if (!donorPhone) {
+        return {
+          success: false,
+          notRegistered: true,
+          error: 'Debe ingresar su número de WhatsApp con código de país.',
+          waLink: 'https://wa.me/573205955993?text=' + encodeURIComponent('Hola, solicito registro y aprobación en la Biblioteca Médica para acceder al Buzón Digital.')
+        };
+      }
+      const check = verifyDonorPhone(donorPhone);
+      if (!check.valid) {
+        return {
+          success: false,
+          notRegistered: check.notRegistered || false,
+          suspended: check.suspended || false,
+          error: check.error,
+          waLink: check.waLink
+        };
+      }
+      donorRecord = 'Dr(a). ' + check.user.nombre + ' | ' + check.user.hospital + ' (' + check.user.telefono + ') (Buzón Verificado Chunked)';
+      if (trustDevice) {
+        trustTokenToReturn = check.trustToken;
+      }
+    }
+
     const folderId = getSecureProperty('DRIVE_SHARED_MAILBOX_ID', CONFIG.DRIVE_SHARED_MAILBOX_ID);
     const mailboxFolder = DriveApp.getFolderById(folderId);
 
@@ -2908,7 +3141,6 @@ function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName
 
       const finalBlob = Utilities.newBlob(combinedBytes, mimeType || 'application/pdf', cleanName);
       const finalFile = mailboxFolder.createFile(finalBlob);
-      const donorRecord = donorInfo || 'Aporte Privado Anónimo Web (Fraccionado)';
       finalFile.setDescription('Aporte Privado: ' + donorRecord);
 
       const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -2943,6 +3175,7 @@ function uploadBuzonChunk(sessionId, chunkIndex, totalChunks, chunkB64, fileName
         success: true,
         fileName: cleanName,
         indexingId: docId,
+        trustToken: trustTokenToReturn,
         message: 'Archivo ensamblado y resguardado con éxito (' + totalChunks + ' bloques).'
       };
     }
@@ -3688,13 +3921,18 @@ function handleDoPostExecution(e) {
 
     // Soporte directo para depósito en el Buzón Digital Seguro
     if (body.action === 'upload_buzon') {
-      const buzonRes = uploadBuzonFile(body.base64Data, body.fileName, body.mimeType, body.donorInfo);
+      const buzonRes = uploadBuzonFile(body.base64Data, body.fileName, body.mimeType, body.donorInfo, body.donorPhone, body.trustDevice);
       return ContentService.createTextOutput(JSON.stringify(buzonRes)).setMimeType(ContentService.MimeType.JSON);
     }
 
     if (body.action === 'upload_chunk') {
-      const chunkRes = uploadBuzonChunk(body.sessionId, body.chunkIndex, body.totalChunks, body.chunkB64, body.fileName, body.mimeType, body.donorInfo);
+      const chunkRes = uploadBuzonChunk(body.sessionId, body.chunkIndex, body.totalChunks, body.chunkB64, body.fileName, body.mimeType, body.donorInfo, body.donorPhone, body.trustDevice);
       return ContentService.createTextOutput(JSON.stringify(chunkRes)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (body.action === 'verify_phone') {
+      const verifyRes = verifyDonorPhone(body.phone);
+      return ContentService.createTextOutput(JSON.stringify(verifyRes)).setMimeType(ContentService.MimeType.JSON);
     }
 
     if (body.object && body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
@@ -3988,6 +4226,97 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       }
 
       sendWhatsAppText(adminPhone, '💡 Formato: *MENSAJE +58XXXXXXXXXX [su mensaje]*');
+      return;
+    }
+
+    // 1.52 INVITAR_CORREO / NOTIFICAR_CORREO (Despacho Transaccional Desacoplado 1-a-1)
+    if (lower.startsWith('invitar correo') || lower.startsWith('invitar_correo') || lower.startsWith('notificar correo') || lower.startsWith('notificar_correo')) {
+      const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g) || [];
+      const extractedEmails = [];
+      for (let i = 0; i < emailMatches.length; i++) {
+        const em = emailMatches[i].toLowerCase().trim();
+        if (extractedEmails.indexOf(em) === -1) {
+          extractedEmails.push(em);
+        }
+      }
+
+      if (extractedEmails.length === 0) {
+        sendWhatsAppText(adminPhone,
+          '💡 *Formato de Invitación por Correo:*\\\\n' +
+          '• *INVITAR CORREO: colega1@hospital.org, colega2@correo.com*\\\\n\\\\n' +
+          '🔒 *Garantía de Privacidad:* Cada correo recibirá una invitación individual e independiente (1 a 1), sin copias visibles ni contacto entre destinatarios.'
+        );
+        return;
+      }
+
+      const satelliteUrl = getSecureProperty('SATELLITE_EMAIL_URL', CONFIG.SATELLITE_EMAIL_URL);
+      const satelliteSecret = getSecureProperty('SATELLITE_EMAIL_SECRET', CONFIG.SATELLITE_EMAIL_SECRET);
+      const resendApiKey = getSecureProperty('RESEND_API_KEY', CONFIG.RESEND_API_KEY);
+      const fromEmail = getSecureProperty('RESEND_FROM_EMAIL', CONFIG.RESEND_FROM_EMAIL) || 'Biblioteca Médica de Ortopedia <direccionortopedia@gmail.com>';
+
+      if ((!satelliteUrl || satelliteUrl.trim() === '') && (!resendApiKey || resendApiKey.trim() === '')) {
+        let emailBullets = '';
+        for (let i = 0; i < extractedEmails.length; i++) {
+          emailBullets += '• ' + extractedEmails[i] + '\\\\n';
+        }
+        sendWhatsAppText(adminPhone,
+          '⚠️ *MÓDULO DE CORREOS TRANSACCIONALES LISTO (PLUG & PLAY)*\\\\n' +
+          '*Dirección:* Gestor de Contenido\\\\n' +
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+          'La arquitectura de despacho atómico 1-a-1 está 100% integrada y preparada.\\\\n\\\\n' +
+          '📋 *Destinatarios detectados:* ' + extractedEmails.length + ' correo(s):\\\\n' +
+          emailBullets + '\\\\n' +
+          '🔑 *Acción pendiente:*\\\\n' +
+          'Para activar el despacho en vivo, configure SATELLITE_EMAIL_URL o RESEND_API_KEY en Propiedades del Proyecto.\\\\n\\\\n' +
+          '🔒 Las invitaciones se enviarán automáticamente de forma individual y anónima.'
+        );
+        return;
+      }
+
+      let successList = [];
+      let failList = [];
+
+      for (let i = 0; i < extractedEmails.length; i++) {
+        const email = extractedEmails[i];
+        let res = null;
+        if (satelliteUrl && satelliteUrl.trim() !== '') {
+          res = sendTransactionalEmailSatellite(email, satelliteUrl, satelliteSecret);
+        } else {
+          res = sendTransactionalEmailResend(email, resendApiKey, fromEmail);
+        }
+
+        if (res && res.success) {
+          successList.push(email);
+        } else {
+          failList.push(email + ': ' + ((res && res.error) || 'Error desconocido'));
+        }
+        if (i < extractedEmails.length - 1) {
+          Utilities.sleep(250);
+        }
+      }
+
+      let bulletsSuccess = '';
+      for (let s = 0; s < successList.length; s++) {
+        bulletsSuccess += '• ' + successList[s] + '\\\\n';
+      }
+      let bulletsFail = '';
+      if (failList.length > 0) {
+        bulletsFail = '\\\\n⚠️ *Fallidos:* ' + failList.length + '\\\\n';
+        for (let f = 0; f < failList.length; f++) {
+          bulletsFail += '• ' + failList[f] + '\\\\n';
+        }
+      }
+
+      sendWhatsAppText(adminPhone,
+        '📨 *REPORTE DE INVITACIONES TRANSACCIONALES (1-a-1)*\\\\n' +
+        '*Dirección:* Gestor de Contenido\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '✅ *Despachos Exitosos:* ' + successList.length + '\\\\n' +
+        bulletsSuccess + bulletsFail + '\\\\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+        '🔒 *Garantía de Confidencialidad:*\\\\n' +
+        'Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más fue invitado, y se preserva el anonimato absoluto de la Dirección.'
+      );
       return;
     }
 
@@ -4673,6 +5002,149 @@ function sendWhatsAppText(toPhone, textBody) {
     }
   }
   Logger.log('[WHATSAPP SALIENTE hacia ' + toPhone + ']: ' + textBody);
+}
+
+/**
+ * Despacha un correo electrónico transaccional individualizado (1 a 1) mediante el Micro-Servicio Satélite de Gmail
+ */
+function sendTransactionalEmailSatellite(toEmail, satelliteUrl, satelliteSecret) {
+  try {
+    const subject = '📖 Notificación Oficial: Evolución y Nuevo Acceso a la Biblioteca Médica de Ortopedia';
+    const htmlBody = generateInvitationEmailHtml(toEmail);
+    const payload = {
+      token: satelliteSecret,
+      to: toEmail,
+      subject: subject,
+      htmlBody: htmlBody,
+      name: 'Biblioteca Médica de Cirugía Ortopédica'
+    };
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+    const response = UrlFetchApp.fetch(satelliteUrl, options);
+    const code = response.getResponseCode();
+    const content = response.getContentText();
+
+    if (code >= 200 && code < 300) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.success) {
+          return { success: true, method: 'SATELLITE_GMAIL', response: parsed };
+        } else {
+          return { success: false, error: parsed.error || content };
+        }
+      } catch (pe) {
+        return { success: true, method: 'SATELLITE_GMAIL', raw: content };
+      }
+    } else {
+      return { success: false, error: 'HTTP ' + code + ': ' + content };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Despacha un correo electrónico transaccional individualizado (1 a 1) mediante la API REST de Resend
+ */
+function sendTransactionalEmailResend(toEmail, apiKey, fromEmail) {
+  try {
+    const url = 'https://api.resend.com/emails';
+    const subject = '📖 Notificación Oficial: Evolución y Nuevo Acceso a la Biblioteca Médica de Ortopedia';
+    const htmlBody = generateInvitationEmailHtml(toEmail);
+
+    const payload = {
+      from: fromEmail || 'Biblioteca Médica de Ortopedia <onboarding@resend.dev>',
+      to: [toEmail],
+      subject: subject,
+      html: htmlBody
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const code = response.getResponseCode();
+    const content = response.getContentText();
+
+    if (code >= 200 && code < 300) {
+      return { success: true, response: JSON.parse(content) };
+    } else {
+      return { success: false, error: 'HTTP ' + code + ': ' + content };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Plantilla HTML enriquecida para invitación institucional individualizada
+ */
+function generateInvitationEmailHtml(toEmail) {
+  return '<!DOCTYPE html>' +
+    '<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Biblioteca Médica de Cirugía Ortopédica</title>' +
+    '</head><body style="margin:0; padding:0; background:#071324; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#f8fafc;">' +
+    '  <table width="100%" cellpadding="0" cellspacing="0" style="background:#071324; padding:32px 16px;">' +
+    '    <tr><td align="center">' +
+    '      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; background:#0f1e33; border:1px solid #1e3a5f; border-radius:16px; overflow:hidden; box-shadow:0 12px 36px rgba(0,0,0,0.45);">' +
+    '        <tr><td style="height:4px; background:linear-gradient(90deg, #0d9488, #0284c7);"></td></tr>' +
+    '        <tr><td style="padding:28px 32px 20px 32px; text-align:left;">' +
+    '          <span style="font-family:monospace; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#5eead4; background:rgba(13,148,136,0.2); border:1px solid rgba(13,148,136,0.4); padding:4px 10px; border-radius:4px; display:inline-block; margin-bottom:14px;">DIRECCIÓN DEL PROYECTO • COMUNICACIÓN INSTITUCIONAL</span>' +
+    '          <h1 style="font-size:22px; font-weight:800; color:#ffffff; margin:0 0 12px 0; letter-spacing:-0.5px; line-height:1.3;">Biblioteca Médica de Cirugía Ortopédica y Traumatología</h1>' +
+    '          <p style="font-size:14px; color:#94a3b8; line-height:1.55; margin:0 0 20px 0;">Estimado(a) Colega,</p>' +
+    '          <p style="font-size:14px; color:#cbd5e1; line-height:1.6; margin:0 0 18px 0;">Le informamos formalmente que la Biblioteca Médica Especializada ha evolucionado hacia un nuevo <strong>Asistente Clínico Inteligente 24/7 en WhatsApp</strong> y un portal web protegido, brindando acceso inmediato a literatura quirúrgica de alta evidencia.</p>' +
+    '          <div style="background:rgba(2,132,199,0.08); border:1px solid #0284c7; border-radius:10px; padding:16px; margin:0 0 22px 0;">' +
+    '            <h3 style="font-size:14px; color:#38bdf8; margin:0 0 8px 0; font-weight:700;">📚 Portafolio Clínico Ampliado:</h3>' +
+    '            <ul style="margin:0; padding-left:18px; font-size:13px; color:#e2e8f0; line-height:1.6;">' +
+    '              <li><strong>Búsqueda Quirúrgica Instantánea:</strong> Técnicas, abordajes y clasificaciones AO/OTA.</li>' +
+    '              <li><strong>Descarga Efímera Segura:</strong> Acceso a monografías y artículos mediante tokens de 30 min.</li>' +
+    '              <li><strong>Buzón Digital Colaborativo:</strong> Depósito anónimo y seguro de literatura en PDF.</li>' +
+    '              <li><strong>Lectura Crítica PICO:</strong> Análisis metodológico y síntesis comparativa automatizada.</li>' +
+    '            </ul>' +
+    '          </div>' +
+    '          <div style="background:rgba(13,148,136,0.08); border:1px solid #0d9488; border-radius:10px; padding:16px; margin:0 0 24px 0;">' +
+    '            <h3 style="font-size:14px; color:#5eead4; margin:0 0 8px 0; font-weight:700;">⚖️ Directrices de Uso y Convivencia:</h3>' +
+    '            <ul style="margin:0; padding-left:18px; font-size:13px; color:#e2e8f0; line-height:1.6;">' +
+    '              <li>Uso exclusivo para facultativos y residentes de Ortopedia y Traumatología.</li>' +
+    '              <li>Trato ético, lenguaje profesional y apego a la deontología médica.</li>' +
+    '              <li>Todas las interacciones se resguardan bajo estricto anonimato institucional.</li>' +
+    '            </ul>' +
+    '          </div>' +
+    '          <div style="text-align:center; margin:28px 0 20px 0;">' +
+    '            <a href="https://wa.me/573205955993?text=HOLA" target="_blank" style="background:linear-gradient(135deg, #10b981, #059669); color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:8px; font-size:14px; font-weight:700; display:inline-block; box-shadow:0 4px 16px rgba(16,185,129,0.35);">📲 Iniciar Conexión en WhatsApp Oficial</a>' +
+    '          </div>' +
+    '          <div style="text-align:center; margin:0 0 24px 0;">' +
+    '            <a href="https://biblioteca-medica.ortopedia.workers.dev/" target="_blank" style="color:#38bdf8; text-decoration:none; font-size:12.5px; font-weight:600;">📖 Consultar Manual Oficial de Uso Web &rarr;</a>' +
+    '          </div>' +
+    '          <div style="margin:24px 0 16px 0; padding:12px 16px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; text-align:center;">' +
+    '            <p style="margin:0 0 4px 0; font-size:11.5px; color:#fca5a5; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">🚫 CANAL EXCLUSIVO DE EMISIÓN (NO-REPLY)</p>' +
+    '            <p style="margin:0; font-size:11px; color:#94a3b8; line-height:1.45;">' +
+    '              Esta cuenta de correo es estrictamente de notificación automatizada y <strong>no se encuentra habilitada para recibir ni procesar correos entrantes</strong>.<br>' +
+    '              Por favor no responda a este mensaje; toda solicitud, consulta o comunicación debe realizarse única y exclusivamente a través de la línea oficial de WhatsApp.' +
+    '            </p>' +
+    '          </div>' +
+    '          <hr style="border:none; border-top:1px solid #1e3a5f; margin:16px 0;">' +
+    '          <p style="font-size:11.5px; color:#64748b; line-height:1.5; margin:0; text-align:center;">' +
+    '            <strong>Biblioteca Médica Especializada de Cirugía Ortopédica y Traumatología</strong><br>' +
+    '            Dirección del Proyecto • Comunicación Institucional Unidireccional<br>' +
+    '            <em>Este correo fue generado de forma individualizada para \' + toEmail + \'. Por favor no responda a este mensaje; toda gestión se atiende exclusivamente a través de la línea oficial de WhatsApp.</em>' +
+    '          </p>' +
+    '        </td></tr>' +
+    '      </table>' +
+    '    </td></tr>' +
+    '  </table>' +
+    '</body></html>';
 }
 
 /**

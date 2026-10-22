@@ -63,6 +63,10 @@ const HOJAS = {
   GASTOS_GLOBALES: "Gastos_Globales",
   OPERACION_GLOBAL: "Operacion_Global",
   COMPROMISOS_GLOBALES: "Compromisos_Globales",
+  PERSONAL_HISTORICO_COMP: "Personal_Historico_Compromisos",
+  COMPROMISOS_GLOBALES_HISTORICO: "Compromisos_Globales_Historico",
+  MOREPAPER_HISTORICO_COMP: "MorePaper_Historico_Compromisos",
+  MOREDESIGN_HISTORICO_COMP: "MoreDesign_Historico_Compromisos",
   DASHBOARD: "Dashboard_Consolidado",
   METRICAS_WA: "Metricas_WhatsApp",
   SESIONES_WA: "WhatsApp_Sesiones_24h",
@@ -196,6 +200,16 @@ function inicializarLibroFinanzas() {
   // 4.2 Compromisos y Obligaciones Globales (Créditos y Pasivos Corporativos)
   crearHojaCompromisosGenerica_(ss, HOJAS.COMPROMISOS_GLOBALES, TEMAS.GASTOS_GLOBALES, "Consolidado");
   logs.push("✅ Hoja de Compromisos Globales (Pasivos Corporativos) verificada.");
+
+  // 4.3 Hojas de Histórico de Compromisos Cumplidos (Archivo permanente en letras negras)
+  crearHojaHistoricoCompromisosGenerica_(ss, HOJAS.PERSONAL_HISTORICO_COMP, TEMAS.PERSONAL, "Personal");
+  crearHojaHistoricoCompromisosGenerica_(ss, HOJAS.COMPROMISOS_GLOBALES_HISTORICO, TEMAS.GASTOS_GLOBALES, "Consolidado");
+  crearHojaHistoricoCompromisosGenerica_(ss, HOJAS.MOREPAPER_HISTORICO_COMP, TEMAS.MOREPAPER, "More Paper");
+  crearHojaHistoricoCompromisosGenerica_(ss, HOJAS.MOREDESIGN_HISTORICO_COMP, TEMAS.MOREDESIGN, "More Design");
+  if (ss.getSheetByName("Florangellys_Compromisos") || ss.getSheetByName("Florangellys_Transacciones")) {
+    crearHojaHistoricoCompromisosGenerica_(ss, "Florangellys_Historico_Compromisos", "#7c3aed", "Florangellys");
+  }
+  logs.push("✅ Hojas de Histórico de Compromisos Cumplidos verificadas.");
 
   // 5. Configuración de Categorías
   crearHojaConfigCategorias_(ss);
@@ -380,6 +394,223 @@ function crearHojaCompromisosGenerica_(ss, nombreHoja, colorTema, entidadNombre)
 }
 
 /**
+ * 3.1 Resuelve el nombre canónico de la hoja de histórico de compromisos correspondiente
+ * a una hoja de compromisos dada.
+ */
+function resolverNombreHojaHistoricoCompromisos_(nombreHojaCompromisos) {
+  if (!nombreHojaCompromisos) return "Compromisos_Globales_Historico";
+  const str = String(nombreHojaCompromisos).trim();
+  if (str === "Compromisos_Globales" || str === "Consolidado" || str === "Global") {
+    return "Compromisos_Globales_Historico";
+  }
+  if (str.endsWith("_Compromisos")) {
+    return str.replace(/_Compromisos$/, "_Historico_Compromisos");
+  }
+  return str + "_Historico_Compromisos";
+}
+
+/**
+ * 3.2 Generador de Hoja de Histórico de Compromisos Cumplidos (Archivo Permanente)
+ * - Registra con letras color NEGRO (#000000) por tratarse de compromisos cumplidos y cerrados.
+ * - Sin formato condicional de color rojo (no son deudas activas).
+ */
+function crearHojaHistoricoCompromisosGenerica_(ss, nombreHoja, colorTema, entidadNombre) {
+  let sheet = ss.getSheetByName(nombreHoja);
+  const encabezados = [
+    "ID_COMPROMISO", "FECHA_CREACION", "PROVEEDOR_ACREEDOR", "CONCEPTO", 
+    "MONTO_TOTAL", "TOTAL_PAGADO", "SALDO_FINAL", "FECHA_VENCIMIENTO", 
+    "FECHA_LIQUIDACION", "ESTADO", "TIPO_COMPROMISO", "NOTAS_AUDITORIA"
+  ];
+
+  if (!sheet) {
+    sheet = ss.insertSheet(nombreHoja);
+  }
+
+  sheet.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
+  darFormatoEncabezado_(sheet, encabezados.length, colorTema || "#1e293b");
+
+  // Anchos de columnas
+  sheet.setColumnWidth(1, 180); // ID_COMPROMISO
+  sheet.setColumnWidth(2, 120); // FECHA_CREACION
+  sheet.setColumnWidth(3, 200); // PROVEEDOR_ACREEDOR
+  sheet.setColumnWidth(4, 250); // CONCEPTO
+  sheet.setColumnWidth(5, 140); // MONTO_TOTAL
+  sheet.setColumnWidth(6, 140); // TOTAL_PAGADO
+  sheet.setColumnWidth(7, 130); // SALDO_FINAL
+  sheet.setColumnWidth(8, 140); // FECHA_VENCIMIENTO
+  sheet.setColumnWidth(9, 140); // FECHA_LIQUIDACION
+  sheet.setColumnWidth(10, 120); // ESTADO
+  sheet.setColumnWidth(11, 190); // TIPO_COMPROMISO
+  sheet.setColumnWidth(12, 260); // NOTAS_AUDITORIA
+
+  // Formato de moneda para columnas E, F, G (Monto Total, Total Pagado, Saldo Final)
+  sheet.getRange("E2:G").setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+  sheet.getRange("B2:B").setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+  sheet.getRange("H2:I").setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+  sheet.setFrozenRows(1);
+
+  // Asegurar color negro en todo el cuerpo de datos existente
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, encabezados.length).setFontColor("#000000");
+  }
+
+  return sheet;
+}
+
+/**
+ * 3.3 Archiva de forma inmediata un compromiso cumplido a su respectiva hoja histórica:
+ * 1. Resuelve o crea la hoja histórica correspondiente ({Entidad}_Historico_Compromisos o Compromisos_Globales_Historico).
+ * 2. Transfiere todos los datos con fecha de liquidación, saldo en $0 y estado 'Cumplido'.
+ * 3. Aplica formato de texto en color negro (#000000) por tratarse de una obligación satisfecha.
+ * 4. Elimina la fila de la hoja de compromisos activos para mantener limpios los pasivos pendientes.
+ */
+function archivarCompromisoCumplidoDirecto_(ss, sheetComp, indexFila, filaDatos, montoAbonado, metodoPago, esCiclico) {
+  try {
+    const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+    if (!libro || !sheetComp || indexFila <= 1) return false;
+
+    const nombreHojaComp = sheetComp.getName();
+    const nombreHojaHistorico = resolverNombreHojaHistoricoCompromisos_(nombreHojaComp);
+    let sheetHist = libro.getSheetByName(nombreHojaHistorico);
+    if (!sheetHist) {
+      sheetHist = crearHojaHistoricoCompromisosGenerica_(libro, nombreHojaHistorico, "#1e293b", nombreHojaComp);
+    }
+
+    const fechaLiq = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const filaHistorico = [
+      filaDatos[0], // ID_COMPROMISO
+      filaDatos[1], // FECHA_CREACION
+      filaDatos[2], // PROVEEDOR_ACREEDOR
+      filaDatos[3], // CONCEPTO
+      Number(filaDatos[4]) || 0, // MONTO_TOTAL
+      Number(montoAbonado) || Number(filaDatos[5]) || Number(filaDatos[4]) || 0, // TOTAL_PAGADO
+      0, // SALDO_FINAL ($0)
+      filaDatos[8], // FECHA_VENCIMIENTO
+      fechaLiq, // FECHA_LIQUIDACION
+      "Cumplido", // ESTADO
+      esCiclico ? "Ciclo Recurrente Cumplido" : "Cumplido No Recurrente", // TIPO_COMPROMISO
+      metodoPago ? `Liquidado vía ${metodoPago}` : "Liquidado al 100% y archivado" // NOTAS_AUDITORIA
+    ];
+
+    sheetHist.appendRow(filaHistorico);
+    const newRow = sheetHist.getLastRow();
+    // Directiva clave: Letras negras en hoja histórica
+    sheetHist.getRange(newRow, 1, 1, 12).setFontColor("#000000");
+    sheetHist.getRange(newRow, 5, 1, 3).setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+    sheetHist.getRange(newRow, 2).setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+    sheetHist.getRange(newRow, 8, 1, 2).setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+
+    // Eliminar la fila de la hoja de compromisos pendientes
+    sheetComp.deleteRow(indexFila);
+    SpreadsheetApp.flush();
+    Logger.log(`✅ Compromiso ${filaDatos[0]} archivado con éxito en ${nombreHojaHistorico} y eliminado de ${nombreHojaComp}.`);
+    return true;
+  } catch (err) {
+    Logger.log("Error en archivarCompromisoCumplidoDirecto_: " + err.message);
+    return false;
+  }
+}
+
+/**
+ * 3.4 Barre todas las hojas de compromisos activas del libro, traslada todas las obligaciones
+ * con saldo $0 o estado 'Cumplido' a sus respectivas hojas históricas con letras negras (#000000),
+ * y las elimina de la lista de pendientes.
+ */
+function archivarTodosCompromisosCumplidos(ss) {
+  const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
+  if (!libro) return { ok: false, error: "No se encontró el libro activo." };
+
+  const hojas = libro.getSheets();
+  let totalArchivados = 0;
+  const detalle = [];
+
+  for (let s = 0; s < hojas.length; s++) {
+    const sheet = hojas[s];
+    const nombre = sheet.getName();
+    // Solo hojas de compromisos activos (NO hojas históricas)
+    const esCompActivo = (nombre.includes("_Compromisos") || nombre === "Compromisos_Globales") && !nombre.includes("_Historico");
+
+    if (esCompActivo) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= 1) continue;
+
+      const numCols = sheet.getLastColumn();
+      const datos = sheet.getRange(2, 1, lastRow - 1, Math.max(numCols, 12)).getValues();
+      const filasAArchivar = [];
+
+      for (let i = 0; i < datos.length; i++) {
+        const fila = datos[i];
+        const rowNum = i + 2;
+        const saldo = Number(fila[6]) || 0;
+        const estado = String(fila[9] || "").trim().toLowerCase();
+        const totalAbonado = Number(fila[5]) || 0;
+        const montoTotal = Number(fila[4]) || 0;
+
+        // Criterio de cumplimiento: Saldo 0 o estado Cumplido
+        if (saldo <= 0 || estado === "cumplido" || (montoTotal > 0 && totalAbonado >= montoTotal)) {
+          filasAArchivar.push({ rowNum: rowNum, fila: fila });
+        }
+      }
+
+      if (filasAArchivar.length > 0) {
+        const nombreHistorico = resolverNombreHojaHistoricoCompromisos_(nombre);
+        const sheetHistorico = libro.getSheetByName(nombreHistorico) || crearHojaHistoricoCompromisosGenerica_(libro, nombreHistorico, "#1e293b", nombre);
+
+        // Archivar y luego eliminar de abajo hacia arriba (orden descendente)
+        filasAArchivar.sort((a, b) => b.rowNum - a.rowNum);
+
+        for (let j = 0; j < filasAArchivar.length; j++) {
+          const item = filasAArchivar[j];
+          const f = item.fila;
+          const fechaLiq = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+          const conceptoLimpio = String(f[3] || "").toLowerCase();
+          const esCiclico = conceptoLimpio.includes("arriendo") || conceptoLimpio.includes("alquiler") || conceptoLimpio.includes("servicio") || conceptoLimpio.includes("mensual");
+
+          const filaHistorico = [
+            f[0], // ID_COMPROMISO
+            f[1], // FECHA_CREACION
+            f[2], // PROVEEDOR_ACREEDOR
+            f[3], // CONCEPTO
+            Number(f[4]) || 0, // MONTO_TOTAL
+            Number(f[5]) || Number(f[4]) || 0, // TOTAL_PAGADO
+            0,    // SALDO_FINAL ($0)
+            f[8], // FECHA_VENCIMIENTO
+            fechaLiq, // FECHA_LIQUIDACION
+            "Cumplido", // ESTADO
+            esCiclico ? "Ciclo Recurrente Cumplido" : "Cumplido No Recurrente", // TIPO_COMPROMISO
+            "Archivado desde " + nombre + " con saldo en $0" // NOTAS_AUDITORIA
+          ];
+
+          sheetHistorico.appendRow(filaHistorico);
+          const newRowHist = sheetHistorico.getLastRow();
+          // Asegurar letras negras y formato de moneda
+          sheetHistorico.getRange(newRowHist, 1, 1, 12).setFontColor("#000000");
+          sheetHistorico.getRange(newRowHist, 5, 1, 3).setNumberFormat(CONFIG_FINANZAS.FORMATO_MONEDA);
+          sheetHistorico.getRange(newRowHist, 2).setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+          sheetHistorico.getRange(newRowHist, 8, 1, 2).setNumberFormat(CONFIG_FINANZAS.FORMATO_FECHA);
+
+          // Eliminar de la hoja de compromisos activos
+          sheet.deleteRow(item.rowNum);
+          totalArchivados++;
+        }
+        detalle.push(`• ${nombre} ➔ ${nombreHistorico}: ${filasAArchivar.length} compromiso(s) archivado(s).`);
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    totalArchivados: totalArchivados,
+    detalle: detalle,
+    mensaje: totalArchivados > 0 
+      ? `🎉 Se trasladaron exitosamente ${totalArchivados} compromiso(s) cumplido(s) a sus respectivas hojas históricas en letras negras.`
+      : "ℹ️ No se encontraron compromisos cumplidos pendientes de archivar. Todas las hojas están al día."
+  };
+}
+
+/**
  * Configura las reglas de formato condicional automáticas en hojas de transacciones:
  * - Toda transacción que NO sea Ingreso (Egresos, Compras, Pagos, Gastos, Nóminas, etc.) -> Caracteres ROJOS (#dc2626)
  * - Todo Ingreso -> Caracteres VERDES (#15803d)
@@ -458,7 +689,8 @@ function aplicarDirectivaCaracteresRojosLibro(ss) {
     const sheet = hojas[s];
     const nombre = sheet.getName();
     const esTrans = nombre.includes("_Transacciones") || nombre === "Operacion_Global" || nombre === "Gastos_Globales";
-    const esComp = nombre.includes("_Compromisos") || nombre === "Compromisos_Globales";
+    const esComp = (nombre.includes("_Compromisos") || nombre === "Compromisos_Globales") && !nombre.includes("_Historico");
+    const esHist = nombre.includes("_Historico");
 
     if (esTrans) {
       configurarFormatoCondicionalTransacciones_(sheet, COLOR_ROJO_EGRESO, COLOR_VERDE_INGRESO);
@@ -495,6 +727,15 @@ function aplicarDirectivaCaracteresRojosLibro(ss) {
         }
       }
       detalle.push(`• ${nombre}: Formato condicional inteligente activo (Cobros en verde, deudas en rojo) + ${filasColoreadas} filas procesadas.`);
+    } else if (esHist) {
+      const lastRow = sheet.getLastRow();
+      let filasNegras = 0;
+      if (lastRow > 1) {
+        const numCols = Math.max(12, sheet.getLastColumn());
+        sheet.getRange(2, 1, lastRow - 1, numCols).setFontColor("#000000");
+        filasNegras = lastRow - 1;
+      }
+      detalle.push(`• ${nombre}: Hoja Histórica verificada (${filasNegras} registros en color negro neutro).`);
     }
   }
 
@@ -1766,7 +2007,8 @@ function crearNuevoUsuarioFinanciero(telefono, nombreCompleto, rol = "USUARIO", 
   const primerNombre = (entidadNombre || nombreCompleto.trim().split(" ")[0] || "Usuario").replace(/[^a-zA-Z0-9]/g, "");
   const nombreHojaTrans = primerNombre + "_Transacciones";
   const nombreHojaComp = primerNombre + "_Compromisos";
-  const hojasPermitidas = `${nombreHojaTrans},${nombreHojaComp}`;
+  const nombreHojaHist = primerNombre + "_Historico_Compromisos";
+  const hojasPermitidas = `${nombreHojaTrans},${nombreHojaComp},${nombreHojaHist}`;
 
   // 1. Crear Hoja de Transacciones Dedicada si no existe
   if (!ss.getSheetByName(nombreHojaTrans)) {
@@ -1776,6 +2018,11 @@ function crearNuevoUsuarioFinanciero(telefono, nombreCompleto, rol = "USUARIO", 
   // 2. Crear Hoja de Compromisos Dedicada si no existe
   if (!ss.getSheetByName(nombreHojaComp)) {
     crearHojaCompromisosGenerica_(ss, nombreHojaComp, "#6d28d9", primerNombre);
+  }
+
+  // 2.1 Crear Hoja de Histórico de Compromisos Dedicada si no existe (letras negras)
+  if (!ss.getSheetByName(nombreHojaHist)) {
+    crearHojaHistoricoCompromisosGenerica_(ss, nombreHojaHist, "#065f46", primerNombre);
   }
 
   // 3. Registrar o actualizar en Control_Acceso
@@ -2794,12 +3041,13 @@ function onOpen() {
       .addItem("🏦 Saneamiento de Cuentas y Carga de Saldos ($129.976 y $4.860.895)", "repararYCargarSaldosBancarios")
       .addItem("🚀 Inicializar / Verificar Todo el Sistema", "inicializarLibroFinanzas")
       .addSeparator()
+      .addItem("🗄️ Archivar Compromisos Cumplidos a Históricos", "menuArchivarCompromisosCumplidos")
       .addItem("🎨 Sincronizar Colores Inteligentes (Verde Cobros / Rojo Deudas)", "aplicarDirectivaCaracteresRojosLibro")
       .addSeparator()
       .addItem("🧹 Reiniciar Finanzas a Cero (Punto de Partida $0)", "reiniciarEcosistemaFinancieroACero")
       .addToUi();
 
-    // Auto-sanear formato de compromisos en apertura silenciosa
+    // Auto-sanear formato y archivar compromisos cumplidos en apertura silenciosa
     sanearColoresCompromisosRetroactivo_();
   } catch (e) {
     Logger.log("Aviso: onOpen no pudo cargar UI: " + e.message);
@@ -2807,14 +3055,32 @@ function onOpen() {
 }
 
 /**
+ * Disparador de interfaz de usuario para archivar compromisos cumplidos
+ */
+function menuArchivarCompromisosCumplidos() {
+  const ui = SpreadsheetApp.getUi();
+  const res = archivarTodosCompromisosCumplidos();
+  if (res.ok) {
+    const msg = res.totalArchivados > 0 
+      ? `✅ Se trasladaron ${res.totalArchivados} compromiso(s) cumplido(s) a sus respectivas hojas históricas en letras negras.\n\n` + res.detalle.join("\n")
+      : "ℹ️ No hay compromisos cumplidos pendientes por archivar. Todas las hojas de pasivos están al día.";
+    ui.alert("🗄️ Archivo de Compromisos Cumplidos", msg, ui.ButtonSet.OK);
+  } else {
+    ui.alert("❌ Error", "Ocurrió un error al archivar compromisos: " + res.error, ui.ButtonSet.OK);
+  }
+}
+
+/**
  * Sanea y actualiza inmediatamente las hojas de compromisos:
- * Pinta en VERDE (#15803d) las cuentas por cobrar a favor y actualiza las reglas condicionales bicapa.
+ * Pinta en VERDE (#15803d) las cuentas por cobrar a favor, traslada compromisos en $0 a históricos en negro
+ * y actualiza las reglas condicionales bicapa.
  */
 function sanearColoresCompromisosRetroactivo_(ss) {
   const libro = ss || SpreadsheetApp.getActiveSpreadsheet();
   if (!libro) return;
   try {
     aplicarDirectivaCaracteresRojosLibro(libro);
+    archivarTodosCompromisosCumplidos(libro);
   } catch (e) {
     Logger.log("Aviso en sanearColoresCompromisosRetroactivo_: " + e.message);
   }

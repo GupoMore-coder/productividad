@@ -1497,6 +1497,12 @@ function ejecutarAccionCompromiso_(ss, data, perm) {
 
       respuesta += `\n\n🔄 *Compromiso mensual renovado:* He programado la siguiente cuota para el **${fechaSigMesStr}** por **$${montoOriginal.toLocaleString("es-CO")} COP** para que sigamos al día.`;
     }
+
+    // ARCHIVADO A HOJA HISTÓRICA CON LETRAS NEGRAS Y REMOCIÓN DE PENDIENTES
+    if (typeof archivarCompromisoCumplidoDirecto_ === "function") {
+      archivarCompromisoCumplidoDirecto_(ss, sheetComp, indexEncontrado, filaEncontrada, nuevoAbonado, data.metodo_pago, esCiclico);
+      respuesta += `\n\n🗄️ *Registro histórico:* El compromiso ha sido trasladado a tu hoja de histórico de pagos con letras negras para auditoría y retirado de la lista de pasivos pendientes.`;
+    }
   } else {
     respuesta = `¡Listo, ${nombreHumano}! ✅ Registré tu abono de **$${montoAbono.toLocaleString("es-CO")} COP** a **${filaEncontrada[2]}** (${entidad}).\n\n📌 **Nuevo saldo pendiente:** $${nuevoSaldo.toLocaleString("es-CO")} COP. ¡Vamos avanzando con ese pago!`;
   }

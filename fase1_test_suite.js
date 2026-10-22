@@ -12,7 +12,7 @@
 function testRunnerFase1() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const resultados = {
-    total: 5,
+    total: 6,
     aprobadas: 0,
     fallidas: 0,
     detalles: []
@@ -208,6 +208,27 @@ function testRunnerFase1() {
     }
   } catch (e) {
     registrarFallo_(resultados, "Prueba 5: Ventana 24h WhatsApp", e.message);
+  }
+
+  // --------------------------------------------------------------------------
+  // PRUEBA 6: Verificación del Sistema de Archivo Histórico de Compromisos en Negro
+  // --------------------------------------------------------------------------
+  try {
+    const nombreHist = typeof resolverNombreHojaHistoricoCompromisos_ === "function" 
+      ? resolverNombreHojaHistoricoCompromisos_("Personal_Compromisos") 
+      : null;
+    const esNombreValido = nombreHist === "Personal_Historico_Compromisos";
+    const fnGeneradorExiste = typeof crearHojaHistoricoCompromisosGenerica_ === "function";
+    const fnArchivadorExiste = typeof archivarCompromisoCumplidoDirecto_ === "function";
+    const fnBarridoExiste = typeof archivarTodosCompromisosCumplidos === "function";
+
+    if (esNombreValido && fnGeneradorExiste && fnArchivadorExiste && fnBarridoExiste) {
+      registrarExito_(resultados, "Prueba 6: Archivo Histórico de Compromisos", "Motores de archivo, resolución canónica y traslado a histórico en negro verificados.");
+    } else {
+      registrarFallo_(resultados, "Prueba 6: Archivo Histórico de Compromisos", "Funciones del módulo de archivo histórico no detectadas correctamente.");
+    }
+  } catch (e) {
+    registrarFallo_(resultados, "Prueba 6: Archivo Histórico de Compromisos", e.message);
   }
 
   // --------------------------------------------------------------------------

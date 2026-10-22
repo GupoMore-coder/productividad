@@ -2252,7 +2252,10 @@
         ? window.CANONICAL_APP_URL
         : DEFAULT_WEB_APP;
       const currentParams = new URLSearchParams(window.location.search);
-      const token = currentParams.get('token');
+      let token = currentParams.get('token');
+      if (!token) {
+        try { token = localStorage.getItem('BIBLIO_TRUST_TOKEN'); } catch(e) {}
+      }
       let activeLang = window.currentManualLang;
       if (!activeLang) {
         try { activeLang = localStorage.getItem('ortho_manual_lang'); } catch(e) {}
