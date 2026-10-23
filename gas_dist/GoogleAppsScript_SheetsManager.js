@@ -708,6 +708,14 @@ function triggerSilentIDS(sourcePhone, vectorName, payloadText, details, severit
  */
 function detectIntrusionAttempt(sourcePhone, text) {
   const t = text || '';
+  const cleanPhone = (sourcePhone || '').replace(/[^\d]/g, '');
+  const adminClean = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE).replace(/[^\d]/g, '');
+
+  // El Gestor de Contenido (Administrador) tiene inmunidad operativa total en el IDS
+  if (cleanPhone === adminClean && cleanPhone.length > 0) {
+    return { detected: false };
+  }
+
   const norm = normalizeSecurityText(t);
 
   // 1. Inyección de Prompt / Jailbreak (analizado sobre texto original y normalizado)
@@ -724,8 +732,6 @@ function detectIntrusionAttempt(sourcePhone, text) {
   }
 
   // 3. Suplantación de Comandos de Administración por Números No Autorizados
-  const cleanPhone = sourcePhone.replace(/[^\d]/g, '');
-  const adminClean = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE).replace(/[^\d]/g, '');
   if (cleanPhone !== adminClean) {
     if (/^(aprobar|bloquear|desbloquear|responder|estado|rendimiento|centinela|metricas|comunicado|comunicado_politicas|boletin_dominical|backup_mensual|config|dump|sql|borrar)\b/i.test(norm)) {
       triggerSilentIDS(sourcePhone, 'UNAUTHORIZED_ADMIN_SPOOF', t, 'Usuario no privilegiado ejecutando comandos reservados');
@@ -734,7 +740,8 @@ function detectIntrusionAttempt(sourcePhone, text) {
   }
 
   // 4. Vulgaridad Ofuscada / Evasión de Filtros (Leet speak o separadores)
-  if (/p[\.\-\s_]*u[\.\-\s_]*t[\.\-\s_]*a|m[\.\-\s_]*i[\.\-\s_]*e[\.\-\s_]*r[\.\-\s_]*d[\.\-\s_]*a|h[\.\-\s_]*i[\.\-\s_]*j[\.\-\s_]*u[\.\-\s_]*e/i.test(norm)) {
+  // Protección contra falsos positivos en términos médicos/quirúrgicos (amputación, reputación, disputa, cómputo)
+  if (/(?<![a-z0-9])p[\.\-_ ]*u[\.\-_ ]*t[\.\-_ ]*[ao]s?(?![a-z0-9])|(?<![a-z0-9])m[\.\-_ ]*i[\.\-_ ]*e[\.\-_ ]*r[\.\-_ ]*d[\.\-_ ]*a[s]?(?![a-z0-9])|(?<![a-z0-9])h[\.\-_ ]*i[\.\-_ ]*j[\.\-_ ]*u[\.\-_ ]*e[\.\-_ ]*p[\.\-_ ]*u[\.\-_ ]*t[\.\-_ ]*a[s]?(?![a-z0-9])/i.test(norm)) {
     triggerSilentIDS(sourcePhone, 'OBFUSCATED_VULGARITY', t, 'Intento de evasión del filtro disciplinario');
     return { detected: true, vector: 'OBFUSCATED_VULGARITY' };
   }
@@ -3700,15 +3707,6 @@ function handleDoPostExecution(e) {
 
     const body = JSON.parse(e.postData.contents);
 
-    // Auto-programación resiliente del disparador diario de las 18:00 (Self-Healing)
-    try {
-      const cache = CacheService.getScriptCache();
-      if (!cache.get('TRIGGER_18H_INITIALIZED')) {
-        configurarTriggerInformeDiario18h();
-        cache.put('TRIGGER_18H_INITIALIZED', '1', 21600);
-      }
-    } catch (te) {}
-
     // Soporte directo para depósito en el Buzón Digital Seguro
     if (body.action === 'upload_buzon') {
       const buzonRes = uploadBuzonFile(body.base64Data, body.fileName, body.mimeType, body.donorInfo, body.donorPhone, body.trustDevice);
@@ -3809,15 +3807,18 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
 
   // =========================================================================
   // 🛡️ DETECCIÓN SILENCIOSA DE ATAQUES E INTRUSIÓN (IDS)
+  // (Exclusivo para usuarios no administradores)
   // =========================================================================
-  const intrusionCheck = detectIntrusionAttempt(cleanPhone, text);
-  if (intrusionCheck.detected) {
-    // Respuesta neutra y engañosa al atacante (Cero huella forense)
-    sendWhatsAppText(cleanPhone, 
-      'Estimado colega: la Biblioteca Médica está destinada exclusivamente a la literatura científica y técnica de Cirugía Ortopédica y Traumatología.\\n\\n' +
-      'Para consultar los criterios y comandos oficiales de búsqueda, escriba *MANUAL*.'
-    );
-    return;
+  if (!isAdmin) {
+    const intrusionCheck = detectIntrusionAttempt(cleanPhone, text);
+    if (intrusionCheck.detected) {
+      // Respuesta neutra y engañosa al atacante (Cero huella forense)
+      sendWhatsAppText(cleanPhone, 
+        'Estimado colega: la Biblioteca Médica está destinada exclusivamente a la literatura científica y técnica de Cirugía Ortopédica y Traumatología.\\n\\n' +
+        'Para consultar los criterios y comandos oficiales de búsqueda, escriba *MANUAL*.'
+      );
+      return;
+    }
   }
 
   // =========================================================================
@@ -5013,10 +5014,14 @@ function generateInvitationEmailHtml(toEmail) {
     '</body></html>';
 }
 
-
 // ============================================================================
 // 🌟 BUNDLE DE SUPERPODERES INCRUSTADO DINAMICAMENTE
 // ============================================================================
+
+// ============================================================================
+// 🌟 BASE DE ENLACES ACORTADOS DEL EDGE
+// ============================================================================
+const SHORT_BASE = 'https://biblioteca-medica.ortopedia.workers.dev/r/';
 
 // ============================================================================
 // 🧮 SUPERPODER 1: CALCULADORAS Y SCORES QUIRÚRGICOS
@@ -6351,6 +6356,7 @@ function cumplirSolicitudAdquisicionGAS(adminPhone, text) {
   // Enviar confirmación al Gestor de Contenido
   sendWhatsAppText(adminPhone, fulfillRes.adminConfirmationText);
 }
+
 
 
 

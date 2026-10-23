@@ -235,6 +235,11 @@ function cumplirSolicitudAdquisicionGAS(adminPhone, text) {
 
 const fullBundle = `
 // ============================================================================
+// 🌟 BASE DE ENLACES ACORTADOS DEL EDGE
+// ============================================================================
+const SHORT_BASE = 'https://biblioteca-medica.ortopedia.workers.dev/r/';
+
+// ============================================================================
 // 🧮 SUPERPODER 1: CALCULADORAS Y SCORES QUIRÚRGICOS
 // ============================================================================
 ${calcCode}
