@@ -1772,9 +1772,7 @@ function getInteractiveCommandsDirectoryText() {
     '🎥 *6. Videos Quirúrgicos en 1 Clic:*\\n' +
     '• *VIDEOS: [técnica]* (VuMedi, OrthoMedia, YouTube Académico)\\n' +
     '  👉 Ej: "VIDEOS: Reemplazo total de cadera"\\n\\n' +
-    '🏛️ *7. Mesa Técnica de 15 Referentes Mundiales:*\\n' +
-    '• Escriba *MESA TECNICA* o *EXPERTOS*\\n\\n' +
-    '📖 *8. Utilidades Generales y Gobernanza:*\\n' +
+    '📖 *7. Utilidades Clínicas y Comunicación:*\\n' +
     '• *MANUAL* (Descarga del Manual Oficial de Uso en PDF)\\n' +
     '• *BUZON* (Buzón Digital de Aportes o adjunte PDF con "APORTE")\\n' +
     '• *ACTUALIZAR DATOS* (Actualizar correo, grado o hospital)\\n' +

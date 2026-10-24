@@ -482,7 +482,7 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
         replyText: `📢 *REPORTE DE DIFUSIÓN DE GUÍA MAESTRA (1-a-1)*\n*Dirección:* Gestor de Contenido\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ *Despacho Exitoso:* ${activeUsers.length} médicos autorizados\n\n${activeUsers.map(u => `• ${u.name} (${u.phone})`).join('\n')}\n\n📌 *Modalidad de Entrega:* ÚNICAMENTE documento PDF adjunto (sin duplicar el texto previo).\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔒 *Garantía de Confidencialidad:* Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más recibió el ejemplar.`,
         broadcastDocuments: activeUsers.map(u => ({
           phone: u.phone,
-          mediaId: '1462932902463392',
+          mediaId: '941275908800338',
           fileName: 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf',
           caption: '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\nEdición Oficial 2026 • Cirugía Ortopédica y Traumatología\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_'
         }))
@@ -1126,7 +1126,7 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
       replyText: getInteractiveCommandsDirectoryText(),
       documentAttachment: {
         fileName: 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf',
-        mediaId: '1462932902463392',
+        mediaId: '941275908800338',
         caption: '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\nEdición Oficial 2026 • Cirugía Ortopédica y Traumatología\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_'
       }
     };
@@ -1610,9 +1610,7 @@ function getInteractiveCommandsDirectoryText() {
     `🎥 *6. Videos Quirúrgicos en 1 Clic:*\n` +
     `• *VIDEOS: [técnica]* (VuMedi, OrthoMedia, YouTube Académico)\n` +
     `  👉 Ej: "VIDEOS: Reemplazo total de cadera"\n\n` +
-    `🏛️ *7. Mesa Técnica de 15 Referentes Mundiales:*\n` +
-    `• Escriba *MESA TECNICA* o *EXPERTOS*\n\n` +
-    `📖 *8. Utilidades Generales y Gobernanza:*\n` +
+    `📖 *7. Utilidades Clínicas y Comunicación:*\n` +
     `• *MANUAL* (Descarga del Manual Oficial de Uso en PDF)\n` +
     `• *BUZON* (Buzón Digital de Aportes o adjunte PDF con "APORTE")\n` +
     `• *ACTUALIZAR DATOS* (Actualizar correo, grado o hospital)\n` +

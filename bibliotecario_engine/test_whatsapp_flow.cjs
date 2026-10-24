@@ -1256,7 +1256,7 @@ async function startSuite() {
     assert.strictEqual(resExact.replyText.includes('IMPLANTE: [sistema]'), true);
     assert.strictEqual(resExact.replyText.includes('INTERCONSULTA:'), true);
     assert.strictEqual(resExact.replyText.includes('VIDEOS:'), true);
-    assert.strictEqual(resExact.replyText.includes('MESA TECNICA'), true);
+    assert.strictEqual(resExact.replyText.includes('BUZON'), true);
     // Verificamos entrega conjunta del documento PDF oficial
     assert.strictEqual(!!resExact.documentAttachment, true);
     assert.strictEqual(resExact.documentAttachment.fileName, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf');
