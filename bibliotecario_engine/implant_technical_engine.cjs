@@ -42,7 +42,7 @@ const IMPLANTS_DB = {
       torqueRecommendation: '4.0 Nm'
     },
     clinicalUse: 'Placas de grandes fragmentos (LCP 4.5/5.0, DCP ancha/estrecha en diáfisis femoral, tibial y húmero en adultos corpulentos).',
-    monographShortUrl: `${SHORT_BASE}pm_20881634`
+    monographShortUrl: `${SHORT_BASE}pm_12463652`
   },
   PLACA_PHILOS: {
     matchKeywords: ['philos', 'placa philos', 'humero proximal philos'],
@@ -57,7 +57,7 @@ const IMPLANTS_DB = {
       sutureHoles: 'Orificios perimetrales para suturas no reabsorbibles No. 2/5 del manguito rotador'
     },
     clinicalUse: 'Fracturas conminutas de 2, 3 y 4 partes de húmero proximal, fracturas del cuello quirúrgico y osteopenia.',
-    monographShortUrl: `${SHORT_BASE}pm_18171958`
+    monographShortUrl: `${SHORT_BASE}pm_18317048`
   },
   CLAVO_T2_STRYKER: {
     matchKeywords: ['t2', 'clavo t2', 'stryker t2', 'clavo fémur t2'],
@@ -72,7 +72,7 @@ const IMPLANTS_DB = {
       screwdriver: 'Punta de destornillador Hexagonal 3.5 mm'
     },
     clinicalUse: 'Fracturas diafisarias transversas, oblicuas cortas y conminutas de fémur (AO 32-A/B/C).',
-    monographShortUrl: `${SHORT_BASE}pm_25313936`
+    monographShortUrl: `${SHORT_BASE}pm_6707031`
   },
   TORNILLO_CANULADO_73: {
     matchKeywords: ['7.3', '7,3', 'canulado 7.3', 'tornillo canulado cadera'],
@@ -88,7 +88,7 @@ const IMPLANTS_DB = {
       washer: 'Arandela de 13 mm recomendada en osteopenia para prevenir hundimiento en la cortical'
     },
     clinicalUse: 'Fracturas subcapitales y transcervicales de cuello femoral (Garden I, II y III en jóvenes), deslizamiento epifisario y fracturas de sacro/pelvis.',
-    monographShortUrl: `${SHORT_BASE}pm_13896799`
+    monographShortUrl: `${SHORT_BASE}pm_23283374`
   }
 };
 

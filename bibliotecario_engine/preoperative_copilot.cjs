@@ -39,10 +39,10 @@ const PREOP_DATABASE = {
       { title: 'Atlas de Abordajes Quirúrgicos en Cadera y Pelvis - Hoppenfeld.pdf', id: 'HOPPENFELD_HIP_ATLAS' }
     ],
     externalWebDocs: [
-      { title: 'Baumgaertner MR, et al. The value of the tip-apex distance in predicting failure of fixation. JBJS Am 1995.', pmid: '7790785', url: `${SHORT_BASE}pm_7790785` },
+      { title: 'Baumgaertner MR, et al. The value of the tip-apex distance in predicting failure of fixation. JBJS Am 1995.', pmid: '7608228', url: `${SHORT_BASE}pm_7608228` },
       { title: 'AO Surgery Reference: Trochanteric fractures - Intramedullary nailing step-by-step.', aoCode: '31-a', url: `${SHORT_BASE}ao_31-a` },
-      { title: 'Kates SL, et al. Best Practices for Hip Fracture Care. J Orthop Trauma 2014.', pmid: '25313936', url: `${SHORT_BASE}pm_25313936` },
-      { title: 'Roberts JW, et al. Cephalomedullary nailing for reverse obliquity fractures. Orthop Clin North Am 2020.', pmid: '32005374', url: `${SHORT_BASE}pm_32005374` }
+      { title: 'Kates SL, et al. Organized fracture program for the elderly: early results. J Orthop Trauma 2011.', pmid: '21399474', url: `${SHORT_BASE}pm_21399474` },
+      { title: 'Sadowski C, et al. Treatment of reverse oblique intertrochanteric fractures. JBJS Am 2002.', pmid: '11886906', url: `${SHORT_BASE}pm_11886906` }
     ]
   },
   PLATILLOS_TIBIALES: {
@@ -75,8 +75,8 @@ const PREOP_DATABASE = {
     externalWebDocs: [
       { title: 'Luo CF, et al. Three-column fixation for complex tibial plateau fractures. J Orthop Trauma 2010.', pmid: '20881634', url: `${SHORT_BASE}pm_20881634` },
       { title: 'AO Surgery Reference: Tibial plateau fractures - Reduction and rafting plating.', aoCode: '41-b', url: `${SHORT_BASE}ao_41-b` },
-      { title: 'Egol KA, et al. Staged management of high-energy bicondylar tibial plateau fractures. J Trauma 2005.', pmid: '16151390', url: `${SHORT_BASE}pm_16151390` },
-      { title: 'Prat-Fabregat S, et al. Treatment strategy for tibial plateau fractures. EFORT Open Rev 2020.', pmid: '32509334', url: `${SHORT_BASE}pm_32509334` }
+      { title: 'Egol KA, et al. Staged management of high-energy bicondylar tibial plateau fractures. J Orthop Trauma 2005.', pmid: '16056075', url: `${SHORT_BASE}pm_16056075` },
+      { title: 'Prat-Fabregat S, et al. Treatment strategy for tibial plateau fractures. EFORT Open Rev 2016.', pmid: '28461952', url: `${SHORT_BASE}pm_28461952` }
     ]
   },
   HUMERO_PROXIMAL_PHILOS: {
@@ -107,10 +107,10 @@ const PREOP_DATABASE = {
       { title: 'Atlas de Abordajes Quirúrgicos en Hombro y Brazo.pdf', id: 'SHOULDER_APPROACHES_ATLAS' }
     ],
     externalWebDocs: [
-      { title: 'Owsley KC, et al. Failure of proximal humerus locked plate fixation. J Bone Joint Surg Am 2008.', pmid: '18171958', url: `${SHORT_BASE}pm_18171958` },
+      { title: 'Owsley KC, et al. Fracture displacement and screw cutout after locked plate fixation of proximal humerus. JBJS Am 2008.', pmid: '18245580', url: `${SHORT_BASE}pm_18245580` },
       { title: 'AO Surgery Reference: Proximal humerus - Open reduction and locked plating.', aoCode: '11-b', url: `${SHORT_BASE}ao_11-b` },
       { title: 'Thanasas C, et al. Treatment of proximal humerus fractures with locking plates: a meta-analysis. J Shoulder Elbow Surg 2009.', pmid: '19748802', url: `${SHORT_BASE}pm_19748802` },
-      { title: 'Krappinger D, et al. Predicting failure in proximal humerus fractures treated with locking plates. JBJS Am 2011.', pmid: '21792497', url: `${SHORT_BASE}pm_21792497` }
+      { title: 'Krappinger D, et al. Predicting failure after surgical fixation of proximal humerus fractures. Injury 2011.', pmid: '21310406', url: `${SHORT_BASE}pm_21310406` }
     ]
   }
 };

@@ -20,6 +20,7 @@ const { sendToRecycleBin } = require('./trash_util.cjs');
 
 const BASE_DIR = 'H:\\Mi unidad\\Información Ortopedia';
 const MAILBOX_DIR = path.join(BASE_DIR, '_BIBLIOTECARIO');
+const MUSIC_DIR = 'C:\\Users\\ferna\\Music';
 const REGISTRY_PATH = 'C:\\Users\\ferna\\Documents\\Antigravity Project\\bibliotecario_engine\\knowledge\\global_registry.json';
 const LOG_FILE = path.join(__dirname, 'mailbox_activity.log');
 

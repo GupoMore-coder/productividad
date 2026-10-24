@@ -6,6 +6,8 @@ const path = require('path');
 
 function cleanModuleContent(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
+  // Elimina cualquier require() de Node.js incompatible con Google Apps Script
+  content = content.replace(/(?:const|let|var)\s+[\w{}, \n\r\t]+\s*=\s*require\([^)]+\);?/g, '');
   // Elimina module.exports
   content = content.replace(/module\.exports\s*=\s*\{[\s\S]*?\};?/g, '');
   // Evita re-declaraciones de const SHORT_BASE si ya existe
@@ -18,6 +20,7 @@ const preopCode = cleanModuleContent(path.join(__dirname, 'preoperative_copilot.
 const implantCode = cleanModuleContent(path.join(__dirname, 'implant_technical_engine.cjs'));
 const consultCode = cleanModuleContent(path.join(__dirname, 'clinical_emergency_consult_engine.cjs'));
 const openAccessCode = cleanModuleContent(path.join(__dirname, 'open_access_tracker_engine.cjs'));
+const academicRulesCode = cleanModuleContent(path.join(__dirname, 'academic_golden_rules_engine.cjs'));
 
 const gasSpecificHelpers = `
 /**
@@ -195,32 +198,69 @@ function handleUserRequestPaperGAS(userPhone, userName, articleId) {
  * Despacha automáticamente a cada usuario que lo solicitó y actualiza la hoja.
  */
 function cumplirSolicitudAdquisicionGAS(adminPhone, text) {
-  const match = text.match(/^adquirido:?\\s*([A-Za-z0-9_.-]+)/i);
-  if (!match) {
-    sendWhatsAppText(adminPhone, '💡 Formato: *ADQUIRIDO: [ID_ARTICULO]* (ej: ADQUIRIDO: PAY_PELVIS_2024)');
+  const doiMatch = text.match(new RegExp('(?:https?:\\/\\/doi\\.org\\/)?(10\\.\\d{4,9}\\/[-._;()/:A-Za-z0-9]+)', 'i'));
+  const genericMatch = text.match(new RegExp('adquirido:?\\s*([^\\s\\n\\r*]+)', 'i'));
+
+  let articleId = '';
+  if (doiMatch) {
+    articleId = doiMatch[1].trim().replace(new RegExp('[;.,*)]$', ''), '');
+  } else if (genericMatch) {
+    articleId = genericMatch[1].trim().replace(new RegExp('[;.,*)]$', ''), '');
+  } else {
+    sendWhatsAppText(adminPhone, '💡 Formato: *ADQUIRIDO: [ID o DOI]* (ej: ADQUIRIDO: 10.1177/17531934251404821 o ADQUIRIDO: PAY_PELVIS_2024)');
     return;
   }
-  const articleId = match[1].trim();
+
   const fulfillRes = handleAdminFulfillPaper(articleId);
 
-  // Enviar mensaje automático a cada médico solicitante
+  // Enviar mensaje automático a cada médico solicitante registrado en memoria
   for (let i = 0; i < fulfillRes.fulfilledUsers.length; i++) {
     const u = fulfillRes.fulfilledUsers[i];
     sendWhatsAppText(u.phone, u.dispatchText);
     Utilities.sleep(250);
   }
 
-  // Actualizar la hoja Pendientes_Adquisicion
+  // Actualizar la hoja Pendientes_Adquisicion y despachar a los usuarios de la hoja
+  let sheetFulfilledCount = 0;
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheetPend = getSheetFlexible(ss, CONFIG.SHEET_PENDIENTES);
+    const sheetPend = getSheetFlexible(ss, CONFIG.SHEET_PENDIENTES || 'Pendientes_Adquisicion');
     if (sheetPend) {
       const data = sheetPend.getDataRange().getValues();
+      const normTarget = articleId.toLowerCase().replace(new RegExp('^https?:\\/\\/doi\\.org\\/', 'i'), '').replace(new RegExp('^doi:\\s*', 'i'), '').trim();
+
       for (let r = 1; r < data.length; r++) {
-        if (String(data[r][1]).trim() === articleId || String(data[r][6]).trim() === articleId) {
-          if (data[r][4] === 'PENDIENTE') {
-            sheetPend.getRange(r + 1, 5).setValue('ENTREGADO');
-          }
+        const rowId = String(data[r][1] || '').toLowerCase().trim();
+        const rowDoi = String(data[r][6] || '').toLowerCase().trim();
+        const rowPhone = String(data[r][2] || '').trim();
+        const rowUser = String(data[r][3] || 'Colega').trim();
+        const rowStatus = String(data[r][4] || '').toUpperCase().trim();
+        const rowTitle = String(data[r][7] || 'Documento Científico Solicitado').trim();
+
+        if (rowStatus === 'PENDIENTE' && (rowId.includes(normTarget) || normTarget.includes(rowId) || rowDoi.includes(normTarget) || normTarget.includes(rowDoi))) {
+          sheetPend.getRange(r + 1, 5).setValue('ENTREGADO');
+          sheetFulfilledCount++;
+
+          const token = createHMACDownloadToken({
+            driveId: normTarget,
+            uPhone: rowPhone,
+            exp: new Date().getTime() + (30 * 60 * 1000)
+          });
+          const shortUrl = (CONFIG.SHORT_BASE || 'https://biblioteca-medica.ortopedia.workers.dev/r/') + 'd_' + token;
+
+          const dispatchMsg = '🎉 *¡SU ARTÍCULO SOLICITADO YA ESTÁ DISPONIBLE!*\\\\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+            'Estimado(a) Dr(a). *' + rowUser + '*:\\\\n\\\\n' +
+            'La Dirección del Proyecto ha gestionado e incorporado exitosamente a la Biblioteca Médica el artículo que solicitó:\\\\n\\\\n' +
+            '📄 *Documento:* ' + rowTitle + '\\\\n' +
+            '🔑 *Referencia:* ' + String.fromCharCode(96) + articleId + String.fromCharCode(96) + '\\\\n\\\\n' +
+            '🔗 *Descarga Segura en el Repositorio (Válida por 30 min):*\\\\n' +
+            shortUrl + '\\\\n\\\\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+            '💡 _Gracias por enriquecer el acervo de la comunidad de Cirugía Ortopédica._';
+
+          sendWhatsAppText(rowPhone, dispatchMsg);
+          Utilities.sleep(250);
         }
       }
     }
@@ -228,8 +268,59 @@ function cumplirSolicitudAdquisicionGAS(adminPhone, text) {
     Logger.log('Error actualizando Pendientes_Adquisicion: ' + err.message);
   }
 
-  // Enviar confirmación al Gestor de Contenido
-  sendWhatsAppText(adminPhone, fulfillRes.adminConfirmationText);
+  // Notificación de confirmación al Gestor de Contenido
+  const totalSent = fulfillRes.fulfilledCount + sheetFulfilledCount;
+  if (totalSent > 0) {
+    sendWhatsAppText(adminPhone, '✅ *DOCUMENTO ENTREGADO AUTOMÁTICAMENTE*\\\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+      'El artículo ' + String.fromCharCode(96) + articleId + String.fromCharCode(96) + ' fue despachado exitosamente a ' + totalSent + ' médico(s) solicitante(s).\\\\n\\\\n' +
+      '📋 La cola de solicitudes pendientes fue actualizada a estado *ENTREGADO*.');
+  } else {
+    sendWhatsAppText(adminPhone, 'ℹ️ *ADQUISICIÓN REGISTRADA*\\\\n' +
+      'El artículo ' + String.fromCharCode(96) + articleId + String.fromCharCode(96) + ' fue marcado como disponible en el acervo institucional.');
+  }
+}
+
+/**
+ * Directorio Institucional de Comandos y Acciones para WhatsApp
+ */
+function getInteractiveCommandsDirectoryText() {
+  return '📋 *CARTA MAESTRA DE COMANDOS Y ACCIONES*\\\\n' +
+    '*Biblioteca Médica de Cirugía Ortopédica*\\\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n\\\\n' +
+    '🔍 *1. Búsqueda de Literatura y Acervo:*\\\\n' +
+    '• Escriba directamente el tema, técnica o patología:\\\\n' +
+    '  👉 Ej: "fractura de pelvis" o "clavo trocanterico"\\\\n' +
+    '• Ingrese un DOI o enlace web para apertura automática:\\\\n' +
+    '  👉 Ej: "10.1177/17531934251404821"\\\\n\\\\n' +
+    '🧮 *2. Calculadoras Quirúrgicas y Scores (Superpoder 1):*\\\\n' +
+    '• *SCORE CAPRINI* (Tromboprofilaxis ACCP/AAOS)\\\\n' +
+    '• *SCORE GUSTILO* (Fracturas abiertas y antibióticos)\\\\n' +
+    '• *SCORE MESS* / *CALCULAR MESS: 3 2 1 1*\\\\n' +
+    '• *SCORE GARDEN* / *SCORE TLICS* / *SCORE SCHATZKER*\\\\n\\\\n' +
+    '🩺 *3. Copiloto Pre-Operatorio (Superpoder 2):*\\\\n' +
+    '• *CASO: [cirugía]* (Briefing de la noche anterior, pearls)\\\\n' +
+    '  👉 Ej: "CASO: Clavo trocanterico" o "CASO: Protesis rodilla"\\\\n' +
+    '• *ABORDAJE: [nombre]* (Vías quirúrgicas y riesgos anatómicos)\\\\n' +
+    '  👉 Ej: "ABORDAJE: Kocher-Langenbeck"\\\\n\\\\n' +
+    '🔩 *4. Ficha Técnica de Implantes (Superpoder 3):*\\\\n' +
+    '• *IMPLANTE: [sistema]* (Brocas, machuelos, fresado y torque)\\\\n' +
+    '  👉 Ej: "IMPLANTE: Placa PHILOS" o "FICHA: Clavo T2"\\\\n\\\\n' +
+    '📋 *5. Interconsulta Quirúrgica ATLS/AO (Superpoder 4):*\\\\n' +
+    '• *INTERCONSULTA: [datos del paciente y lesión]*\\\\n\\\\n' +
+    '🎥 *6. Videos Quirúrgicos en 1 Clic:*\\\\n' +
+    '• *VIDEOS: [técnica]* (VuMedi, OrthoMedia, YouTube Académico)\\\\n' +
+    '  👉 Ej: "VIDEOS: Reemplazo total de cadera"\\\\n\\\\n' +
+    '🏛️ *7. Mesa Técnica de 15 Referentes Mundiales:*\\\\n' +
+    '• Escriba *MESA TECNICA* o *EXPERTOS*\\\\n\\\\n' +
+    '📖 *8. Utilidades Generales y Gobernanza:*\\\\n' +
+    '• *MANUAL* (Descarga del Manual Oficial de Uso en PDF)\\\\n' +
+    '• *BUZON* (Buzón Digital de Aportes o adjunte PDF con "APORTE")\\\\n' +
+    '• *ACTUALIZAR DATOS* (Actualizar correo, grado o hospital)\\\\n' +
+    '• *IDIOMA: [ES/EN/PT]* (Cambio instantáneo de idioma)\\\\n' +
+    '• *MENSAJE A LA DIRECCION: [texto]* (Canal confidencial)\\\\n\\\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+    '💡 _Este listado se actualiza de forma automática en tiempo real. Escriba "COMANDOS" en cualquier momento para consultarlo._';
 }
 `;
 
@@ -263,6 +354,11 @@ ${consultCode}
 // 🌐 SUPERPODER 5: RASTREADOR OPEN ACCESS Y CIRCUITO DE ADQUISICIÓN
 // ============================================================================
 ${openAccessCode}
+
+// ============================================================================
+// 🏛️ REGLAS DE ORO ACADÉMICAS, MESA TÉCNICA (15 PRODIGIOS) Y VIDEOS QUIRÚRGICOS
+// ============================================================================
+${academicRulesCode}
 
 ${gasSpecificHelpers}
 `;

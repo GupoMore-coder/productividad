@@ -972,6 +972,46 @@ async function startSuite() {
     assert.strictEqual(Boolean(unauthorizedRes.dispatches), false);
     assert.strictEqual(unauthorizedRes.recipientPhone, '+573151112233');
 
+    // 4. Caso D: Flexibilidad total del Gestor: INVITAR: jmamani41@gmail.com (sin la palabra CORREO)
+    const directInviteRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'INVITAR: jmamani41@gmail.com'
+    });
+    assert.strictEqual(directInviteRes.dispatches.length, 1);
+    assert.strictEqual(directInviteRes.dispatches[0].email, 'jmamani41@gmail.com');
+    assert.strictEqual(directInviteRes.replyText.includes('REPORTE DE INVITACIONES TRANSACCIONALES (1-a-1)'), true);
+    assert.strictEqual(directInviteRes.replyText.includes('jmamani41@gmail.com'), true);
+
+    // 5. Caso E: El Gestor solo pega el correo electrónico sin comando: jmamani41@gmail.com -> Despliega botones de confirmación
+    const pastedEmailRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'jmamani41@gmail.com'
+    });
+    assert.strictEqual(pastedEmailRes.requiresConfirmation, true);
+    assert.strictEqual(pastedEmailRes.interactiveButtons.length, 2);
+    assert.strictEqual(pastedEmailRes.interactiveButtons[0].id, 'INV_CONF_jmamani41@gmail.com');
+    assert.strictEqual(pastedEmailRes.replyText.includes('DETECCIÓN DE CORREO(S) ELECTRÓNICO(S)'), true);
+
+    // 6. Caso F: Confirmación mediante botón de acción rápida INV_CONF_jmamani41@gmail.com
+    const confirmButtonRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'INV_CONF_jmamani41@gmail.com'
+    });
+    assert.strictEqual(confirmButtonRes.dispatches.length, 1);
+    assert.strictEqual(confirmButtonRes.dispatches[0].email, 'jmamani41@gmail.com');
+    assert.strictEqual(confirmButtonRes.replyText.includes('REPORTE DE INVITACIONES TRANSACCIONALES (1-a-1)'), true);
+
+    // 7. Caso G: Cancelación mediante botón INV_CANCEL
+    const cancelRes = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Gestor de Contenido',
+      messageText: 'INV_CANCEL'
+    });
+    assert.strictEqual(cancelRes.replyText.includes('Operación Cancelada'), true);
+
     delete global.MOCK_RESEND_KEY;
   });
 
@@ -1009,6 +1049,24 @@ async function startSuite() {
     assert.strictEqual(resGustilo.replyText.includes('Clasificación de Gustilo-Anderson'), true);
     assert.strictEqual(resGustilo.replyText.includes('Cefazolina 2g IV'), true);
     assert.strictEqual(resGustilo.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_773941'), true);
+
+    // 4. Consulta de Escala de Caprini con tolerancia tipográfica (caaprini)
+    const resCapriniTypo = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'escala caaprini'
+    });
+    assert.strictEqual(resCapriniTypo.replyText.includes('Escala de Caprini'), true);
+    assert.strictEqual(resCapriniTypo.replyText.includes('pm_15900257'), true);
+    assert.strictEqual(resCapriniTypo.replyText.includes('pm_22134210'), true);
+
+    // 5. Consulta directa de score caprini sin dos puntos
+    const resCapriniDirect = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'score caprini'
+    });
+    assert.strictEqual(resCapriniDirect.replyText.includes('Escala de Caprini'), true);
   });
 
   // Jornada 35: Superpoder 2: Copiloto Pre-Operatorio (Briefing Quirúrgico de la Noche Anterior)
@@ -1028,7 +1086,7 @@ async function startSuite() {
     assert.strictEqual(resPreop.replyText.includes('1. DOCUMENTOS EN EL REPOSITORIO DE LA BIBLIOTECA'), true);
     assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/d_'), true);
     assert.strictEqual(resPreop.replyText.includes('2. DOCUMENTOS Y GUÍAS CONSULTADAS EN LA WEB ACADÉMICA'), true);
-    assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_7790785'), true);
+    assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_7608228'), true);
     assert.strictEqual(resPreop.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/ao_31-a'), true);
   });
 
@@ -1045,7 +1103,7 @@ async function startSuite() {
     assert.strictEqual(resPhilos.replyText.includes('Broca calibrada 2.8 mm'), true);
     assert.strictEqual(resPhilos.replyText.includes('Stardrive T15'), true);
     assert.strictEqual(resPhilos.replyText.includes('DePuy Synthes Trauma - PHILOS Surgical Technique Guide'), true);
-    assert.strictEqual(resPhilos.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_18171958'), true);
+    assert.strictEqual(resPhilos.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_18317048'), true);
 
     // 2. Tornillo 3.5 Cortical
     const resTornillo = await processIncomingWhatsAppMessage({
@@ -1071,7 +1129,7 @@ async function startSuite() {
     assert.strictEqual(resConsult.replyText.includes('DATOS CRÍTICOS PENDIENTES POR INTERROGAR O EVALUAR'), true);
     assert.strictEqual(resConsult.replyText.includes('Estado Vascular Distal'), true);
     assert.strictEqual(resConsult.replyText.includes('Vigilancia de Síndrome Compartimental'), true);
-    assert.strictEqual(resConsult.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_24872288'), true);
+    assert.strictEqual(resConsult.replyText.includes('https://biblioteca-medica.ortopedia.workers.dev/r/pm_21172642'), true);
 
     // 2. Personalización a Esquema SOAP
     const resSoap = await processIncomingWhatsAppMessage({
@@ -1142,6 +1200,79 @@ async function startSuite() {
     assert.strictEqual(resDigest.replyText.includes('Campbell_Tomo_4.pdf'), true);
     assert.strictEqual(resDigest.replyText.includes('Dra. Paola Rodrigo (+573205559999)'), true);
     assert.strictEqual(resDigest.replyText.includes('Luo_Tibial_Plateau_2024.pdf'), true);
+  });
+
+  // Jornada 40: Regla de Oro 6: Mesa Técnica de los 15 Prodigios de la Ortopedia Mundial
+  await runAsyncTest('Jornada 40: Regla de Oro 6: Consulta y auditoría de la Mesa Técnica de 15 Prodigios', async () => {
+    const resMesa = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'MESA TECNICA'
+    });
+    assert.strictEqual(resMesa.replyText.includes('MESA TÉCNICA CONSULTIVA INTERNACIONAL'), true);
+    assert.strictEqual(resMesa.replyText.includes('15 Prodigios y Máximas Autoridades'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Javad Parvizi'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Mohit Bhandari'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. David L. Helfet'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Jesse B. Jupiter'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Reinhold Ganz'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Christian Gerber'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Scott D. Boden'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Volker Musahl'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Daniel J. Berry'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Bernard F. Morrey'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Joel M. Matta'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Lew C. Schon'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Stuart L. Weinstein'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. James R. Ficke'), true);
+    assert.strictEqual(resMesa.replyText.includes('Dr. Norbert Haas'), true);
+  });
+
+  // Jornada 41: Regla de Oro 7: Directorio de Videos Quirúrgicos en 1 Clic (VuMedi, OrthoMedia, World Surgery Tour, YouTube)
+  await runAsyncTest('Jornada 41: Regla de Oro 7: Videos Quirúrgicos con enlaces directos en 1 solo clic', async () => {
+    const resVideo = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'VIDEOS: artroplastia reversa de hombro'
+    });
+    assert.strictEqual(resVideo.replyText.includes('DIRECTORIO DE VIDEOS QUIRÚRGICOS ACADÉMICOS EN 1 SOLO CLIC'), true);
+    assert.strictEqual(resVideo.replyText.includes('https://www.vumedi.com/search/?q='), true);
+    assert.strictEqual(resVideo.replyText.includes('https://orthomedia.org.uk/Search?search='), true);
+    assert.strictEqual(resVideo.replyText.includes('https://www.worldsurgerytour.com/search?q='), true);
+    assert.strictEqual(resVideo.replyText.includes('https://www.youtube.com/results?search_query='), true);
+  });
+
+  // Jornada 42: Guía Maestra Interactiva de Comandos y Tolerancia a Errores Tipográficos
+  await runAsyncTest('Jornada 42: Guía Maestra Interactiva de Comandos con tolerancia tipográfica (COMANDOS, comados, funciones)', async () => {
+    // 1. Comando exacto "COMANDOS"
+    const resExact = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'COMANDOS'
+    });
+    assert.strictEqual(resExact.replyText.includes('CARTA MAESTRA DE COMANDOS Y ACCIONES'), true);
+    assert.strictEqual(resExact.replyText.includes('SCORE CAPRINI'), true);
+    assert.strictEqual(resExact.replyText.includes('CASO: [cirugía]'), true);
+    assert.strictEqual(resExact.replyText.includes('IMPLANTE: [sistema]'), true);
+    assert.strictEqual(resExact.replyText.includes('INTERCONSULTA:'), true);
+    assert.strictEqual(resExact.replyText.includes('VIDEOS:'), true);
+    assert.strictEqual(resExact.replyText.includes('MESA TECNICA'), true);
+
+    // 2. Tolerancia a typo "comados"
+    const resTypo = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'comados'
+    });
+    assert.strictEqual(resTypo.replyText.includes('CARTA MAESTRA DE COMANDOS Y ACCIONES'), true);
+
+    // 3. Palabra clave "funciones"
+    const resFunc = await processIncomingWhatsAppMessage({
+      fromPhone: TEST_RESIDENT_PHONE,
+      senderName: 'Dr. Mateo Valencia',
+      messageText: 'funciones'
+    });
+    assert.strictEqual(resFunc.replyText.includes('CARTA MAESTRA DE COMANDOS Y ACCIONES'), true);
   });
 
   console.log('\n================================================================');

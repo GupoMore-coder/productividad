@@ -67,32 +67,32 @@ function handleEmergencyConsultRequest(inputText, preferredSchema = 'AO') {
   if (/tobillo|maleol|weber/i.test(cleanClinicalText)) {
     anatomicalRegion = 'Tobillo y Retropié';
     presumptiveDiagnosis = 'Fractura Maleolar de Tobillo (Evaluar Clasificación Danis-Weber / AO 44)';
-    evidencePMID = '24872288';
-    evidenceCitation = 'Stufkens SA, et al. Evidence-based treatment of ankle fractures. J Orthop Trauma 2014.';
+    evidencePMID = '21172642';
+    evidenceCitation = 'Stufkens SA, et al. Evidence-based treatment of maisonneuve fractures. J Foot Ankle Surg 2011;50(1):62-7.';
     protocolGuide = 'Bota de yeso/férula posterior inguinopédica o suropédica a 90°. Si hay subluxación tibiotalar, reducción cerrada de urgencias bajo analgesia/sedación para descomprimir partes blandas y piel.';
   } else if (/platillo|tibia|rodilla|meseta/i.test(cleanClinicalText)) {
     anatomicalRegion = 'Rodilla y Pierna';
     presumptiveDiagnosis = 'Fractura de Platillos Tibiales / Diáfisis de Tibia (AO 41 / 42)';
     evidencePMID = '20881634';
-    evidenceCitation = 'Luo CF, et al. Three-column fixation for complex tibial plateau fractures. JOT 2010.';
+    evidenceCitation = 'Luo CF, et al. Three-column fixation for complex tibial plateau fractures. J Orthop Trauma 2010;24(11):683-92.';
     protocolGuide = 'Férula inguinomaleolar posterior en 15° de flexión. Si hay flictenas o alta energía, tracción transcalcánea o fijador externo puente transarticular.';
   } else if (/cadera|f[eé]mur|trocant/i.test(cleanClinicalText)) {
     anatomicalRegion = 'Cadera y Fémur Proximal';
     presumptiveDiagnosis = 'Fractura de Fémur Proximal (AO 31) / Cuello Femoral o Pertrocantérica';
-    evidencePMID = '25313936';
-    evidenceCitation = 'Kates SL, et al. Best Practices for Hip Fracture Care. J Orthop Trauma 2014.';
+    evidencePMID = '21399474';
+    evidenceCitation = 'Kates SL, et al. The value of an organized fracture program for the elderly: early results. J Orthop Trauma 2011;25(4):233-7.';
     protocolGuide = 'Tracción cutánea o esquelética de confort, analgesia multimodal reglada (bloqueo de fascia ilíaca ecoguiado si disponible), profilaxis con HBPM enoxaparina 40 mg SC/día.';
   } else if (/h[uú]mero|hombro|philos/i.test(cleanClinicalText)) {
     anatomicalRegion = 'Hombro y Húmero';
     presumptiveDiagnosis = 'Fractura de Húmero Proximal / Diáfisis Humeral (AO 11 / 12)';
-    evidencePMID = '18171958';
-    evidenceCitation = 'Owsley KC, et al. Failure of proximal humerus locked plate fixation. JBJS Am 2008.';
+    evidencePMID = '18245580';
+    evidenceCitation = 'Owsley KC, Gorczyca JT. Fracture displacement and screw cutout after open reduction and locked plate fixation of proximal humeral fractures. J Bone Joint Surg Am 2008;90(2):233-40.';
     protocolGuide = 'Inmovilizador de hombro tipo cabestrillo con faja torácica (Velpeau). Evaluación minuciosa de la función motora del nervio axilar (sensibilidad en cara lateral del deltoides) y nervio radial.';
   } else if (/mu[nñ]eca|radio|colles/i.test(cleanClinicalText)) {
     anatomicalRegion = 'Muñeca y Antebrazo';
     presumptiveDiagnosis = 'Fractura de Radio Distal (AO 23) / Articular o Extraarticular';
-    evidencePMID = '21814120';
-    evidenceCitation = 'Lichtman DM, et al. AAOS Clinical Practice Guideline on Distal Radius Fractures. JAAOS 2010.';
+    evidencePMID = '21508285';
+    evidenceCitation = 'Lichtman DM, et al. American Academy of Orthopaedic Surgeons clinical practice guideline on: the treatment of distal radius fractures. J Bone Joint Surg Am 2011;93(8):775-8.';
     protocolGuide = 'Reducción cerrada bajo anestesia hematoma o bloqueo Bier + Férula antebraquiopalmar en flexión palmar neutra y leve desviación cubital.';
   }
 

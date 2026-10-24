@@ -526,6 +526,28 @@
       "naming_format": "2022 - Stryker - Hoffmann 3 Modular External Fixation System [Catálogo Quirúrgico].pdf",
       "learned_from": "Caso Resuelto en Entrenamiento de Campo",
       "date_learned": "2026-10-14T21:48:38.387Z"
+    },
+    {
+      "id": "LEARNED-049",
+      "signature": "stryker hoffmann 3 modular external fixation system",
+      "manufacturer": "Stryker",
+      "doc_type": "Catálogo Quirúrgico",
+      "author": null,
+      "target_folder": "Catálogos de Materiales ortopédicos",
+      "naming_format": "2022 - Stryker - Hoffmann 3 Modular External Fixation System [Catálogo Quirúrgico].pdf",
+      "learned_from": "Caso Resuelto en Entrenamiento de Campo",
+      "date_learned": "2026-10-24T00:04:50.774Z"
+    },
+    {
+      "id": "LEARNED-050",
+      "signature": "stryker hoffmann 3 modular external fixation system",
+      "manufacturer": "Stryker",
+      "doc_type": "Catálogo Quirúrgico",
+      "author": null,
+      "target_folder": "Catálogos de Materiales ortopédicos",
+      "naming_format": "2022 - Stryker - Hoffmann 3 Modular External Fixation System [Catálogo Quirúrgico].pdf",
+      "learned_from": "Caso Resuelto en Entrenamiento de Campo",
+      "date_learned": "2026-10-24T01:22:39.750Z"
     }
   ]
 }

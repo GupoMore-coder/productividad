@@ -1474,6 +1474,9 @@ function procesarBuzonCloud() {
 
       recordTelemetry('SISTEMA_CLOUD', rawName, subspecialty, 'EXITO_INGESTA_CLOUD', cleanName);
       Logger.log('✅ Archivo ' + rawName + ' procesado, clonado y clasificado en: ' + subspecialty);
+
+      // Auto-despacho desatendido: si coincide con solicitudes pendientes, entregar de inmediato
+      despacharSolicitudesPendientesAuto(ss, cleanName, rawName, newDriveId);
     }
 
     if (processedCount > 0) {
@@ -1488,6 +1491,65 @@ function procesarBuzonCloud() {
     }
   } catch (err) {
     Logger.log('⚠️ Error en procesarBuzonCloud: ' + err.message);
+  }
+}
+
+function despacharSolicitudesPendientesAuto(ss, cleanName, rawName, newDriveId) {
+  try {
+    const sheetPend = getSheetFlexible(ss, CONFIG.SHEET_PENDIENTES || 'Pendientes_Adquisicion');
+    if (!sheetPend) return;
+    const data = sheetPend.getDataRange().getValues();
+    const adminPhone = getSecureProperty('ADMIN_PHONE', CONFIG.ADMIN_PHONE);
+    const searchTarget = (cleanName + ' ' + rawName).toLowerCase();
+
+    for (let r = 1; r < data.length; r++) {
+      const rowId = String(data[r][1] || '').toLowerCase().trim();
+      const rowDoi = String(data[r][6] || '').toLowerCase().trim();
+      const rowPhone = String(data[r][2] || '').trim();
+      const rowUser = String(data[r][3] || 'Colega').trim();
+      const rowStatus = String(data[r][4] || '').toUpperCase().trim();
+      const rowTitle = String(data[r][7] || cleanName).trim();
+
+      const isMatch = (rowStatus === 'PENDIENTE') && (
+        (rowId && searchTarget.includes(rowId)) ||
+        (rowDoi && searchTarget.includes(rowDoi)) ||
+        (rowId && rowId.length > 5 && searchTarget.replace(/[^a-z0-9]/g, '').includes(rowId.replace(/[^a-z0-9]/g, '')))
+      );
+
+      if (isMatch) {
+        sheetPend.getRange(r + 1, 5).setValue('ENTREGADO');
+        const token = createHMACDownloadToken({
+          driveId: newDriveId,
+          uPhone: rowPhone,
+          exp: new Date().getTime() + (30 * 60 * 1000)
+        });
+        const shortUrl = (CONFIG.SHORT_BASE || 'https://biblioteca-medica.ortopedia.workers.dev/r/') + 'd_' + token;
+
+        const dispatchMsg = '🎉 *¡SU ARTÍCULO SOLICITADO YA ESTÁ DISPONIBLE!*\\\\n' +
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+          'Estimado(a) Dr(a). *' + rowUser + '*:\\\\n\\\\n' +
+          'La Dirección del Proyecto ha gestionado e incorporado exitosamente a la Biblioteca Médica el artículo que solicitó:\\\\n\\\\n' +
+          '📄 *Documento:* ' + rowTitle + '\\\\n' +
+          '🔑 *Referencia:* ' + String.fromCharCode(96) + (rowDoi || rowId || cleanName) + String.fromCharCode(96) + '\\\\n\\\\n' +
+          '🔗 *Descarga Segura en el Repositorio (Válida por 30 min):*\\\\n' +
+          shortUrl + '\\\\n\\\\n' +
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+          '💡 _Gracias por enriquecer el acervo de la comunidad de Cirugía Ortopédica._';
+
+        sendWhatsAppText(rowPhone, dispatchMsg);
+        Utilities.sleep(250);
+
+        if (adminPhone) {
+          sendWhatsAppText(adminPhone, '🎉 *DESPACHO AUTÓNOMO DE LITERATURA COMPLETADO*\\\\n' +
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+            'El documento *' + rowTitle + '* ingresó al acervo y fue entregado de forma 100% automática a:\\\\n' +
+            '• *Médico:* ' + rowUser + ' (' + rowPhone + ')\\\\n\\\\n' +
+            '📋 Estado de la solicitud actualizado a *ENTREGADO*.');
+        }
+      }
+    }
+  } catch (err) {
+    Logger.log('Error en despacharSolicitudesPendientesAuto: ' + err.message);
   }
 }
 
@@ -2260,7 +2322,19 @@ function handleDoGetExecution(e) {
       .replace(/\\//g, '_')
       .replace(/=+$/, '');
 
-    if (!constantTimeEquals(receivedSignature, expectedSignature)) {
+    let isSigValid = constantTimeEquals(receivedSignature, expectedSignature);
+    if (!isSigValid && CONFIG.SECRET_SALT) {
+      const fallbackSigRaw = Utilities.computeHmacSha256Signature(rawPayload, CONFIG.SECRET_SALT);
+      const fallbackSignature = Utilities.base64Encode(fallbackSigRaw)
+        .replace(/\\+/g, '-')
+        .replace(/\\//g, '_')
+        .replace(/=+$/, '');
+      if (constantTimeEquals(receivedSignature, fallbackSignature)) {
+        isSigValid = true;
+      }
+    }
+
+    if (!isSigValid) {
       triggerSilentIDS('WEB_CLIENT_ANON', 'SIGNATURE_TAMPERING', token, 'Firma HMAC adulterada detectada');
       return HtmlService.createHtmlOutput('<h3>⚠️ Verificación criptográfica fallida. Acceso denegado.</h3>');
     }
@@ -2307,7 +2381,23 @@ function handleDoGetExecution(e) {
       return renderRichInteractiveManual(b64Manual, token, lang);
     }
 
-    // Caso C: Documento clínico cloud por Drive File ID
+    // Caso C: Documento en proceso de sincronización local -> cloud (Sin falsa alarma BOLA_IDOR)
+    if (targetId === 'PENDIENTE_SYNC' || (payload.driveId && payload.driveId === 'PENDIENTE_SYNC')) {
+      return HtmlService.createHtmlOutput(
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sincronización en Proceso</title>' +
+        '<style>body{margin:0;padding:24px;font-family:system-ui,-apple-system,sans-serif;background:#071324;color:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;box-sizing:border-box;}' +
+        '.box{background:#0f1e33;border:1px solid #1e3a5f;border-radius:16px;padding:36px 28px;max-width:480px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.5);}' +
+        '.icon{font-size:42px;margin-bottom:12px;display:block;}' +
+        'h2{color:#38bdf8;font-size:18px;margin:0 0 10px;font-weight:700;}' +
+        'p{color:#94a3b8;font-size:13.5px;line-height:1.6;margin:0 0 20px;}' +
+        '.btn{display:inline-block;background:linear-gradient(135deg,#0d9488,#0284c7);color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;font-size:13px;}' +
+        '</style></head><body><div class="box"><span class="icon">⏳</span><h2>Documento en Proceso de Sincronización Cloud</h2>' +
+        '<p>El documento ha sido catalogado en el acervo institucional y se encuentra completando su sincronización segura en Google Drive.<br><br>Estará disponible para su descarga directa en breves minutos.</p>' +
+        '<a href="https://wa.me/573205955993" class="btn">💬 Volver al Chat de WhatsApp</a></div></body></html>'
+      );
+    }
+
+    // Caso D: Documento clínico cloud por Drive File ID
     // Validación BOLA / IDOR: Verificar que el ID existe o no es arbitrario
     if (!/^[a-zA-Z0-9_-]{25,50}$/.test(targetId)) {
       triggerSilentIDS(payload.uPhone || 'WEB_ANON', 'BOLA_IDOR', targetId, 'Formato de Drive ID sospechoso');
@@ -4246,9 +4336,20 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
-    // 1.52 INVITAR_CORREO / NOTIFICAR_CORREO (Despacho Transaccional Desacoplado 1-a-1)
-    if (lower.startsWith('invitar correo') || lower.startsWith('invitar_correo') || lower.startsWith('notificar correo') || lower.startsWith('notificar_correo')) {
-      const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g) || [];
+    // 1.52 CANCELAR INVITACIÓN
+    if (lower === 'inv_cancel' || lower === 'cancelar_invitacion' || lower === 'cancelar invitacion') {
+      sendWhatsAppText(adminPhone, 'ℹ️ *Operación Cancelada:* No se envió ninguna invitación.');
+      return;
+    }
+
+    // 1.52 INVITAR / INVITAR_CORREO / NOTIFICAR_CORREO / CONFIRMACIÓN (Despacho Transaccional Desacoplado 1-a-1)
+    const isDirectInvite = lower.startsWith('invitar') || lower.startsWith('invitacion') || lower.startsWith('invitación') || 
+                           lower.startsWith('notificar correo') || lower.startsWith('notificar_correo') ||
+                           lower.startsWith('inv_conf_') || lower.startsWith('inv_confirm:');
+
+    if (isDirectInvite) {
+      const cleanText = text.replace(/^(inv_conf_|inv_confirm:?\\s*)/i, '');
+      const emailMatches = cleanText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g) || [];
       const extractedEmails = [];
       for (let i = 0; i < emailMatches.length; i++) {
         const em = emailMatches[i].toLowerCase().trim();
@@ -4260,7 +4361,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       if (extractedEmails.length === 0) {
         sendWhatsAppText(adminPhone,
           '💡 *Formato de Invitación por Correo:*\\\\n' +
-          '• *INVITAR CORREO: colega1@hospital.org, colega2@correo.com*\\\\n\\\\n' +
+          '• *INVITAR: colega@hospital.org* o *INVITAR CORREO: colega1@hospital.org, colega2@correo.com*\\\\n\\\\n' +
           '🔒 *Garantía de Privacidad:* Cada correo recibirá una invitación individual e independiente (1 a 1), sin copias visibles ni contacto entre destinatarios.'
         );
         return;
@@ -4337,9 +4438,54 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
       return;
     }
 
+    // 1.52b DETECCIÓN INTELIGENTE DE CORREOS PEGADOS POR EL GESTOR (CONFIRMACIÓN INTERACTIVA)
+    const rawEmailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g) || [];
+    if (rawEmailMatches.length > 0 && !lower.startsWith('evidencia:') && !lower.startsWith('analizar') && !lower.startsWith('buscar')) {
+      const detectedEmails = [];
+      for (let i = 0; i < rawEmailMatches.length; i++) {
+        const em = rawEmailMatches[i].toLowerCase().trim();
+        if (detectedEmails.indexOf(em) === -1) {
+          detectedEmails.push(em);
+        }
+      }
+
+      const isPastedEmail = (detectedEmails.length > 0) && (text.length < 250);
+      if (isPastedEmail) {
+        let emailBullets = '';
+        for (let d = 0; d < detectedEmails.length; d++) {
+          emailBullets += '• *' + detectedEmails[d] + '*\\\\n';
+        }
+
+        const confirmMsg = 
+          '📧 *DETECCIÓN DE CORREO(S) ELECTRÓNICO(S)*\\\\n' +
+          '*Dirección:* Gestor de Contenido\\\\n' +
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+          'Se ha detectado el siguiente destinatario:\\\\n' +
+          emailBullets + '\\\\n' +
+          '¿Desea enviar la *invitación institucional formal (1-a-1)* para incorporar a este médico al proyecto?\\\\n' +
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━\\\\n' +
+          '⚡ Toque un botón de acción rápida o responda:\\\\n' +
+          '👉 *INVITAR: ' + detectedEmails[0] + '*';
+
+        const actionButtons = [
+          { id: 'INV_CONF_' + detectedEmails[0], title: '✉️ Enviar Invitación' },
+          { id: 'INV_CANCEL', title: '❌ Cancelar' }
+        ];
+
+        sendWhatsAppInteractiveButtons(adminPhone, confirmMsg, actionButtons);
+        return;
+      }
+    }
+
     // 1.53 CUMPLIMIENTO DE ADQUISICIÓN DE LITERATURA FALTANTE (SUPERPODER 5)
-    if (lower.startsWith('adquirido:') || lower.startsWith('adquirido ')) {
+    if (lower.includes('adquirido:') || lower.includes('adquirido ') || lower.startsWith('adquirido')) {
       cumplirSolicitudAdquisicionGAS(adminPhone, text);
+      return;
+    }
+
+    // 1.53b DIRECTORIO INTERACTIVO DE COMANDOS (GESTOR)
+    if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones') {
+      sendWhatsAppText(adminPhone, getInteractiveCommandsDirectoryText());
       return;
     }
 
@@ -4798,6 +4944,12 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
   // =========================================================================
   if (userRow[4] === 'APROBADO' || userRow[4] === 'ACTIVO') {
 
+    // 4.1.3 Guía Maestra Interactiva de Comandos y Acciones Institucionales
+    if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones' || /^comandos?\b/i.test(lower)) {
+      sendWhatsAppText(cleanPhone, getInteractiveCommandsDirectoryText());
+      return;
+    }
+
     // 4.1.4 Cambio Inmediato de Idioma de Comunicación (Sin Límite de Frecuencia)
     if (lower.startsWith('idioma:') || lower.startsWith('language:') || lower.startsWith('lang:') || lower === 'idioma' || lower === 'language') {
       handleCambioIdiomaUsuario(cleanPhone, userRow, text, senderName);
@@ -4837,7 +4989,7 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
     // =========================================================================
 
     // Superpoder 1: Calculadora de Scores y Escalas Quirúrgicas al Instante
-    if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ')) {
+    if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ') || /^escala\s+de\s+/i.test(lower) || /^score\s+de\s+/i.test(lower) || /^(caprini|mess|gustilo|garden|tlics|gartland|schatzker)$/i.test(lower.trim())) {
       const calcRes = handleCalculatorRequest(text);
       if (calcRes && calcRes.handled) {
         sendWhatsAppText(cleanPhone, calcRes.replyText);

@@ -59,11 +59,15 @@ async function main() {
   console.log('║   Dirección: Gestor de Contenido                                                        ║');
   console.log('╚═════════════════════════════════════════════════════════════════════════════════════════╝');
 
-  // 1. Compilación del Script Maestro y Manual Interactivo
+  // 1. Compilación del Bundle de Superpoderes y Script Maestro
+  runStep('Compilando Bundle de Superpoderes Clínicos', 'node bibliotecario_engine/build_superpowers_section.cjs');
   runStep('Compilando Código Maestro y Sincronizando gas_dist', 'node bibliotecario_engine/build_full_manager.cjs');
 
   // 2. Validación Estricta de Sintaxis JS V8
   runStep('Validando Sintaxis V8 de GoogleAppsScript_SheetsManager.js', 'node -c bibliotecario_engine/GoogleAppsScript_SheetsManager.js');
+
+  // 2.5 Validación de Cero Incompatibilidades de Node en GAS
+  runStep('Validando Cero Sentencias require() en GoogleAppsScript_SheetsManager.js', 'node -e "const content = require(\'fs\').readFileSync(\'bibliotecario_engine/GoogleAppsScript_SheetsManager.js\', \'utf8\'); if (content.includes(\'require(\')) { console.error(\'ERROR: Contiene require() incompatible con Google Apps Script\'); process.exit(1); }"');
 
   // 3. Puerta de Seguridad y Auditoría Forense (Air-Gapped Sandbox)
   runStep('Ejecutando Suite de Auditoría Forense (22 Pruebas de Cero-Fuga)', 'node bibliotecario_engine/sandbox_audit/audit_suite_runner.cjs');

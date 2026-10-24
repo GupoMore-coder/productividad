@@ -1678,5 +1678,215 @@
     "createdAt": "2026-10-22T16:18:15.893Z",
     "resolvedAt": null,
     "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0121",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573120009354",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T00:00:09.553Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0122",
+    "title": "Surgical management of complex pelvic ring fractures",
+    "doiOrIsbn": "10.1016/j.injury.2023.05.012",
+    "requester": {
+      "phone": "+573155554321",
+      "name": "Dr. Alejandro Restrepo",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "DISPONIBLE",
+    "createdAt": "2026-10-24T00:04:50.993Z",
+    "resolvedAt": "2026-10-24T00:04:50.997Z",
+    "resolvedByDocId": "DRIVE_FILE_ID_PELVIC_2023"
+  },
+  {
+    "id": "TCK-0123",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573120291324",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T00:04:51.433Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0124",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573124842584",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T01:20:42.726Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0125",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573124871731",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T01:21:11.815Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0126",
+    "title": "Surgical management of complex pelvic ring fractures",
+    "doiOrIsbn": "10.1016/j.injury.2023.05.012",
+    "requester": {
+      "phone": "+573155554321",
+      "name": "Dr. Alejandro Restrepo",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "DISPONIBLE",
+    "createdAt": "2026-10-24T01:22:39.926Z",
+    "resolvedAt": "2026-10-24T01:22:39.930Z",
+    "resolvedByDocId": "DRIVE_FILE_ID_PELVIC_2023"
+  },
+  {
+    "id": "TCK-0127",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573124960253",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T01:22:40.370Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0128",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573127454144",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T02:04:14.272Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0129",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573127578958",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T02:06:19.050Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0130",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573121273782",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:01:13.918Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0131",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573121313599",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:01:53.698Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0132",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573121421924",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:03:42.038Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0133",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573122688990",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:24:49.077Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0134",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573122803535",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:26:43.630Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0135",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573122989897",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T17:29:50.014Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
   }
 ]

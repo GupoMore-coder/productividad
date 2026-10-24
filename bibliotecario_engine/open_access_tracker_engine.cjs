@@ -28,14 +28,14 @@ async function searchOpenAccessLiterature(query) {
   if (/pelvis|acetabulo|judet|letournel/i.test(lower)) {
     items = [
       {
-        id: 'OA_PELVIS_2023',
-        title: 'Open Access: Surgical management of complex acetabular fractures: A 10-year multicenter outcome study',
-        authors: 'Matta JM, Tannast M, et al.',
+        id: 'OA_PELVIS_2025',
+        title: 'Open Access: Pelvis/acetabulum: management of geriatric injuries',
+        authors: 'OTA Trauma Committee',
         journal: 'OTA International (Open Access)',
-        year: '2023',
-        doi: '10.1097/OI9.0000000000000215',
+        year: '2025',
+        doi: '10.1097/OI9.0000000000000350',
         isOpenAccess: true,
-        pdfUrl: `${SHORT_BASE}pm_37180420`
+        pdfUrl: `${SHORT_BASE}pm_40321464`
       },
       {
         id: 'PAY_PELVIS_2024',
@@ -51,14 +51,14 @@ async function searchOpenAccessLiterature(query) {
   } else if (/infeccion|artroplastia|periprot/i.test(lower)) {
     items = [
       {
-        id: 'OA_PJI_2023',
-        title: 'Open Access: International Consensus Meeting (ICM) on Musculoskeletal Infection: 2023 Updated Recommendations',
-        authors: 'Parvizi J, Gehrke T, et al.',
+        id: 'OA_PJI_2018',
+        title: 'Open Access: The 2018 Definition of Periprosthetic Hip and Knee Infection: An Evidence-Based and Validated Criteria',
+        authors: 'Parvizi J, Tan TL, Goswami K, et al.',
         journal: 'Journal of Arthroplasty (Open Access)',
-        year: '2023',
-        doi: '10.1016/j.arth.2023.05.012',
+        year: '2018',
+        doi: '10.1016/j.arth.2018.02.078',
         isOpenAccess: true,
-        pdfUrl: `${SHORT_BASE}pm_37286105`
+        pdfUrl: `${SHORT_BASE}pm_29551303`
       },
       {
         id: 'PAY_DAIR_2024',
@@ -76,13 +76,13 @@ async function searchOpenAccessLiterature(query) {
     items = [
       {
         id: 'OA_GEN_2024',
-        title: `Open Access: Modern principles and clinical updates in ${cleanQ}`,
-        authors: 'AO Clinical Investigation Group',
-        journal: 'European Journal of Orthopaedic Surgery & Traumatology (Open Access)',
+        title: 'Open Access: Geriatric trauma: there is more to it than just the implant!',
+        authors: 'OTA Education Committee',
+        journal: 'OTA International (Open Access)',
         year: '2024',
-        doi: '10.1007/s00590-024-03890-1',
+        doi: '10.1097/OI9.0000000000000310',
         isOpenAccess: true,
-        pdfUrl: `${SHORT_BASE}pm_38402190`
+        pdfUrl: `${SHORT_BASE}pm_38487398`
       },
       {
         id: 'PAY_GEN_2024',
@@ -193,11 +193,28 @@ function handleUserRequestPaper(userPhone, userName, articleIdOrDoi) {
  * Maneja la acción del Gestor: ADQUIRIDO: <ID>
  * Despacha de inmediato al usuario que lo solicitó y confirma al Gestor
  */
+function normalizeRef(ref) {
+  if (!ref) return '';
+  return ref.trim()
+    .toLowerCase()
+    .replace(/^https?:\/\/doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .replace(/[;.,*)]$/, '')
+    .trim();
+}
+
 function handleAdminFulfillPaper(articleIdOrDoi, documentTitle = 'Documento Científico Adquirido') {
   const reqId = (articleIdOrDoi || '').trim();
+  const cleanReq = normalizeRef(reqId);
 
   // Ubica todas las solicitudes pendientes de este documento
-  const matches = PENDING_ACQUISITIONS_STORE.filter(p => p.id.toLowerCase() === reqId.toLowerCase() && p.status === 'PENDIENTE_GESTOR');
+  const matches = PENDING_ACQUISITIONS_STORE.filter(p => {
+    if (p.status !== 'PENDIENTE_GESTOR') return false;
+    const pClean = normalizeRef(p.id);
+    const pDoiClean = normalizeRef(p.doi);
+    return (pClean === cleanReq || (cleanReq && pClean.includes(cleanReq)) || (pClean && cleanReq.includes(pClean)) ||
+            pDoiClean === cleanReq || (cleanReq && pDoiClean.includes(cleanReq)));
+  });
 
   const fulfilledUsers = [];
 
@@ -248,10 +265,20 @@ function handleAdminFulfillPaper(articleIdOrDoi, documentTitle = 'Documento Cien
   };
 }
 
+async function handleOpenAccessSearchRequest(query) {
+  const items = await searchOpenAccessLiterature(query);
+  return {
+    handled: true,
+    replyText: formatLiteratureSearchOutput(items, query)
+  };
+}
+
 module.exports = {
   searchOpenAccessLiterature,
   formatLiteratureSearchOutput,
   handleUserRequestPaper,
   handleAdminFulfillPaper,
+  handleOpenAccessSearchRequest,
   PENDING_ACQUISITIONS_STORE
 };
+

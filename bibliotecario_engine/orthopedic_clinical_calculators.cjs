@@ -30,9 +30,9 @@ const VERIFIED_SCORES_DB = {
     citation: 'Gustilo RB, Anderson JT. Prevention of infection in the treatment of 1,025 open fractures of long bones. J Bone Joint Surg Am. 1976;58(4):453-8.',
     pmid: '773941',
     shortUrl: `${SHORT_BASE}pm_773941`,
-    subCitation: 'Hoff WS, et al. EAST Practice Management Guidelines for Open Fractures. J Trauma. 2011.',
-    subPmid: '21814120',
-    subShortUrl: `${SHORT_BASE}pm_21814120`
+    subCitation: 'EAST Practice Management Guidelines: Prophylactic antibiotic use in open fractures. J Trauma. 2011;70(3):751-4.',
+    subPmid: '21610369',
+    subShortUrl: `${SHORT_BASE}pm_21610369`
   },
   CAPRINI: {
     name: 'Escala de Caprini (Riesgo de Tromboprofilaxis en Ortopedia)',
@@ -40,16 +40,19 @@ const VERIFIED_SCORES_DB = {
     citation: 'Caprini JA. Thrombosis risk assessment as a guide to quality patient care. Dis Mon. 2005;51(2-3):70-8.',
     pmid: '15900257',
     shortUrl: `${SHORT_BASE}pm_15900257`,
-    guidelineCitation: 'AAOS Clinical Practice Guideline on Preventing Venous Thromboembolic Disease in Hip/Knee Arthroplasty.',
-    guidelinePmid: '22240500',
-    guidelineShortUrl: `${SHORT_BASE}pm_22240500`
+    guidelineCitation: 'AAOS Clinical Practice Guideline: Preventing Venous Thromboembolic Disease in Hip and Knee Arthroplasty. J Am Acad Orthop Surg. 2011;19(12):777-8.',
+    guidelinePmid: '22134210',
+    guidelineShortUrl: `${SHORT_BASE}pm_22134210`
   },
   GARDEN: {
     name: 'Clasificación de Garden & Pauwels (Cuello Femoral)',
     description: 'Evaluación del grado de desplazamiento y ángulo de cizallamiento en fracturas intracapsulares de cadera.',
-    citation: 'Garden RS. Low-angle fixation in fractures of the femoral neck. J Bone Joint Surg Br. 1961;43-B(4):647-63.',
-    pmid: '13896799',
-    shortUrl: `${SHORT_BASE}pm_13896799`
+    citation: 'Garden RS. Stability and union in subcapital fractures of the femur. J Bone Joint Surg Br. 1964;46-B(4):630-44.',
+    pmid: '14251448',
+    shortUrl: `${SHORT_BASE}pm_14251448`,
+    subCitation: 'Bartoníček J. Pauwels classification of femoral neck fractures: correct interpretation. J Orthop Trauma. 2001;15(5):358-60.',
+    subPmid: '11433141',
+    subShortUrl: `${SHORT_BASE}pm_11433141`
   },
   TLICS: {
     name: 'TLICS (Thoracolumbar Injury Classification and Severity Score)',
@@ -68,9 +71,9 @@ const VERIFIED_SCORES_DB = {
   SCHATZKER: {
     name: 'Clasificación de Schatzker / AO 41 (Platillos Tibiales)',
     description: 'Patrones de hundimiento, cizallamiento y disociación metafiso-diafisaria en meseta tibial.',
-    citation: 'Schatzker J, et al. The tibial plateau fracture. Clin Orthop Relat Res. 1979;(145):94-104.',
-    pmid: '535178',
-    shortUrl: `${SHORT_BASE}pm_535178`
+    citation: 'Schatzker J, McBroom R, Bruce D. The tibial plateau fracture. The Toronto experience 1968--1975. Clin Orthop Relat Res. 1979;(138):94-104.',
+    pmid: '445923',
+    shortUrl: `${SHORT_BASE}pm_445923`
   }
 };
 
@@ -84,12 +87,12 @@ function handleCalculatorRequest(messageText) {
   // Detecta el tipo de score
   let targetScore = null;
   if (/mess/i.test(lower)) targetScore = 'MESS';
-  else if (/gustilo/i.test(lower) || /abierta/i.test(lower) || /expuesta/i.test(lower)) targetScore = 'GUSTILO';
-  else if (/caprini/i.test(lower) || /trombo/i.test(lower) || /tvp/i.test(lower)) targetScore = 'CAPRINI';
-  else if (/garden/i.test(lower) || /pauwels/i.test(lower) || /cuello.*f[eé]mur/i.test(lower)) targetScore = 'GARDEN';
-  else if (/tlics/i.test(lower) || /toracolumbar/i.test(lower)) targetScore = 'TLICS';
-  else if (/gartland/i.test(lower) || /supracond[ií]lea/i.test(lower)) targetScore = 'GARTLAND';
-  else if (/schatzker/i.test(lower) || /platillos/i.test(lower) || /meseta/i.test(lower)) targetScore = 'SCHATZKER';
+  else if (/g[uú]+st[ií]+l[oó]/i.test(lower) || /abierta/i.test(lower) || /expuesta/i.test(lower)) targetScore = 'GUSTILO';
+  else if (/c[aá]+pr[ií]+n[ií]/i.test(lower) || /trombo/i.test(lower) || /tvp/i.test(lower)) targetScore = 'CAPRINI';
+  else if (/g[aá]+rd[eé]n/i.test(lower) || /p[aá]+uw?els/i.test(lower) || /cuello.*f[eé]mur/i.test(lower)) targetScore = 'GARDEN';
+  else if (/tl[ií]cs/i.test(lower) || /toracolumbar/i.test(lower)) targetScore = 'TLICS';
+  else if (/g[aá]+rtl[aá]+nd/i.test(lower) || /supracond[ií]lea/i.test(lower)) targetScore = 'GARTLAND';
+  else if (/sch?atz?k[eé]r/i.test(lower) || /platillos/i.test(lower) || /meseta/i.test(lower)) targetScore = 'SCHATZKER';
 
   if (!targetScore) {
     return {

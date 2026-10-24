@@ -43,6 +43,14 @@ const {
   handleAdminFulfillPaper 
 } = require('./open_access_tracker_engine.cjs');
 
+// Importación del Motor de Reglas de Oro Académicas, Mesa Técnica y Videos Quirúrgicos
+const {
+  MESA_TECNICA_15,
+  SURGICAL_VIDEO_PLATFORMS,
+  buildSurgicalVideoDirectoryText,
+  formatRepositorySearchResults
+} = require('./academic_golden_rules_engine.cjs');
+
 const DAILY_CONTRIBUTIONS = [];
 
 function registrarAporteDiario({ phone, name, fileName, size = '15 MB' }) {
@@ -514,16 +522,28 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
       };
     }
 
-    // 1.8 Comando: INVITAR_CORREO / NOTIFICAR_CORREO (Despacho Transaccional Desacoplado 1-a-1)
-    if (lower.startsWith('invitar correo') || lower.startsWith('invitar_correo') || lower.startsWith('notificar correo') || lower.startsWith('notificar_correo')) {
-      const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    // 1.8 Comando: INVITAR / INVITAR_CORREO / NOTIFICAR_CORREO / CONFIRMACIÓN
+    if (lower === 'inv_cancel' || lower === 'cancelar_invitacion' || lower === 'cancelar invitacion') {
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: 'ℹ️ *Operación Cancelada:* No se envió ninguna invitación.'
+      };
+    }
+
+    const isDirectInvite = lower.startsWith('invitar') || lower.startsWith('invitacion') || lower.startsWith('invitación') ||
+                           lower.startsWith('notificar correo') || lower.startsWith('notificar_correo') ||
+                           lower.startsWith('inv_conf_') || lower.startsWith('inv_confirm:');
+
+    if (isDirectInvite) {
+      const cleanText = text.replace(/^(inv_conf_|inv_confirm:?\s*)/i, '');
+      const emailMatches = cleanText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
       const extractedEmails = Array.from(new Set(emailMatches.map(e => e.toLowerCase().trim())));
 
       if (extractedEmails.length === 0) {
         return {
           recipientPhone: ADMIN_PHONE,
           replyText: `💡 *Formato de Invitación por Correo:*\n` +
-                     `• \`INVITAR CORREO: colega1@hospital.org, colega2@correo.com\`\n\n` +
+                     `• \`INVITAR: colega@hospital.org\` o \`INVITAR CORREO: colega1@hospital.org, colega2@correo.com\`\n\n` +
                      `🔒 *Garantía de Privacidad:* Cada correo recibirá una invitación individual e independiente (1 a 1), sin copias visibles ni contacto entre destinatarios.`
         };
       }
@@ -584,6 +604,34 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
                    `Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más fue invitado, y se preserva el anonimato absoluto de la Dirección.`,
         dispatches: dispatches
       };
+    }
+
+    // 1.8b Detección Inteligente de Correos Pegados por el Gestor (Confirmación Interactiva)
+    const rawEmailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    if (rawEmailMatches.length > 0 && !lower.startsWith('evidencia:') && !lower.startsWith('analizar') && !lower.startsWith('buscar')) {
+      const detectedEmails = Array.from(new Set(rawEmailMatches.map(e => e.toLowerCase().trim())));
+      const isPastedEmail = (detectedEmails.length > 0) && (text.length < 250);
+      if (isPastedEmail) {
+        const emailListText = detectedEmails.map(e => `• *${e}*`).join('\n');
+        return {
+          recipientPhone: ADMIN_PHONE,
+          replyText: `📧 *DETECCIÓN DE CORREO(S) ELECTRÓNICO(S)*\n` +
+                     `*Dirección:* Gestor de Contenido\n` +
+                     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                     `Se ha detectado el siguiente destinatario:\n` +
+                     `${emailListText}\n\n` +
+                     `¿Desea enviar la *invitación institucional formal (1-a-1)* para incorporar a este médico a la Biblioteca?\n` +
+                     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                     `⚡ Toque un botón de acción rápida o responda:\n` +
+                     `👉 *INVITAR: ${detectedEmails[0]}*`,
+          interactiveButtons: [
+            { id: 'INV_CONF_' + detectedEmails[0], title: '✉️ Enviar Invitación' },
+            { id: 'INV_CANCEL', title: '❌ Cancelar' }
+          ],
+          detectedEmails: detectedEmails,
+          requiresConfirmation: true
+        };
+      }
     }
   }
 
@@ -1041,8 +1089,49 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
     };
   }
 
+  // 4.29b GUÍA MAESTRA INTERACTIVA DE COMANDOS Y ACCIONES INSTITUCIONALES
+  if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones' || /^comandos?\b/i.test(lower)) {
+    return {
+      recipientPhone: cleanPhone,
+      replyText: getInteractiveCommandsDirectoryText()
+    };
+  }
+
+  // 4.30 MESA TÉCNICA DE LOS 15 PRODIGIOS DE LA ORTOPEDIA MUNDIAL
+  if (lower.startsWith('mesa tecnica') || lower.startsWith('mesa técnica') || lower === 'expertos' || lower.startsWith('expertos:') || lower.startsWith('mesa de expertos')) {
+    let mesaText = `🏛️ *MESA TÉCNICA CONSULTIVA INTERNACIONAL*\n` +
+      `*15 Prodigios y Máximas Autoridades de la Ortopedia Mundial*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `_Todo análisis, guía clínica y síntesis documental emitida por esta biblioteca es auditada y contrastada bajo el estándar de estos 15 referentes mundiales (Harvard, HSS, Mayo Clinic, Charité Berlin, Bern, McMaster):_\n\n`;
+
+    MESA_TECNICA_15.forEach(exp => {
+      mesaText += `👑 *${exp.id}. ${exp.name}*\n` +
+        `   🏥 *Centro:* _${exp.institution}_\n` +
+        `   🎯 *Subespecialidad:* ${exp.subspecialties.join(', ')}\n` +
+        `   ⭐ *Aporte Seminal:* _${exp.landmarkContributions}_\n\n`;
+    });
+
+    mesaText += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔒 *Garantía de Excelencia:* Cero alucinaciones, cero vaguedad y nivel de especialista/fellowship riguroso.`;
+
+    return {
+      recipientPhone: cleanPhone,
+      replyText: mesaText
+    };
+  }
+
+  // 4.30b VIDEOS QUIRÚRGICOS ACADÉMICOS EN 1 SOLO CLIC
+  if (lower.startsWith('videos:') || lower.startsWith('videos ') || lower.startsWith('cirugias:') || lower.startsWith('cirugías:') || lower.startsWith('video:') || lower.startsWith('video ')) {
+    const topic = text.replace(/^(videos|cirugias|cirugías|video):?\s*/i, '').trim();
+    const videoDirectory = buildSurgicalVideoDirectoryText(topic);
+    return {
+      recipientPhone: cleanPhone,
+      replyText: videoDirectory
+    };
+  }
+
   // 4.31 SUPERPODER 1: Calculadora de Scores y Escalas Quirúrgicas al Instante
-  if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ')) {
+  if (lower.startsWith('score:') || lower.startsWith('score ') || lower.startsWith('calcular:') || lower.startsWith('calcular ') || lower.startsWith('escala:') || lower.startsWith('escala ') || /^escala\s+de\s+/i.test(lower) || /^score\s+de\s+/i.test(lower) || /^(caprini|mess|gustilo|garden|tlics|gartland|schatzker)$/i.test(lower.trim())) {
     const calcRes = handleCalculatorRequest(text);
     if (calcRes && calcRes.handled) {
       return {
@@ -1183,34 +1272,14 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
     };
   }
 
-  // 4.6 Búsqueda Clínica por Términos / Palabras Clave
+  // 4.6 Búsqueda Clínica por Términos / Palabras Clave (Reglas de Oro 4, 5 y 7)
   const results = searchClinicalLiterature(text);
 
   if (results && results.length > 0) {
-    const topDoc = results[0];
-    const downloadUrl = buildAnonymousDownloadUrl({ driveId: topDoc.driveId, userPhone: cleanPhone });
-
-    let reply = `📖 *LITERATURA ENCONTRADA*\n`;
-    reply += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    reply += `📌 *Título:* ${topDoc.title}\n`;
-    reply += `✍️ *Autor:* ${topDoc.author} (${topDoc.year})\n`;
-    reply += `📁 *Especialidad:* ${topDoc.category}\n`;
-    if (topDoc.aoClass && topDoc.aoClass !== 'N/A') {
-      reply += `🎯 *Clasificación AO:* ${topDoc.aoClass}\n`;
-    }
-    reply += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    reply += `🔗 *Descarga Segura en la Nube (Válida por 30 min):*\n${downloadUrl}\n\n`;
-
-    if (results.length > 1) {
-      reply += `📚 *Otras referencias relacionadas encontradas:*\n`;
-      for (let i = 1; i < Math.min(results.length, 3); i++) {
-        reply += `• ${results[i].year} | ${results[i].author} — _"${results[i].title.slice(0, 70)}..."_\n`;
-      }
-    }
-
+    const formatted = formatRepositorySearchResults(results, text, cleanPhone, buildAnonymousDownloadUrl);
     return {
       recipientPhone: cleanPhone,
-      replyText: reply
+      replyText: formatted.replyText
     };
   }
 
@@ -1477,6 +1546,45 @@ function sendTransactionalEmailResendLocal(toEmail, apiKey, fromEmail) {
     id: fakeId,
     payload: payload
   };
+}
+
+function getInteractiveCommandsDirectoryText() {
+  return `📋 *CARTA MAESTRA DE COMANDOS Y ACCIONES*\n` +
+    `*Biblioteca Médica de Cirugía Ortopédica*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `🔍 *1. Búsqueda de Literatura y Acervo:*\n` +
+    `• Escriba directamente el tema, técnica o patología:\n` +
+    `  👉 Ej: "fractura de pelvis" o "clavo trocanterico"\n` +
+    `• Ingrese un DOI o enlace web para apertura automática:\n` +
+    `  👉 Ej: "10.1177/17531934251404821"\n\n` +
+    `🧮 *2. Calculadoras Quirúrgicas y Scores (Superpoder 1):*\n` +
+    `• *SCORE CAPRINI* (Tromboprofilaxis ACCP/AAOS)\n` +
+    `• *SCORE GUSTILO* (Fracturas abiertas y antibióticos)\n` +
+    `• *SCORE MESS* / *CALCULAR MESS: 3 2 1 1*\n` +
+    `• *SCORE GARDEN* / *SCORE TLICS* / *SCORE SCHATZKER*\n\n` +
+    `🩺 *3. Copiloto Pre-Operatorio (Superpoder 2):*\n` +
+    `• *CASO: [cirugía]* (Briefing de la noche anterior, pearls)\n` +
+    `  👉 Ej: "CASO: Clavo trocanterico" o "CASO: Protesis rodilla"\n` +
+    `• *ABORDAJE: [nombre]* (Vías quirúrgicas y riesgos anatómicos)\n` +
+    `  👉 Ej: "ABORDAJE: Kocher-Langenbeck"\n\n` +
+    `🔩 *4. Ficha Técnica de Implantes (Superpoder 3):*\n` +
+    `• *IMPLANTE: [sistema]* (Brocas, machuelos, fresado y torque)\n` +
+    `  👉 Ej: "IMPLANTE: Placa PHILOS" o "FICHA: Clavo T2"\n\n` +
+    `📋 *5. Interconsulta Quirúrgica ATLS/AO (Superpoder 4):*\n` +
+    `• *INTERCONSULTA: [datos del paciente y lesión]*\n\n` +
+    `🎥 *6. Videos Quirúrgicos en 1 Clic:*\n` +
+    `• *VIDEOS: [técnica]* (VuMedi, OrthoMedia, YouTube Académico)\n` +
+    `  👉 Ej: "VIDEOS: Reemplazo total de cadera"\n\n` +
+    `🏛️ *7. Mesa Técnica de 15 Referentes Mundiales:*\n` +
+    `• Escriba *MESA TECNICA* o *EXPERTOS*\n\n` +
+    `📖 *8. Utilidades Generales y Gobernanza:*\n` +
+    `• *MANUAL* (Descarga del Manual Oficial de Uso en PDF)\n` +
+    `• *BUZON* (Buzón Digital de Aportes o adjunte PDF con "APORTE")\n` +
+    `• *ACTUALIZAR DATOS* (Actualizar correo, grado o hospital)\n` +
+    `• *IDIOMA: [ES/EN/PT]* (Cambio instantáneo de idioma)\n` +
+    `• *MENSAJE A LA DIRECCION: [texto]* (Canal confidencial)\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💡 _Este listado se actualiza de forma automática en tiempo real. Escriba "COMANDOS" en cualquier momento para consultarlo._`;
 }
 
 module.exports = {
