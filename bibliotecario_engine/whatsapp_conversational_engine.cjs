@@ -473,6 +473,36 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
       };
     }
 
+    // 1.58 GOBERNANZA DE DIFUSIÓN DE GUÍA MAESTRA (BOTONES DE ACCIÓN RÁPIDA)
+    if (lower === 'cmd_guide_approve' || lower === 'aprobar guia' || lower === 'aprobar difusión' || lower === 'aprobar difusion' || lower.includes('aprobar y difundir')) {
+      const users = loadUsers();
+      const activeUsers = users.filter(u => (u.status === 'APROBADO' || u.status === 'ACTIVO') && u.phone.replace(/[^\d]/g, '') !== ADMIN_PHONE.replace(/[^\d]/g, ''));
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: `📢 *REPORTE DE DIFUSIÓN DE GUÍA MAESTRA (1-a-1)*\n*Dirección:* Gestor de Contenido\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ *Despacho Exitoso:* ${activeUsers.length} médicos autorizados\n\n${activeUsers.map(u => `• ${u.name} (${u.phone})`).join('\n')}\n\n📌 *Modalidad de Entrega:* ÚNICAMENTE documento PDF adjunto (sin duplicar el texto previo).\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔒 *Garantía de Confidencialidad:* Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más recibió el ejemplar.`,
+        broadcastDocuments: activeUsers.map(u => ({
+          phone: u.phone,
+          mediaId: '1462932902463392',
+          fileName: 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf',
+          caption: '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\nEdición Oficial 2026 • Cirugía Ortopédica y Traumatología\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_'
+        }))
+      };
+    }
+
+    if (lower === 'cmd_guide_revise' || lower === 'corregir guia' || lower === 'solicitar ajustes' || lower === 'ajustar guia') {
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: `🛑 *DIFUSIÓN CANCELADA TEMPORALMENTE*\n\nEstimado Gestor de Contenido:\nLa difusión masiva de la Guía Maestra ha sido cancelada satisfactoriamente.\n\nEl sistema queda a la espera de sus observaciones, adiciones o correcciones en este chat para compilar la nueva versión del documento PDF y someterla a su aprobación con la misma dinámica interactiva.`
+      };
+    }
+
+    if (lower === 'cmd_guide_cancel' || lower === 'cancelar guia' || lower === 'cancelar difusion' || lower === 'cancelar difusión') {
+      return {
+        recipientPhone: ADMIN_PHONE,
+        replyText: `❌ *DIFUSIÓN CANCELADA*\n\nEstimado Gestor de Contenido:\nSe ha cancelado la difusión de la Guía Maestra de Comandos.`
+      };
+    }
+
     // 1.6 Comando: REPORTE / ESTADO
     if (lower.includes('estado') || lower.includes('reporte') || lower.includes('resumen')) {
       const users = loadUsers();
@@ -1093,7 +1123,12 @@ async function handleProcessIncomingWhatsAppMessage({ fromPhone, senderName, mes
   if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones' || /^comandos?\b/i.test(lower)) {
     return {
       recipientPhone: cleanPhone,
-      replyText: getInteractiveCommandsDirectoryText()
+      replyText: getInteractiveCommandsDirectoryText(),
+      documentAttachment: {
+        fileName: 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf',
+        mediaId: '1462932902463392',
+        caption: '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\nEdición Oficial 2026 • Cirugía Ortopédica y Traumatología\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_'
+      }
     };
   }
 

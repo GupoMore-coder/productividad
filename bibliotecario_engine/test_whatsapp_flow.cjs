@@ -1257,6 +1257,9 @@ async function startSuite() {
     assert.strictEqual(resExact.replyText.includes('INTERCONSULTA:'), true);
     assert.strictEqual(resExact.replyText.includes('VIDEOS:'), true);
     assert.strictEqual(resExact.replyText.includes('MESA TECNICA'), true);
+    // Verificamos entrega conjunta del documento PDF oficial
+    assert.strictEqual(!!resExact.documentAttachment, true);
+    assert.strictEqual(resExact.documentAttachment.fileName, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf');
 
     // 2. Tolerancia a typo "comados"
     const resTypo = await processIncomingWhatsAppMessage({
@@ -1265,6 +1268,7 @@ async function startSuite() {
       messageText: 'comados'
     });
     assert.strictEqual(resTypo.replyText.includes('CARTA MAESTRA DE COMANDOS Y ACCIONES'), true);
+    assert.strictEqual(!!resTypo.documentAttachment, true);
 
     // 3. Palabra clave "funciones"
     const resFunc = await processIncomingWhatsAppMessage({
@@ -1273,6 +1277,38 @@ async function startSuite() {
       messageText: 'funciones'
     });
     assert.strictEqual(resFunc.replyText.includes('CARTA MAESTRA DE COMANDOS Y ACCIONES'), true);
+    assert.strictEqual(!!resFunc.documentAttachment, true);
+  });
+
+  await runAsyncTest('Jornada 43: Human-in-the-Loop Gate: Aprobación y Difusión de Guía Maestra PDF por el Gestor', async () => {
+    // 1. Gestor aprueba la difusión con botón CMD_GUIDE_APPROVE
+    const resApprove = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Dirección del Proyecto',
+      messageText: 'CMD_GUIDE_APPROVE'
+    });
+    assert.strictEqual(resApprove.replyText.includes('REPORTE DE DIFUSIÓN DE GUÍA MAESTRA (1-a-1)'), true);
+    assert.strictEqual(resApprove.replyText.includes('Despacho Exitoso'), true);
+    assert.strictEqual(Array.isArray(resApprove.broadcastDocuments), true);
+    assert.strictEqual(resApprove.broadcastDocuments.length > 0, true);
+    assert.strictEqual(resApprove.broadcastDocuments[0].fileName, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf');
+
+    // 2. Gestor solicita correcciones con botón CMD_GUIDE_REVISE
+    const resRevise = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Dirección del Proyecto',
+      messageText: 'CMD_GUIDE_REVISE'
+    });
+    assert.strictEqual(resRevise.replyText.includes('DIFUSIÓN CANCELADA TEMPORALMENTE'), true);
+    assert.strictEqual(resRevise.replyText.includes('espera de sus observaciones'), true);
+
+    // 3. Gestor cancela con botón CMD_GUIDE_CANCEL
+    const resCancel = await processIncomingWhatsAppMessage({
+      fromPhone: ADMIN_PHONE,
+      senderName: 'Dirección del Proyecto',
+      messageText: 'CMD_GUIDE_CANCEL'
+    });
+    assert.strictEqual(resCancel.replyText.includes('DIFUSIÓN CANCELADA'), true);
   });
 
   console.log('\n================================================================');

@@ -1888,5 +1888,33 @@
     "createdAt": "2026-10-24T17:29:50.014Z",
     "resolvedAt": null,
     "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0136",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573126315145",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T18:25:15.251Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0137",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573126337056",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-10-24T18:25:37.189Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
   }
 ]

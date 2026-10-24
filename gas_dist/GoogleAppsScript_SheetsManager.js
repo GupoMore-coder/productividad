@@ -4260,6 +4260,33 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
     // 1.53b DIRECTORIO INTERACTIVO DE COMANDOS (GESTOR)
     if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones') {
       sendWhatsAppText(adminPhone, getInteractiveCommandsDirectoryText());
+      const guideMediaId = getSecureProperty('GUIDE_MEDIA_ID', '1462932902463392');
+      sendWhatsAppDocument(adminPhone, guideMediaId, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf', '📚 Documento Oficial Adjunto: Guía Maestra de Comandos (Edición 2026)');
+      return;
+    }
+
+    // 1.53c GOBERNANZA DE DIFUSIÓN DE GUÍA MAESTRA (BOTONES DE ACCIÓN RÁPIDA)
+    if (lower === 'cmd_guide_approve' || lower === 'aprobar guia' || lower === 'aprobar difusión' || lower === 'aprobar difusion' || lower.includes('aprobar y difundir')) {
+      executeBroadcastGuideToApprovedUsersGAS(adminPhone);
+      return;
+    }
+
+    if (lower === 'cmd_guide_revise' || lower === 'corregir guia' || lower === 'solicitar ajustes' || lower === 'ajustar guia') {
+      sendWhatsAppText(adminPhone, 
+        '🛑 *DIFUSIÓN CANCELADA TEMPORALMENTE*\n\n' +
+        'Estimado Gestor de Contenido:\n' +
+        'La difusión masiva de la Guía Maestra ha sido cancelada satisfactoriamente.\n\n' +
+        'El sistema queda a la espera de sus observaciones, adiciones o correcciones en este chat para compilar la nueva versión del documento PDF y someterla a su aprobación con la misma dinámica interactiva.'
+      );
+      return;
+    }
+
+    if (lower === 'cmd_guide_cancel' || lower === 'cancelar guia' || lower === 'cancelar difusion' || lower === 'cancelar difusión') {
+      sendWhatsAppText(adminPhone, 
+        '❌ *DIFUSIÓN CANCELADA*\n\n' +
+        'Estimado Gestor de Contenido:\n' +
+        'Se ha cancelado la difusión de la Guía Maestra de Comandos.'
+      );
       return;
     }
 
@@ -4721,6 +4748,8 @@ function handleIncomingMessage(fromPhone, senderName, text, docObjects) {
     // 4.1.3 Guía Maestra Interactiva de Comandos y Acciones Institucionales
     if (lower === 'comandos' || lower === 'comando' || lower === 'comados' || lower === 'comnados' || lower === 'ayuda comandos' || lower === 'menu comandos' || lower === 'lista comandos' || lower === 'funciones' || /^comandos?/i.test(lower)) {
       sendWhatsAppText(cleanPhone, getInteractiveCommandsDirectoryText());
+      const guideMediaId = getSecureProperty('GUIDE_MEDIA_ID', '1462932902463392');
+      sendWhatsAppDocument(cleanPhone, guideMediaId, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf', '📚 Documento Oficial Adjunto: Guía Maestra de Comandos (Edición 2026)');
       return;
     }
 
@@ -5021,6 +5050,106 @@ function sendWhatsAppText(toPhone, textBody) {
     }
   }
   Logger.log('[WHATSAPP SALIENTE hacia ' + toPhone + ']: ' + textBody);
+}
+
+function sendWhatsAppDocument(toPhone, mediaIdOrUrl, fileName, caption) {
+  const cleanTo = toPhone.replace(/[^d]/g, '');
+  let token = getSecureProperty('META_ACCESS_TOKEN', CONFIG.META_ACCESS_TOKEN);
+  const phoneId = getSecureProperty('PHONE_NUMBER_ID', CONFIG.PHONE_NUMBER_ID);
+  const formattedCaption = String(caption || '').replace(/\\n/g, '\n');
+  const safeFileName = fileName || 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf';
+
+  if (token) {
+    try {
+      const url = 'https://graph.facebook.com/v21.0/' + phoneId + '/messages';
+      const isUrl = String(mediaIdOrUrl).startsWith('http://') || String(mediaIdOrUrl).startsWith('https://');
+      const docPayload = isUrl 
+        ? { link: mediaIdOrUrl, filename: safeFileName, caption: formattedCaption }
+        : { id: String(mediaIdOrUrl), filename: safeFileName, caption: formattedCaption };
+
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanTo,
+        type: 'document',
+        document: docPayload
+      };
+
+      let response = UrlFetchApp.fetch(url, {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      return response.getResponseCode() < 400;
+    } catch (err) {
+      Logger.log('Error en sendWhatsAppDocument: ' + err.message);
+    }
+  }
+  return false;
+}
+
+function executeBroadcastGuideToApprovedUsersGAS(adminPhone) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetUsr = getSheetFlexible(ss, CONFIG.SHEET_USUARIOS);
+  const data = sheetUsr.getDataRange().getValues();
+  const guideMediaId = getSecureProperty('GUIDE_MEDIA_ID', '1462932902463392');
+  const cleanAdmin = adminPhone.replace(/[^d]/g, '');
+
+  let successCount = 0;
+  let sentList = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const phone = String(data[i][0]).trim();
+    const cleanP = phone.replace(/[^d]/g, '');
+    const name = String(data[i][1]).trim() || 'Médico Autorizado';
+    const status = String(data[i][4]).trim();
+
+    if ((status === 'APROBADO' || status === 'ACTIVO') && cleanP && cleanP !== cleanAdmin) {
+      const caption = '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\\n' +
+                      'Edición Oficial 2026 • Cirugía Ortopédica y Traumatología\\n' +
+                      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                      '*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_';
+      const ok = sendWhatsAppDocument(cleanP, guideMediaId, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf', caption);
+      if (ok) {
+        successCount++;
+        sentList.push('• ' + name + ' (+' + cleanP + ')');
+      }
+    }
+  }
+
+  // Si la hoja no tuviera filas aprobadas aún, enviamos a los números de producción verificados
+  if (successCount === 0) {
+    const defaultRecipients = [
+      { phone: '34612524915', name: 'Dr. Christian Rodrigo Mena Soria' },
+      { phone: '573002847325', name: 'Dr. JBR' }
+    ];
+    for (let k = 0; k < defaultRecipients.length; k++) {
+      const doc = defaultRecipients[k];
+      const caption = '📚 *DOCUMENTO OFICIAL ADJUNTO: GUÍA MAESTRA DE COMANDOS Y HERRAMIENTAS CLÍNICAS*\\n' +
+                      'Edición Oficial 2026 • Cirugía Ortopédica y Traumatología\\n' +
+                      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+                      '*Dirección del Proyecto* | _Iniciativa de Excelencia Académica_';
+      const ok = sendWhatsAppDocument(doc.phone, guideMediaId, 'Guia_Maestra_Comandos_Biblioteca_Medica.pdf', caption);
+      if (ok) {
+        successCount++;
+        sentList.push('• ' + doc.name + ' (+' + doc.phone + ')');
+      }
+    }
+  }
+
+  const reportMsg = 
+    '📢 *REPORTE DE DIFUSIÓN DE GUÍA MAESTRA (1-a-1)*\\n' +
+    '*Dirección:* Gestor de Contenido\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '✅ *Despachos Exitosos:* ' + successCount + ' médicos autorizados\\n\\n' +
+    sentList.join('\\n') + '\\n\\n' +
+    '📌 *Modalidad de Entrega:* ÚNICAMENTE documento PDF adjunto (sin duplicar el texto previo).\\n' +
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+    '🔒 *Garantía de Confidencialidad:* Cada mensaje fue transmitido de forma atómica e individualizada. Ningún destinatario conoce quién más recibió el ejemplar.';
+
+  sendWhatsAppText(adminPhone, reportMsg);
 }
 
 /**
