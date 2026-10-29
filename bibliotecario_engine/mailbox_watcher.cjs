@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* eslint-disable @typescript-eslint/no-var-requires, no-undef, no-empty */
 /**
  * BIBLIOTECARIO WATCHER DAEMON (Vigilante Permanente de Buzón)
  * Monitorea continuamente 'H:\Mi unidad\Información Ortopedia\_BIBLIOTECARIO'
@@ -219,15 +221,53 @@ function determineDestination(text) {
   return { primary: 'Temas generales', multi: [] };
 }
 
-function sanitizeAndShorten(name) {
+function sanitizeAndShorten(name, defaultExt = '.pdf') {
+  const extMatch = name.match(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i);
+  const ext = extMatch ? extMatch[0].toLowerCase() : (defaultExt.startsWith('.') ? defaultExt.toLowerCase() : '.' + defaultExt.toLowerCase());
   let clean = name.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-')
                   .replace(/[<>:"/\\|?*]/g, '')
                   .replace(/\s+/g, ' ')
                   .trim()
                   .replace(/\.+$/, '');
-  if (clean.toLowerCase().endsWith('.pdf')) clean = clean.substring(0, clean.length - 4);
+  clean = clean.replace(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i, '').trim();
   if (clean.length > 130) clean = clean.substring(0, 130).trim();
-  return clean + '.pdf';
+  return clean + ext;
+}
+
+function extractOfficeMetadataAndText(filePath) {
+  try {
+    const { execFileSync } = require('child_process');
+    const pyScript = `
+import sys, zipfile, xml.etree.ElementTree as ET, json, re
+path = sys.argv[1]
+res = {"title": "", "author": "", "year": None, "text": ""}
+try:
+    with zipfile.ZipFile(path, 'r') as z:
+        names = z.namelist()
+        if 'docProps/core.xml' in names:
+            root = ET.fromstring(z.read('docProps/core.xml'))
+            for el in root.iter():
+                tag = el.tag.split('}')[-1].lower()
+                if tag == 'title' and el.text: res['title'] = el.text.strip()
+                elif tag == 'creator' and el.text: res['author'] = el.text.strip()
+                elif tag in ('created', 'modified') and el.text and not res['year']:
+                    m = re.search(r'(19\\d\\d|20\\d\\d)', el.text)
+                    if m: res['year'] = int(m.group(1))
+        texts = []
+        target_xmls = [n for n in names if n.startswith('word/document') or n.startswith('ppt/slides/slide')][:5]
+        for tx in target_xmls:
+            root = ET.fromstring(z.read(tx))
+            texts.append(' '.join(t.strip() for t in root.itertext() if t.strip()))
+        res['text'] = ' '.join(texts)[:6000]
+except Exception as e:
+    res['error'] = str(e)
+print(json.dumps(res, ensure_ascii=False))
+`;
+    const out = execFileSync('python', ['-c', pyScript, filePath], { encoding: 'utf8', timeout: 8000 });
+    return JSON.parse(out.trim());
+  } catch (e) {
+    return null;
+  }
 }
 
 async function processFile(filename) {
@@ -246,21 +286,22 @@ async function processFile(filename) {
   const sha = computeSha256(filePath);
   if (registry.hashes[sha]) {
     const existing = registry.hashes[sha];
-    log(`[DUPLICADO CONFIRMADO] El archivo ya existe canónicamente en "${existing.folder}/${existing.canonicalName}".`);
+    log(`[DUPLICADO CONFIRMADO] El archivo ya existe canónicamente en "${existing.folder || existing.path}/${existing.canonicalName || existing.name}".`);
     sendToRecycleBin(filePath);
     log(`[DESCARTE A PAPELERA] Archivo duplicado "${filename}" eliminado de Google Drive y enviado a papelera.`);
     return;
   }
 
-  // 3. Inspeccionar PDF
+  // 3. Inspeccionar documento (.pdf, .pptx, .docx, .pub)
+  const originalExt = path.extname(filename).toLowerCase() || '.pdf';
   let year = new Date().getFullYear();
   let author = 'S-A';
-  let title = filename.replace(/\.pdf$/i, '');
+  let title = filename.replace(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i, '');
   let fullText = filename;
   let firstPageText = '';
   let lastPageText = '';
 
-  if (filename.toLowerCase().endsWith('.pdf')) {
+  if (originalExt === '.pdf') {
     try {
       const buf = fs.readFileSync(filePath);
       const parser = new PDFParse({ data: buf });
@@ -290,6 +331,17 @@ async function processFile(filename) {
     } catch (err) {
       log(`[WARN PARSE] No se pudo extraer texto profundo: ${err.message}`);
     }
+  } else if (originalExt === '.pptx' || originalExt === '.docx') {
+    const officeMeta = extractOfficeMetadataAndText(filePath);
+    if (officeMeta) {
+      if (officeMeta.year) year = officeMeta.year;
+      if (officeMeta.author && officeMeta.author.length > 1) author = officeMeta.author;
+      if (officeMeta.title && officeMeta.title.length > 3) title = officeMeta.title;
+      if (officeMeta.text) {
+        firstPageText = officeMeta.text;
+        fullText += ' ' + officeMeta.text;
+      }
+    }
   }
 
   // 4. Determinar destino y clasificación especializada
@@ -305,11 +357,16 @@ async function processFile(filename) {
 
   if (spec.matched) {
     dest = { primary: spec.targetFolder, multi: [] };
-    standardName = sanitizeAndShorten(spec.standardName || spec.suggestedName);
+    standardName = sanitizeAndShorten(spec.standardName || spec.suggestedName, originalExt);
     log(`[HEURÍSTICA ESPECIALIZADA ACTIVADA] Regla: ${spec.strategy || spec.ruleId} -> Destino: ${dest.primary}`);
   } else {
     dest = determineDestination(fullText);
-    standardName = sanitizeAndShorten(`${year} - ${author} - ${title}`);
+    if ((originalExt === '.pptx' || originalExt === '.ppt') && dest.primary === 'Temas generales') {
+      dest.primary = 'zPresentaciones';
+    } else if ((originalExt === '.pptx' || originalExt === '.ppt') && !dest.multi.includes('zPresentaciones')) {
+      dest.multi.push('zPresentaciones');
+    }
+    standardName = sanitizeAndShorten(`${year} - ${author} - ${title}`, originalExt);
   }
 
   const targetDir = path.join(BASE_DIR, dest.primary);
