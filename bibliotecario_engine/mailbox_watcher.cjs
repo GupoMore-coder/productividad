@@ -222,14 +222,14 @@ function determineDestination(text) {
 }
 
 function sanitizeAndShorten(name, defaultExt = '.pdf') {
-  const extMatch = name.match(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i);
+  const extMatch = name.match(/\.(pdf|pptx|ppt|docx|doc|pub|epub|odt)$/i);
   const ext = extMatch ? extMatch[0].toLowerCase() : (defaultExt.startsWith('.') ? defaultExt.toLowerCase() : '.' + defaultExt.toLowerCase());
   let clean = name.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-')
                   .replace(/[<>:"/\\|?*]/g, '')
                   .replace(/\s+/g, ' ')
                   .trim()
                   .replace(/\.+$/, '');
-  clean = clean.replace(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i, '').trim();
+  clean = clean.replace(/\.(pdf|pptx|ppt|docx|doc|pub|epub|odt)$/i, '').trim();
   if (clean.length > 130) clean = clean.substring(0, 130).trim();
   return clean + ext;
 }
@@ -253,11 +253,31 @@ try:
                 elif tag in ('created', 'modified') and el.text and not res['year']:
                     m = re.search(r'(19\\d\\d|20\\d\\d)', el.text)
                     if m: res['year'] = int(m.group(1))
+        opf_files = [n for n in names if n.lower().endswith('.opf')]
+        if opf_files:
+            try:
+                root = ET.fromstring(z.read(opf_files[0]))
+                for el in root.iter():
+                    tag = el.tag.split('}')[-1].lower()
+                    if tag == 'title' and el.text and not res['title']: res['title'] = el.text.strip()
+                    elif tag == 'creator' and el.text and not res['author']: res['author'] = el.text.strip()
+                    elif tag == 'date' and el.text and not res['year']:
+                        m = re.search(r'(19\\d\\d|20\\d\\d)', el.text)
+                        if m: res['year'] = int(m.group(1))
+            except Exception:
+                pass
         texts = []
         target_xmls = [n for n in names if n.startswith('word/document') or n.startswith('ppt/slides/slide')][:5]
         for tx in target_xmls:
             root = ET.fromstring(z.read(tx))
             texts.append(' '.join(t.strip() for t in root.itertext() if t.strip()))
+        html_files = [n for n in names if re.search(r'\\.(?:x?html|htm)$', n, re.I)][:5]
+        for hf in html_files:
+            try:
+                root = ET.fromstring(z.read(hf))
+                texts.append(' '.join(t.strip() for t in root.itertext() if t.strip()))
+            except Exception:
+                pass
         res['text'] = ' '.join(texts)[:6000]
 except Exception as e:
     res['error'] = str(e)
@@ -292,11 +312,11 @@ async function processFile(filename) {
     return;
   }
 
-  // 3. Inspeccionar documento (.pdf, .pptx, .docx, .pub)
+  // 3. Inspeccionar documento (.pdf, .pptx, .docx, .pub, .epub)
   const originalExt = path.extname(filename).toLowerCase() || '.pdf';
   let year = new Date().getFullYear();
   let author = 'S-A';
-  let title = filename.replace(/\.(pdf|pptx|ppt|docx|doc|pub|odt)$/i, '');
+  let title = filename.replace(/\.(pdf|pptx|ppt|docx|doc|pub|epub|odt)$/i, '');
   let fullText = filename;
   let firstPageText = '';
   let lastPageText = '';
@@ -331,7 +351,7 @@ async function processFile(filename) {
     } catch (err) {
       log(`[WARN PARSE] No se pudo extraer texto profundo: ${err.message}`);
     }
-  } else if (originalExt === '.pptx' || originalExt === '.docx') {
+  } else if (originalExt === '.pptx' || originalExt === '.docx' || originalExt === '.epub') {
     const officeMeta = extractOfficeMetadataAndText(filePath);
     if (officeMeta) {
       if (officeMeta.year) year = officeMeta.year;
