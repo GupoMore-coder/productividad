@@ -24,12 +24,11 @@ Cualquier médico registrado puede escribir en este chat **`COMANDOS`** o **`COM
 | **7** | `IMPLANTE: [SISTEMA]` | **Superpoder 3 (Fichas Técnicas):** Guía de instrumental, diámetro de brocas, machuelos, fresado y torque de fabricantes líderes (Synthes, Stryker, Zimmer). | `IMPLANTE: Placa PHILOS`<br>`IMPLANTE: Clavo T2 Femur`<br>`FICHA: Tornillo Herbert` |
 | **8** | `INTERCONSULTA: [CASO]` | **Superpoder 4 (Asistente ATLS / AO):** Estructuración de respuesta pericial para urgencias con esquemas antimicrobianos y solicitud de datos críticos faltantes. | `INTERCONSULTA: Masculino de 35 años, politrauma con fractura abierta de tibia Grado IIIA` |
 | **9** | `VIDEOS: [TEMA]` o `CIRUGIAS: [TEMA]` | **Videoteca Quirúrgica en 1 Clic:** Recupera videos quirúrgicos verificados en VuMedi, OrthoMedia, AO Surgery Reference y YouTube Académico. | `VIDEOS: Reemplazo total de cadera`<br>`CIRUGIAS: Latarjet artroscopico`<br>`VIDEOS: Clavo intramedular tibia` |
-| **10** | `MESA TECNICA` o `EXPERTOS` | Consulta la nómina y aportes seminales de los **15 Líderes Mundiales de la Ortopedia** (Harvard, HSS, Mayo Clinic, Charité, Bern). | `MESA TECNICA`<br>`EXPERTOS` |
-| **11** | `MANUAL` | Entrega interactiva y token de descarga del **Manual Oficial de Uso y Gobernanza Institucional** (PDF de alta fidelidad). | `MANUAL` |
-| **12** | `BUZON` o adjuntar PDF con `APORTE` | Acceso al **Buzón Digital Confidencial** para donar artículos y técnicas quirúrgicas al acervo colectivo sin revelar datos personales. | `BUZON`<br>*(O adjunte un PDF con la palabra `APORTE`)* |
-| **13** | `MENSAJE A LA DIRECCION: [TEXTO]` | Canal de relé intermediado confidencial para consultas administrativas, felicitaciones o requerimientos especiales al Gestor. | `MENSAJE A LA DIRECCION: Solicito orientacion sobre suscripciones institucionales.` |
-| **14** | `ACTUALIZAR DATOS` | Directrices y formulario para actualizar correo electrónico, grado formativo o institución hospitalaria. | `ACTUALIZAR DATOS` |
-| **15** | `IDIOMA: [ES/EN/PT]` | Configuración dinámica de idioma para todos los mensajes y alertas del bot. | `IDIOMA: ES`<br>`IDIOMA: EN`<br>`IDIOMA: PT` |
+| **10** | `MANUAL` | Entrega interactiva y token de descarga del **Manual Oficial de Uso Institucional** (PDF de alta fidelidad). | `MANUAL` |
+| **11** | `BUZON` o adjuntar PDF con `APORTE` | Acceso al **Buzón Digital Confidencial** para donar artículos y técnicas quirúrgicas al acervo colectivo sin revelar datos personales. | `BUZON`<br>*(O adjunte un PDF con la palabra `APORTE`)* |
+| **12** | `MENSAJE A LA DIRECCION: [TEXTO]` | Canal de relé intermediado confidencial para consultas administrativas, sugerencias o requerimientos especiales a la Dirección. | `MENSAJE A LA DIRECCION: Solicito orientacion sobre suscripciones institucionales.` |
+| **13** | `ACTUALIZAR DATOS` | Directrices y formulario para actualizar correo electrónico, grado formativo o institución hospitalaria. | `ACTUALIZAR DATOS` |
+| **14** | `IDIOMA: [ES/EN/PT]` | Configuración dinámica de idioma para todos los mensajes y alertas del bot. | `IDIOMA: ES`<br>`IDIOMA: EN`<br>`IDIOMA: PT` |
 
 ---
 

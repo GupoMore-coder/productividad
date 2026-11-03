@@ -1944,5 +1944,61 @@
     "createdAt": "2026-10-24T19:46:51.554Z",
     "resolvedAt": null,
     "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0140",
+    "title": "Surgical management of complex pelvic ring fractures",
+    "doiOrIsbn": "10.1016/j.injury.2023.05.012",
+    "requester": {
+      "phone": "+573155554321",
+      "name": "Dr. Alejandro Restrepo",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "DISPONIBLE",
+    "createdAt": "2026-11-03T15:10:31.935Z",
+    "resolvedAt": "2026-11-03T15:10:31.942Z",
+    "resolvedByDocId": "DRIVE_FILE_ID_PELVIC_2023"
+  },
+  {
+    "id": "TCK-0141",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573128632543",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-11-03T15:10:32.700Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
+  },
+  {
+    "id": "TCK-0142",
+    "title": "Surgical management of complex pelvic ring fractures",
+    "doiOrIsbn": "10.1016/j.injury.2023.05.012",
+    "requester": {
+      "phone": "+573155554321",
+      "name": "Dr. Alejandro Restrepo",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "DISPONIBLE",
+    "createdAt": "2026-11-03T16:15:39.691Z",
+    "resolvedAt": "2026-11-03T16:15:39.696Z",
+    "resolvedByDocId": "DRIVE_FILE_ID_PELVIC_2023"
+  },
+  {
+    "id": "TCK-0143",
+    "title": "Por favor me ayudan con este DOI: 10.1016/j.fas.2023.01.004",
+    "doiOrIsbn": "10.1016/j.fas.2023.01.004",
+    "requester": {
+      "phone": "+573122540009",
+      "name": "Dr. Mateo Valencia",
+      "university": "Universidad de Antioquia"
+    },
+    "status": "PENDIENTE",
+    "createdAt": "2026-11-03T16:15:40.106Z",
+    "resolvedAt": null,
+    "resolvedByDocId": null
   }
 ]

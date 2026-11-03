@@ -1,0 +1,817 @@
+{
+  "totalScanned": 5539,
+  "totalStandard": 3780,
+  "totalNonStandard": 1759,
+  "excludedCategories": {
+    "pptxPresentations": {
+      "count": 933,
+      "folders": {
+        "Cadera y Pelvis": 2,
+        "Columna": 5,
+        "Columna\\Lesiones medulares": 2,
+        "Columna\\Infecciones Columna": 1,
+        "Femur": 1,
+        "Hombro": 2,
+        "Infeccioso": 4,
+        "Ortopedia Oncologica": 1,
+        "Ortopedia Oncologica\\Artropatia hemofilica": 2,
+        "Ortopedia Oncologica\\Biologia de los tumores": 2,
+        "Ortopedia Oncologica\\Clasificacion de los tumores": 1,
+        "Ortopedia Oncologica\\LESIONES PSEUDOTUMORALES": 1,
+        "Ortopedia Oncologica\\Tumor de celulas gigantes": 1,
+        "Ortopedia Oncologica\\Tumores benignos de tejidos blandos": 1,
+        "Ortopedia Oncologica\\Tumores benignos del hueso": 1,
+        "Ortopedia Oncologica\\Tumores malignos de tejidos blandos": 2,
+        "Ortopedia Oncologica\\Tumores malignos del hueso": 1,
+        "Ortopedia Pediatrica\\Fx Condilo lateral humeral": 1,
+        "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia": 1,
+        "Ortopedia Pediatrica\\Fx Diafisiarias de Femur": 1,
+        "Ortopedia Pediatrica\\Fx diafisis antebrazo": 1,
+        "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi": 1,
+        "Ortopedia Pediatrica\\Fx Supracondileas": 4,
+        "Ortopedia Pediatrica\\Juntas medicas": 1,
+        "Ortopedia Pediatrica\\Radiografias POP - CdN": 1,
+        "Ortopedia Pediatrica\\Tareas CdN": 1,
+        "Ortopedia Pediatrica\\Evaluaciones y Clases": 2,
+        "zPresentaciones": 99,
+        "zPresentaciones\\POLITRAUMA Y CONTROL DE DAÑOS 2024": 14,
+        "zPresentaciones\\CADERA EN RESORTE": 14,
+        "zPresentaciones\\ABORDAJES DE RODILLA": 1,
+        "zPresentaciones\\ANALGESIA EN ANCIANOS": 23,
+        "zPresentaciones\\ANALGESIA GENERAL": 26,
+        "zPresentaciones\\ANTICOAGULACION": 35,
+        "zPresentaciones\\BIOMECANICA DE CODO": 9,
+        "zPresentaciones\\BIOMECANICA TOBILLO": 4,
+        "zPresentaciones\\Cadera y pelvis": 13,
+        "zPresentaciones\\CICATRIZACION TEJIDOS BLANDOS": 12,
+        "zPresentaciones\\CODO DE TENISTA . EPICONDILITIS LATERAL": 8,
+        "zPresentaciones\\COLUMNA": 25,
+        "zPresentaciones\\COLUMNA\\Canal cervical estrecho": 16,
+        "zPresentaciones\\COLUMNA\\CASOS CONGRESO": 1,
+        "zPresentaciones\\COLUMNA\\CASOS CONGRESO\\CASO 1": 7,
+        "zPresentaciones\\COLUMNA\\CASOS CONGRESO\\CASO 2": 7,
+        "zPresentaciones\\COLUMNA\\Fractura columna HPAF": 11,
+        "zPresentaciones\\COLUMNA\\Fx Acetabulares": 11,
+        "zPresentaciones\\COLUMNA\\PATOLOGIA DEGENERATIVA LUMBAR": 6,
+        "zPresentaciones\\COLUMNA\\PLANEAMIENTO Qx": 5,
+        "zPresentaciones\\COLUMNA\\Sx Espinales Incompletos": 1,
+        "zPresentaciones\\CONSOLIDACION OSEA": 16,
+        "zPresentaciones\\CURSO AO U DE C": 4,
+        "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA": 11,
+        "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA\\Articulos": 7,
+        "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA\\Caso Desarticulacion": 44,
+        "zPresentaciones\\F.R.I": 37,
+        "zPresentaciones\\FILOSOFIA AO Y PRINCIPIOS TTO FX": 2,
+        "zPresentaciones\\Fractura de calcaneo": 1,
+        "zPresentaciones\\Fx Humero": 1,
+        "zPresentaciones\\Fx PERONE": 5,
+        "zPresentaciones\\Fx RADIO DISTAL": 18,
+        "zPresentaciones\\Fx TUBEROSIDAD TIBIAL": 3,
+        "zPresentaciones\\HALLUX VALGUS": 11,
+        "zPresentaciones\\INTERPRETACION RX TOBILLO": 2,
+        "zPresentaciones\\Lavado Fx Abiertas": 4,
+        "zPresentaciones\\LESION DE NERVIO PERIFERICO": 4,
+        "zPresentaciones\\Lesiones en codo": 4,
+        "zPresentaciones\\LIGAMENTO DELTOIDEO": 1,
+        "zPresentaciones\\Lisfranc Injury Current Concepts": 2,
+        "zPresentaciones\\MANEJO Fx DIAFISIARIA HUMERO": 6,
+        "zPresentaciones\\MANEJO Fx FALANGE": 17,
+        "zPresentaciones\\MEDIHELP": 8,
+        "zPresentaciones\\MEDIHELP\\Caso LCP": 27,
+        "zPresentaciones\\MEDIHELP\\INESTABILIDAD ACROMIOCLAVICULAR": 2,
+        "zPresentaciones\\MEDIHELP\\Kinematic alignment in total knee arthroplasty": 5,
+        "zPresentaciones\\MEDIHELP\\LESIONES CONDRALES Y ANDAMIOS": 12,
+        "zPresentaciones\\MEDIHELP\\LESIONES MENISCALES": 19,
+        "zPresentaciones\\Meseta tibial": 4,
+        "zPresentaciones\\OSTEOGENESIS IMPERFECTA": 3,
+        "zPresentaciones\\OSTEOMIELITIS": 2,
+        "zPresentaciones\\PIN INFECTION": 25,
+        "zPresentaciones\\POLITRAUMA EN ORTOPEDIA": 7,
+        "zPresentaciones\\Rodilla flotante": 1,
+        "zPresentaciones\\Tecnica Belangero": 5,
+        "zPresentaciones\\Tobillo": 8,
+        "zPresentaciones\\Protesis de cupula radial": 14,
+        "zPresentaciones\\Mesa Redonda Fracturas intracapsulares y diafisarias de fémur": 8,
+        "zPresentaciones\\Marcha en mielomeningocele": 1,
+        "zPresentaciones\\NO UNION R4": 16,
+        "zPresentaciones\\R4 Fx PERIPROTESICA EN ARTROPLASTIA DE CADERA": 26,
+        "zPresentaciones\\POLLER SCREW (DRA MAYA)": 9,
+        "zPresentaciones\\R4 OSTEOCONDRITIS DISECANTE": 9,
+        "zPresentaciones\\Presentaciones Carmona\\Anatomia y biomecanica de ASI": 13,
+        "zPresentaciones\\Presentaciones Carmona\\Fijación con tornillos fenestrados": 13,
+        "zPresentaciones\\Presentaciones Carmona\\Fijación percutánea en trauma": 32,
+        "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna": 25,
+        "zPresentaciones\\Presentación Byron Miranda": 16,
+        "Reconstructiva": 2,
+        "Reconstructiva\\AMPUTACIONES": 1,
+        "AO Curso Basico\\Ejercicio Planeamiento Qx": 2,
+        "AO 2018\\AOOS": 20,
+        "Abordajes": 2,
+        "zPlaneamientos Quirurgicos": 4
+      }
+    },
+    "audioTracksAndCd": {
+      "count": 445,
+      "folders": {
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 01": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 02": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 03": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 04": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 05": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 06": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 07": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 08": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 09": 1,
+        "AO 2018\\AOUK MED-CD": 10,
+        "AO 2018\\AOUK MED-CD\\A01": 34,
+        "AO 2018\\AOUK MED-CD\\A02": 74,
+        "AO 2018\\AOUK MED-CD\\A03": 61,
+        "AO 2018\\AOUK MED-CD\\A04": 45,
+        "AO 2018\\AOUK MED-CD\\P01": 34,
+        "AO 2018\\AOUK MED-CD\\P02": 73,
+        "AO 2018\\AOUK MED-CD\\P03": 60,
+        "AO 2018\\AOUK MED-CD\\P04": 45
+      }
+    },
+    "intraopPhotosAndRx": {
+      "count": 55,
+      "folders": {
+        "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos": 2,
+        "Ortopedia Pediatrica\\Fx diafisis antebrazo": 3,
+        "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi": 2,
+        "Ortopedia Pediatrica\\Radiografias POP - CdN": 26,
+        "Ortopedia Pediatrica\\Test de mal alineamiento": 3,
+        "Rodilla y Tibia\\Imagenes Clasificación Kfuri-Schatzker": 12,
+        "Temas generales": 1,
+        "AO Curso Basico\\Ejercicio Planeamiento Qx": 5,
+        "zPlaneamientos Quirurgicos": 1
+      }
+    },
+    "surgicalVideos": {
+      "count": 110,
+      "folders": {
+        "Libros\\LIBROS COLUMNA": 12,
+        "Pie y Tobillo": 1,
+        "Reconstructiva\\Principios Fijacion externa Plano Oblicuo": 10,
+        "Videos Academicos": 7,
+        "Videos Academicos\\Procedimientos": 27,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 01": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 02": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 03": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 04": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 05": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 06": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 07": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 08": 1,
+        "Videos Academicos\\Curso IA aplicada a la ortopedia y traumatologia\\Clase 09": 1,
+        "AO Curso Basico\\Módulo 1 Principios Generales": 7,
+        "AO Curso Basico\\Bienvenida e introducción": 1,
+        "AO Curso Basico\\Módulo 2 Tratamiento de las fracturas diafisarias": 4,
+        "AO Curso Basico\\Módulo 3 Tratamiento de las fracturas articulares": 11,
+        "AO Curso Basico\\Modulo 4 Planificación preoperatoria y fracturas de antebrazo": 2,
+        "AO Curso Basico\\Modulo 5 Tratamiento de emergencias y cirugía mínimamente invasiva": 3,
+        "AO Curso Basico\\Módulo 6 Situaciones especiales y complicaciones": 7,
+        "Ortopedia Deportiva y artroscopia\\Videos": 8,
+        "Abordajes": 1
+      }
+    },
+    "minorClinicalNotesDocx": {
+      "count": 27,
+      "folders": {
+        "zBITACORAS": 3,
+        "Cadera y Pelvis": 2,
+        "Columna": 1,
+        "Hombro": 1,
+        "Ortopedia Oncologica\\Artropatia hemofilica": 1,
+        "Ortopedia Oncologica\\Biologia de los tumores": 2,
+        "Ortopedia Oncologica\\Tumor de celulas gigantes": 1,
+        "Ortopedia Oncologica\\Tumores benignos de tejidos blandos": 1,
+        "Ortopedia Oncologica\\Tumores malignos de tejidos blandos": 1,
+        "Ortopedia Oncologica\\Tumores malignos del hueso": 1,
+        "Ortopedia Pediatrica\\Evaluaciones y Clases": 8,
+        "Pie y Tobillo": 3,
+        "Reconstructiva": 1,
+        "Temas generales": 1
+      }
+    },
+    "webShortcutsAndSpreadsheets": {
+      "count": 40,
+      "folders": {
+        "zBITACORAS": 8,
+        "Cadera y Pelvis": 5,
+        "Femur": 3,
+        "Libros": 1,
+        "Materiales Osteosintesis": 1,
+        "Reconstructiva": 2,
+        "Tejidos blandos": 1,
+        "Temas generales": 7,
+        "Ortopedia Deportiva y artroscopia": 2,
+        "Abordajes": 10
+      }
+    }
+  },
+  "actionablePdfs": {
+    "total": 136,
+    "byFolder": {
+      "Columna\\Lesiones medulares": 4,
+      "Columna\\Infecciones Columna": 5,
+      "Libros": 1,
+      "Materiales Osteosintesis": 1,
+      "Ortopedia Oncologica\\Amputacion EscapuloHumeral": 1,
+      "Ortopedia Oncologica\\Artropatia hemofilica": 12,
+      "Ortopedia Oncologica\\Biologia de los tumores": 7,
+      "Ortopedia Oncologica\\Biopsia": 3,
+      "Ortopedia Oncologica\\Clasificacion de los tumores": 2,
+      "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos": 2,
+      "Ortopedia Oncologica\\Injertos oseos": 2,
+      "Ortopedia Oncologica\\LESIONES PSEUDOTUMORALES": 1,
+      "Ortopedia Oncologica\\Tumor de celulas gigantes": 4,
+      "Ortopedia Oncologica\\Tumores benignos del hueso": 3,
+      "Ortopedia Oncologica\\Tumores malignos del hueso": 11,
+      "Ortopedia Pediatrica\\Fx Condilo lateral humeral": 7,
+      "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia": 6,
+      "Ortopedia Pediatrica\\Fx Diafisiarias de Femur": 3,
+      "Ortopedia Pediatrica\\Fx diafisis antebrazo": 2,
+      "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi": 1,
+      "Ortopedia Pediatrica\\Fx Supracondileas": 4,
+      "Ortopedia Pediatrica\\Radiografias POP - CdN": 1,
+      "Ortopedia Pediatrica\\Tareas CdN": 8,
+      "Ortopedia Pediatrica\\Test de mal alineamiento": 2,
+      "Ortopedia Pediatrica\\Laboratorio de Marcha": 1,
+      "Reconstructiva\\AMPUTACIONES": 9,
+      "Temas generales": 25,
+      "zPlaneamientos Quirurgicos": 8
+    },
+    "byRootCause": {
+      "scannedNoOcr": {
+        "count": 15,
+        "items": [
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Tesis artropatía hemofílica y escalas de radiología simple y resonancia magnética _ Ana Isabel García Barrado.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumor de celulas gigantes",
+            "filename": "Giant Cell Tumor of Bone.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
+            "filename": "Final To Submit SCH presentation EPOSNA-UN.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Radiografias POP - CdN",
+            "filename": "Measurements in Musculoskeletal Radiology.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "gpc-profesionales-personas-amputada-prescripcion-protesis-rehabilitacion-integral.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "Essentials_of_Prosthetics_and_Orthotics_with_MCQs_and_Disability.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Rehab Science (Tom Waters) (Z-Library).pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "HOPPENFELD 1.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Key-Techniques-in-Orthopaedic-Surgery.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Trauma and Biomechanics Dr Massoud.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "ortho xray measurments.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "prometric_exam_collection.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Arab board (1).pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "PROMETRIC EXAM PRACTICE QUESTIONS.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Amir mcqs.pdf"
+          }
+        ]
+      },
+      "orphanNoDoi": {
+        "count": 26,
+        "items": [
+          {
+            "folder": "Columna\\Lesiones medulares",
+            "filename": "Lesion_medular_aguda.pdf"
+          },
+          {
+            "folder": "Columna\\Infecciones Columna",
+            "filename": "Spondylodiscitisinpediatricage_adiagnosticchallenge.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Amputacion EscapuloHumeral",
+            "filename": "soa8110.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "ARTROPATIA HEMOFILICA.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "23CIENCIAEINVESTIGACION2013.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biopsia",
+            "filename": "ch2.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Clasificacion de los tumores",
+            "filename": "enneking1985.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\LESIONES PSEUDOTUMORALES",
+            "filename": "metabolismo-mineral-y-oseo.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumor de celulas gigantes",
+            "filename": "raskin2013.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores benignos del hueso",
+            "filename": "13044129.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "metabolismo-mineral-y-oseo.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "katherine-schroeder-pediatric-lateral-humeral-condyle.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "S0120884517300731.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "13048268.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "736-3416-1-PB.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Diafisiarias de Femur",
+            "filename": "AOE_Class_Pediatric_LB_Leporello_2020_T04.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Diafisiarias de Femur",
+            "filename": "Poster_AOClass_Pediatric_English_2020_T02.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
+            "filename": "A_prospective_randomised_non-blinded_comparison_of.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Test de mal alineamiento",
+            "filename": "13112486.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "18399614_18399614.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "Rehabilitacion.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "smith1994.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "tremblais-2026-re-tang-jb-lalonde-d-fernandes-ch-sadek-af-besmens-is-the-ifssh-consensus-and-current-guidelines-on.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Orthopedic_Floating_Injuries.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Pediatric-Leukemia.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "_Untitled.pdf"
+          }
+        ]
+      },
+      "localSlidesOrThesisPdf": {
+        "count": 9,
+        "items": [
+          {
+            "folder": "Columna\\Infecciones Columna",
+            "filename": "Sesion-R3_Belen-Garcia_ESPONDILODISCITIS-EN-PEDIATRIA.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "161-Presentación Electrónica Educativa-298-1-10-20190117.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "2023_Método de planeamiento de osteotomías plano coronal_RAA.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "ACCURACY OF THE SAUVEGRAIN METHOD IN DETERMINING SKELETAL AGE DURING PUBERTY.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "Cartílago de crecimiento y crecimiento en ortopedia.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "Efecto cozen.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "FISIS Y ÓRGANO DE CRECIMIENTO.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "Resolución No. 023 de 2023 listado de enfermedades huérfanas - raras.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Tareas CdN",
+            "filename": "TENS-Titanium_Elastic_Nail System.pdf"
+          }
+        ]
+      },
+      "clinicalPlanningAndProtocols": {
+        "count": 9,
+        "items": [
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Protocolo-hemofilia-marzo-2015.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2019 - Ladurner - Decrease surgery time by using an alternative lateral parapatellar approach for tibia shaf.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2019 Extra Articular Technique for Semiextended Tibial Nailing - Kubiak et al.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2021 - Layon - The flipped third fragment in femoral shaft fractures - A reason for open reduction -.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2024 - Louka - Femoral shaft fracture with a third fragment treated with an intramedullary nail - Is the.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2024 - Dimitroulias - Linking a nail and a plate for distal femur fractures - a technical trick.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 046.000.519 Expert R-AFN Clavo Femoral retrogrado anterogrado.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - MUTARS RS Arthrodese surgical technique.pdf"
+          },
+          {
+            "folder": "zPlaneamientos Quirurgicos",
+            "filename": "Planeamiento Quirúrgico - 2013 - Maclean - Surgical Approaches for Tibial Plateau Fractures.pdf"
+          }
+        ]
+      },
+      "otherUnresolved": {
+        "count": 77,
+        "items": [
+          {
+            "folder": "Columna\\Lesiones medulares",
+            "filename": "Esteroides en lesion medular postraumatica aguda.pdf"
+          },
+          {
+            "folder": "Columna\\Lesiones medulares",
+            "filename": "Radiografia Simple de la Columna Vertebral en Urgencias.pdf"
+          },
+          {
+            "folder": "Columna\\Lesiones medulares",
+            "filename": "rx columna cervical y dorsal.pdf"
+          },
+          {
+            "folder": "Columna\\Infecciones Columna",
+            "filename": "2014 Espondilodiscitis en pediatría. Caso clínico.pdf"
+          },
+          {
+            "folder": "Columna\\Infecciones Columna",
+            "filename": "Spinal infections in children A MULTICENTRE RETROSPECTIVE STUDY.pdf"
+          },
+          {
+            "folder": "Columna\\Infecciones Columna",
+            "filename": "valoracion+clinico-epidemiologica+de+las+espondilodiscitis.pdf"
+          },
+          {
+            "folder": "Libros",
+            "filename": "2015 - S - A - Técnica de planificación y reducción en cirugía de fracturas.pdf"
+          },
+          {
+            "folder": "Materiales Osteosintesis",
+            "filename": "2018 - C-REX - K-Wiring Surgical Technique and Principles.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "655-Presentación Electrónica Educativa-785-1-10-20190204.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "CAC.Co_2022_Libro_hemofilia_enero26.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Hamstring_Release_for_Fixed_Knee_Flexion.13.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Hemophilic Arthropathy.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Informe de la Federación Mundial de Hemofilia sobre el Sondeo Mundial Anual 2021.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Management of haemophilic arthropathy.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Manejo quirurgico. Problemas ortopédicos del paciente hemofílico adulto.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Pathogenesis of haemophilic arthropathy.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
+            "filename": "Presentacion Hemofilia.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "BIOLOGIA DE LOS TUMORES​.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "BIOLOGIA DEL CANCER .pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "BIOLOGIA DEL CANCER.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "BIOLOGÍA DE LOS TUMORES Fdo Mda 2023.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "CONOCIENDO Y COMPRENDIENDO LA CÉLULA CANCEROSA.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biologia de los tumores",
+            "filename": "https___learn.cellsignal.com_hubfs_pdfs_19-cel-85764-2020-cellmentor-hallmarks-cancer-booklet-hires.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biopsia",
+            "filename": "Biopsy_of_Musculoskeletal_Tumors__Current_Concepts.26.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Biopsia",
+            "filename": "ch2.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Clasificacion de los tumores",
+            "filename": "Staging of musculoskeletal neoplasms.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos",
+            "filename": "1-Texto del artículo-3-1-10-20181114.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos",
+            "filename": "Diagnóstico por imagen de los tumores óseos.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Injertos oseos",
+            "filename": "Injertos óseos en cirugía ortopédica.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Injertos oseos",
+            "filename": "Sustitutos oseos [Unlocked by www.freemypdf.com].pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumor de celulas gigantes",
+            "filename": "Giant Cell Tumor of Bone_compressed.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumor de celulas gigantes",
+            "filename": "Giant Cell Tumor of Bone_compressed.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores benignos del hueso",
+            "filename": "Benign Radiolucent Lesions_compressed-1-61.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores benignos del hueso",
+            "filename": "Benign Radiolucent Lesions_compressed-62-122.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "1 OKU 4 Osteosarcoma osteoblastico convencional.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "2 OKU 4 Ewing.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "3 OKU 4 Condrosarcoma de hueso.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "4 OKU 4 Linfoma.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "5 OKU 4 variantes de Osteosarcoma.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "6 OKU 4 Tumores primarios oseos Malignos Miscelaneos.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "7 OKU 4 Mieloma multiple.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "OKU 4 Condrosarcoma de hueso es_unlocked.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "OKU 4 Ewing es_unlocked.pdf"
+          },
+          {
+            "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
+            "filename": "OKU 4 Osteosarcoma osteoblastico convencional es_unlocked.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "22. Organizacion general de las extremidades.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "Fracturas del cóndilo lateral del húmero.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "Fracturas del extremo distal del húmero en la edad pediátrica.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "Fracturas supracondíleas de codo en los niños enclavijado percutáneo lateral cruzado o divergente.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
+            "filename": "katherine-schroeder-pediatric-lateral-humeral-condyle.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "ldushane,+JPOSNA+312+May+2021+Master's+Surgical+-+FINAL.en.es.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "ldushane,+JPOSNA+312+May+2021+Master's+Surgical+-+FINAL.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "Reducción cerrada y enclavijado intramedular de las fracturas del cuello del radio en el niño.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
+            "filename": "TFG Lesión de Monteggia en la Infancia.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Diafisiarias de Femur",
+            "filename": "Management of Pediatric Femur Shaft Fractures.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx diafisis antebrazo",
+            "filename": "Fracturas de antebrazo y muñeca en niños y adolescentes.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx diafisis antebrazo",
+            "filename": "Fracturas diafisarias radiocubitales en pacientes pediátricos. Revisión de resultados de tratamiento.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi",
+            "filename": "CAPITULO 52.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
+            "filename": "2020 - G - “Double X” Cross Fixationin Paediatric Supracondylar Humerus Fractures - A 20-Year Experti.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
+            "filename": "Evaluación del tratamiento y complicaciones en fracturas supracondíleas de húmero distal en el Hospital Universitario del Valle (enero 2000 a diciembre 2001).pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Test de mal alineamiento",
+            "filename": "Dismetria de mimebros inferiores MBA.pdf"
+          },
+          {
+            "folder": "Ortopedia Pediatrica\\Laboratorio de Marcha",
+            "filename": "Enhancing Observational Gait Analysis Techniques and Tips for Analyzing Gait Without a Gait Lab.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "26864-Texto del artículo-126402-1-10-20170512.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "27320-Texto del artículo-95914-1-10-20120113.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "Transfemoral_Amputation__Biomechanics_and_Surgery.3.pdf"
+          },
+          {
+            "folder": "Reconstructiva\\AMPUTACIONES",
+            "filename": "Fundamentals of Amputation Care and Prosthetics (Douglas Murphy) (z-lib.org).pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "2018 - C-REX - K-Wiring Surgical Technique and Principles.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Las 48 leyes del poder -- Robert Greene --.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "El monje que vendió su Ferrari -- Robin S_ Sharma --.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Luiz_Roberto_Gomes_Vialle,_K_Daniel.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "MILLER Review Questions.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Examination and Imaging Dr. Massoud.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "CT dr massoud.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Orals Last Second Factoids(1).pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "DC spine surgery Dr.Massoud notes.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Biomechanics and Gait Analysis (2020).pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "paid orthobullet MCQs- Anatomy.pdf"
+          },
+          {
+            "folder": "Temas generales",
+            "filename": "Paediatric Orthopaedic Fellowship 2024.pdf"
+          }
+        ]
+      }
+    }
+  }
+}

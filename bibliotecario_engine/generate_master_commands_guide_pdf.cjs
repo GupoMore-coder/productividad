@@ -826,14 +826,15 @@ function buildPdf() {
 
     for (let i = 0; i < totalPages; i++) {
       doc.switchToPage(i);
+      doc.page.margins.bottom = 0;
       // En la portada no sobreescribimos pie
       if (i > 0) {
         doc.save();
         doc.fillColor(colors.border).rect(36, pageHeight - 24, contentWidth, 0.75).fill();
         doc.font('Helvetica').fontSize(7.2).fillColor(colors.textMuted)
-           .text('Biblioteca Médica de Cirugía Ortopédica y Traumatología  •  Guía Maestra de Comandos', 36, pageHeight - 18, { width: contentWidth / 2, align: 'left' });
+           .text('Biblioteca Médica de Cirugía Ortopédica y Traumatología  •  Guía Maestra de Comandos', 36, pageHeight - 18, { width: contentWidth / 2, align: 'left', lineBreak: false });
         doc.font('Helvetica-Bold').fontSize(7.2).fillColor(colors.tealDark)
-           .text(`Página ${i + 1} de ${totalPages}  |  Uso Clínico Exclusivo`, 36 + (contentWidth / 2), pageHeight - 18, { width: contentWidth / 2, align: 'right' });
+           .text(`Página ${i + 1} de ${totalPages}  |  Uso Clínico Exclusivo`, 36 + (contentWidth / 2), pageHeight - 18, { width: contentWidth / 2, align: 'right', lineBreak: false });
         doc.restore();
       }
     }
