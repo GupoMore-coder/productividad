@@ -7,6 +7,7 @@ const suites = [
   { name: 'Paso 4 (Fase 3): Ticketing, Intermediación y Cierre de Ciclo', script: 'test_ticketing.cjs' },
   { name: 'Paso 5 (Fase 4): Gobernanza, Onboarding y Boletín Dominical', script: 'test_governance.cjs' },
   { name: 'Fase 3 & 4 (E2E): Flujo Conversacional Completo de WhatsApp', script: 'test_whatsapp_flow.cjs' },
+  { name: 'Fase 2 (Dual Delivery & Listas): Entrega Dual y Menús Interactivos', script: 'test_fase2_dual_delivery.cjs' },
   { name: 'Fase 5 (Security): Batería de Ciberseguridad y Pentesting IDS', script: 'test_cybersecurity_pentest.cjs' }
 ];
 
