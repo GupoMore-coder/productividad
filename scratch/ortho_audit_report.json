@@ -1,19 +1,19 @@
 {
-  "scanTimestamp": "2026-11-03T16:14:43.517Z",
+  "scanTimestamp": "2026-11-03T21:59:41.458Z",
   "rootDir": "H:\\Mi unidad\\Información Ortopedia",
   "summary": {
     "totalFiles": 5745,
-    "totalIgnored": 206,
-    "totalAnalyzed": 5539,
-    "totalStandard": 3985,
-    "totalFailed": 1554,
-    "standardPercentage": "71.94%"
+    "totalIgnored": 189,
+    "totalAnalyzed": 5556,
+    "totalStandard": 4209,
+    "totalFailed": 1347,
+    "standardPercentage": "75.76%"
   },
   "byCategory": {
-    "STANDARD_YEAR_AUTHOR_TITLE": 3307,
-    "RAW_UNSTANDARDIZED": 1536,
+    "STANDARD_YEAR_AUTHOR_TITLE": 3261,
+    "RAW_UNSTANDARDIZED": 1329,
+    "STANDARD_INSTITUTIONAL": 371,
     "STANDARD_CLINICAL_NOTE": 575,
-    "STANDARD_INSTITUTIONAL": 101,
     "RAW_PUBLISHER_ID": 18,
     "STANDARD_AO_SPECIAL": 2
   },
@@ -55,17 +55,17 @@
     },
     "Columna\\Lesiones medulares": {
       "total": 10,
-      "standard": 8,
-      "failed": 2,
-      "standardRate": "80.0%",
-      "failedCount": 2
+      "standard": 10,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Columna\\Infecciones Columna": {
       "total": 17,
-      "standard": 16,
-      "failed": 1,
-      "standardRate": "94.1%",
-      "failedCount": 1
+      "standard": 17,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Columna": {
       "total": 94,
@@ -286,17 +286,17 @@
     },
     "Ortopedia Oncologica\\Artropatia hemofilica": {
       "total": 32,
-      "standard": 28,
-      "failed": 4,
-      "standardRate": "87.5%",
-      "failedCount": 4
+      "standard": 30,
+      "failed": 2,
+      "standardRate": "93.8%",
+      "failedCount": 2
     },
     "Ortopedia Oncologica\\Biologia de los tumores": {
       "total": 15,
-      "standard": 11,
-      "failed": 4,
-      "standardRate": "73.3%",
-      "failedCount": 4
+      "standard": 13,
+      "failed": 2,
+      "standardRate": "86.7%",
+      "failedCount": 2
     },
     "Ortopedia Oncologica\\Biopsia": {
       "total": 3,
@@ -307,10 +307,10 @@
     },
     "Ortopedia Oncologica\\Clasificacion de los tumores": {
       "total": 11,
-      "standard": 10,
-      "failed": 1,
-      "standardRate": "90.9%",
-      "failedCount": 1
+      "standard": 11,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos": {
       "total": 4,
@@ -328,10 +328,10 @@
     },
     "Ortopedia Oncologica\\LESIONES PSEUDOTUMORALES": {
       "total": 4,
-      "standard": 2,
-      "failed": 2,
-      "standardRate": "50.0%",
-      "failedCount": 2
+      "standard": 3,
+      "failed": 1,
+      "standardRate": "75.0%",
+      "failedCount": 1
     },
     "Ortopedia Oncologica\\Osteoporosis": {
       "total": 3,
@@ -342,38 +342,38 @@
     },
     "Ortopedia Oncologica\\Tumor de celulas gigantes": {
       "total": 14,
-      "standard": 11,
-      "failed": 3,
-      "standardRate": "78.6%",
-      "failedCount": 3
+      "standard": 12,
+      "failed": 2,
+      "standardRate": "85.7%",
+      "failedCount": 2
     },
     "Ortopedia Oncologica\\Tumores benignos de tejidos blandos": {
       "total": 2,
-      "standard": 0,
-      "failed": 2,
-      "standardRate": "0.0%",
-      "failedCount": 2
+      "standard": 1,
+      "failed": 1,
+      "standardRate": "50.0%",
+      "failedCount": 1
     },
     "Ortopedia Oncologica\\Tumores benignos del hueso": {
       "total": 4,
-      "standard": 3,
-      "failed": 1,
-      "standardRate": "75.0%",
-      "failedCount": 1
+      "standard": 4,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Oncologica\\Tumores malignos de tejidos blandos": {
       "total": 3,
-      "standard": 0,
-      "failed": 3,
-      "standardRate": "0.0%",
-      "failedCount": 3
+      "standard": 2,
+      "failed": 1,
+      "standardRate": "66.7%",
+      "failedCount": 1
     },
     "Ortopedia Oncologica\\Tumores malignos del hueso": {
       "total": 13,
-      "standard": 11,
-      "failed": 2,
-      "standardRate": "84.6%",
-      "failedCount": 2
+      "standard": 12,
+      "failed": 1,
+      "standardRate": "92.3%",
+      "failedCount": 1
     },
     "Ortopedia Oncologica": {
       "total": 45,
@@ -384,73 +384,73 @@
     },
     "Ortopedia Pediatrica\\Deslizamiento Epifisiario Femoral Capital": {
       "total": 1,
-      "standard": 0,
-      "failed": 1,
-      "standardRate": "0.0%",
-      "failedCount": 1
+      "standard": 1,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Fx Condilo lateral humeral": {
       "total": 11,
-      "standard": 10,
-      "failed": 1,
-      "standardRate": "90.9%",
-      "failedCount": 1
+      "standard": 11,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia": {
       "total": 16,
-      "standard": 15,
-      "failed": 1,
-      "standardRate": "93.8%",
-      "failedCount": 1
+      "standard": 16,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Fx Diafisiarias de Femur": {
       "total": 10,
-      "standard": 9,
-      "failed": 1,
-      "standardRate": "90.0%",
-      "failedCount": 1
+      "standard": 10,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Fx diafisis antebrazo": {
       "total": 13,
-      "standard": 9,
-      "failed": 4,
-      "standardRate": "69.2%",
-      "failedCount": 4
+      "standard": 10,
+      "failed": 3,
+      "standardRate": "76.9%",
+      "failedCount": 3
     },
     "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi": {
       "total": 7,
-      "standard": 4,
-      "failed": 3,
-      "standardRate": "57.1%",
-      "failedCount": 3
+      "standard": 5,
+      "failed": 2,
+      "standardRate": "71.4%",
+      "failedCount": 2
     },
     "Ortopedia Pediatrica\\Fx Supracondileas": {
       "total": 12,
-      "standard": 8,
-      "failed": 4,
-      "standardRate": "66.7%",
-      "failedCount": 4
+      "standard": 12,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Juntas medicas": {
       "total": 1,
-      "standard": 0,
-      "failed": 1,
-      "standardRate": "0.0%",
-      "failedCount": 1
+      "standard": 1,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Radiografias POP - CdN": {
       "total": 28,
-      "standard": 1,
-      "failed": 27,
-      "standardRate": "3.6%",
-      "failedCount": 27
+      "standard": 2,
+      "failed": 26,
+      "standardRate": "7.1%",
+      "failedCount": 26
     },
     "Ortopedia Pediatrica\\Tareas CdN": {
       "total": 14,
-      "standard": 13,
-      "failed": 1,
-      "standardRate": "92.9%",
-      "failedCount": 1
+      "standard": 14,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Ortopedia Pediatrica\\Test de mal alineamiento": {
       "total": 5,
@@ -489,10 +489,10 @@
     },
     "Ortopedia Pediatrica\\Evaluaciones y Clases": {
       "total": 10,
-      "standard": 0,
-      "failed": 10,
-      "standardRate": "0.0%",
-      "failedCount": 10
+      "standard": 2,
+      "failed": 8,
+      "standardRate": "20.0%",
+      "failedCount": 8
     },
     "Ortopedia Pediatrica": {
       "total": 108,
@@ -517,52 +517,52 @@
     },
     "zPresentaciones\\CADERA EN RESORTE": {
       "total": 14,
-      "standard": 0,
-      "failed": 14,
-      "standardRate": "0.0%",
-      "failedCount": 14
+      "standard": 1,
+      "failed": 13,
+      "standardRate": "7.1%",
+      "failedCount": 13
     },
     "zPresentaciones\\ABORDAJES DE RODILLA": {
       "total": 1,
-      "standard": 0,
-      "failed": 1,
-      "standardRate": "0.0%",
-      "failedCount": 1
+      "standard": 1,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "zPresentaciones\\ANALGESIA EN ANCIANOS": {
       "total": 23,
-      "standard": 0,
-      "failed": 23,
-      "standardRate": "0.0%",
-      "failedCount": 23
+      "standard": 1,
+      "failed": 22,
+      "standardRate": "4.3%",
+      "failedCount": 22
     },
     "zPresentaciones\\ANALGESIA GENERAL": {
       "total": 26,
-      "standard": 0,
-      "failed": 26,
-      "standardRate": "0.0%",
-      "failedCount": 26
+      "standard": 4,
+      "failed": 22,
+      "standardRate": "15.4%",
+      "failedCount": 22
     },
     "zPresentaciones\\ANTICOAGULACION": {
       "total": 35,
-      "standard": 0,
-      "failed": 35,
-      "standardRate": "0.0%",
-      "failedCount": 35
+      "standard": 1,
+      "failed": 34,
+      "standardRate": "2.9%",
+      "failedCount": 34
     },
     "zPresentaciones\\BIOMECANICA DE CODO": {
       "total": 9,
-      "standard": 0,
-      "failed": 9,
-      "standardRate": "0.0%",
-      "failedCount": 9
+      "standard": 1,
+      "failed": 8,
+      "standardRate": "11.1%",
+      "failedCount": 8
     },
     "zPresentaciones\\BIOMECANICA TOBILLO": {
       "total": 4,
-      "standard": 0,
-      "failed": 4,
-      "standardRate": "0.0%",
-      "failedCount": 4
+      "standard": 1,
+      "failed": 3,
+      "standardRate": "25.0%",
+      "failedCount": 3
     },
     "zPresentaciones\\Cadera y pelvis": {
       "total": 13,
@@ -573,24 +573,24 @@
     },
     "zPresentaciones\\CICATRIZACION TEJIDOS BLANDOS": {
       "total": 12,
-      "standard": 0,
-      "failed": 12,
-      "standardRate": "0.0%",
-      "failedCount": 12
+      "standard": 1,
+      "failed": 11,
+      "standardRate": "8.3%",
+      "failedCount": 11
     },
     "zPresentaciones\\CODO DE TENISTA . EPICONDILITIS LATERAL": {
       "total": 8,
-      "standard": 0,
-      "failed": 8,
-      "standardRate": "0.0%",
-      "failedCount": 8
+      "standard": 1,
+      "failed": 7,
+      "standardRate": "12.5%",
+      "failedCount": 7
     },
     "zPresentaciones\\COLUMNA\\Canal cervical estrecho": {
       "total": 17,
-      "standard": 1,
-      "failed": 16,
-      "standardRate": "5.9%",
-      "failedCount": 16
+      "standard": 2,
+      "failed": 15,
+      "standardRate": "11.8%",
+      "failedCount": 15
     },
     "zPresentaciones\\COLUMNA\\CASOS CONGRESO\\CASO 1": {
       "total": 7,
@@ -608,24 +608,24 @@
     },
     "zPresentaciones\\COLUMNA\\CASOS CONGRESO": {
       "total": 1,
-      "standard": 0,
-      "failed": 1,
-      "standardRate": "0.0%",
-      "failedCount": 1
+      "standard": 1,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "zPresentaciones\\COLUMNA\\Fractura columna HPAF": {
       "total": 11,
-      "standard": 0,
-      "failed": 11,
-      "standardRate": "0.0%",
-      "failedCount": 11
+      "standard": 1,
+      "failed": 10,
+      "standardRate": "9.1%",
+      "failedCount": 10
     },
     "zPresentaciones\\COLUMNA\\Fx Acetabulares": {
-      "total": 11,
-      "standard": 0,
-      "failed": 11,
-      "standardRate": "0.0%",
-      "failedCount": 11
+      "total": 12,
+      "standard": 3,
+      "failed": 9,
+      "standardRate": "25.0%",
+      "failedCount": 9
     },
     "zPresentaciones\\COLUMNA\\PATOLOGIA DEGENERATIVA LUMBAR": {
       "total": 6,
@@ -650,24 +650,24 @@
     },
     "zPresentaciones\\COLUMNA": {
       "total": 25,
-      "standard": 0,
-      "failed": 25,
-      "standardRate": "0.0%",
-      "failedCount": 25
+      "standard": 2,
+      "failed": 23,
+      "standardRate": "8.0%",
+      "failedCount": 23
     },
     "zPresentaciones\\CONSOLIDACION OSEA": {
       "total": 16,
-      "standard": 0,
-      "failed": 16,
-      "standardRate": "0.0%",
-      "failedCount": 16
+      "standard": 1,
+      "failed": 15,
+      "standardRate": "6.3%",
+      "failedCount": 15
     },
     "zPresentaciones\\CURSO AO U DE C": {
       "total": 4,
-      "standard": 0,
-      "failed": 4,
-      "standardRate": "0.0%",
-      "failedCount": 4
+      "standard": 3,
+      "failed": 1,
+      "standardRate": "75.0%",
+      "failedCount": 1
     },
     "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA\\Articulos": {
       "total": 7,
@@ -685,24 +685,24 @@
     },
     "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA": {
       "total": 11,
-      "standard": 0,
-      "failed": 11,
-      "standardRate": "0.0%",
-      "failedCount": 11
+      "standard": 2,
+      "failed": 9,
+      "standardRate": "18.2%",
+      "failedCount": 9
     },
     "zPresentaciones\\F.R.I": {
       "total": 37,
-      "standard": 0,
-      "failed": 37,
-      "standardRate": "0.0%",
-      "failedCount": 37
+      "standard": 2,
+      "failed": 35,
+      "standardRate": "5.4%",
+      "failedCount": 35
     },
     "zPresentaciones\\FILOSOFIA AO Y PRINCIPIOS TTO FX": {
       "total": 2,
-      "standard": 0,
-      "failed": 2,
-      "standardRate": "0.0%",
-      "failedCount": 2
+      "standard": 1,
+      "failed": 1,
+      "standardRate": "50.0%",
+      "failedCount": 1
     },
     "zPresentaciones\\Fractura de calcaneo": {
       "total": 1,
@@ -720,31 +720,31 @@
     },
     "zPresentaciones\\Fx PERONE": {
       "total": 5,
-      "standard": 0,
-      "failed": 5,
-      "standardRate": "0.0%",
-      "failedCount": 5
+      "standard": 2,
+      "failed": 3,
+      "standardRate": "40.0%",
+      "failedCount": 3
     },
     "zPresentaciones\\Fx RADIO DISTAL": {
       "total": 18,
-      "standard": 0,
-      "failed": 18,
-      "standardRate": "0.0%",
-      "failedCount": 18
+      "standard": 2,
+      "failed": 16,
+      "standardRate": "11.1%",
+      "failedCount": 16
     },
     "zPresentaciones\\Fx TUBEROSIDAD TIBIAL": {
       "total": 3,
-      "standard": 0,
-      "failed": 3,
-      "standardRate": "0.0%",
-      "failedCount": 3
+      "standard": 1,
+      "failed": 2,
+      "standardRate": "33.3%",
+      "failedCount": 2
     },
     "zPresentaciones\\HALLUX VALGUS": {
       "total": 11,
-      "standard": 0,
-      "failed": 11,
-      "standardRate": "0.0%",
-      "failedCount": 11
+      "standard": 1,
+      "failed": 10,
+      "standardRate": "9.1%",
+      "failedCount": 10
     },
     "zPresentaciones\\INTERPRETACION RX TOBILLO": {
       "total": 2,
@@ -762,10 +762,10 @@
     },
     "zPresentaciones\\LESION DE NERVIO PERIFERICO": {
       "total": 4,
-      "standard": 0,
-      "failed": 4,
-      "standardRate": "0.0%",
-      "failedCount": 4
+      "standard": 2,
+      "failed": 2,
+      "standardRate": "50.0%",
+      "failedCount": 2
     },
     "zPresentaciones\\Lesiones en codo": {
       "total": 4,
@@ -790,59 +790,59 @@
     },
     "zPresentaciones\\MANEJO Fx DIAFISIARIA HUMERO": {
       "total": 6,
-      "standard": 0,
-      "failed": 6,
-      "standardRate": "0.0%",
-      "failedCount": 6
+      "standard": 1,
+      "failed": 5,
+      "standardRate": "16.7%",
+      "failedCount": 5
     },
     "zPresentaciones\\MANEJO Fx FALANGE": {
       "total": 17,
-      "standard": 0,
-      "failed": 17,
-      "standardRate": "0.0%",
-      "failedCount": 17
+      "standard": 1,
+      "failed": 16,
+      "standardRate": "5.9%",
+      "failedCount": 16
     },
     "zPresentaciones\\MEDIHELP\\Caso LCP": {
       "total": 27,
-      "standard": 0,
-      "failed": 27,
-      "standardRate": "0.0%",
-      "failedCount": 27
+      "standard": 1,
+      "failed": 26,
+      "standardRate": "3.7%",
+      "failedCount": 26
     },
     "zPresentaciones\\MEDIHELP\\INESTABILIDAD ACROMIOCLAVICULAR": {
       "total": 2,
-      "standard": 0,
-      "failed": 2,
-      "standardRate": "0.0%",
-      "failedCount": 2
+      "standard": 1,
+      "failed": 1,
+      "standardRate": "50.0%",
+      "failedCount": 1
     },
     "zPresentaciones\\MEDIHELP\\Kinematic alignment in total knee arthroplasty": {
       "total": 5,
-      "standard": 0,
-      "failed": 5,
-      "standardRate": "0.0%",
-      "failedCount": 5
+      "standard": 1,
+      "failed": 4,
+      "standardRate": "20.0%",
+      "failedCount": 4
     },
     "zPresentaciones\\MEDIHELP\\LESIONES CONDRALES Y ANDAMIOS": {
       "total": 12,
-      "standard": 0,
-      "failed": 12,
-      "standardRate": "0.0%",
-      "failedCount": 12
+      "standard": 1,
+      "failed": 11,
+      "standardRate": "8.3%",
+      "failedCount": 11
     },
     "zPresentaciones\\MEDIHELP\\LESIONES MENISCALES": {
       "total": 19,
-      "standard": 0,
-      "failed": 19,
-      "standardRate": "0.0%",
-      "failedCount": 19
+      "standard": 2,
+      "failed": 17,
+      "standardRate": "10.5%",
+      "failedCount": 17
     },
     "zPresentaciones\\MEDIHELP": {
       "total": 8,
-      "standard": 0,
-      "failed": 8,
-      "standardRate": "0.0%",
-      "failedCount": 8
+      "standard": 1,
+      "failed": 7,
+      "standardRate": "12.5%",
+      "failedCount": 7
     },
     "zPresentaciones\\Meseta tibial": {
       "total": 4,
@@ -867,17 +867,17 @@
     },
     "zPresentaciones\\PIN INFECTION": {
       "total": 25,
-      "standard": 0,
-      "failed": 25,
-      "standardRate": "0.0%",
-      "failedCount": 25
+      "standard": 1,
+      "failed": 24,
+      "standardRate": "4.0%",
+      "failedCount": 24
     },
     "zPresentaciones\\POLITRAUMA EN ORTOPEDIA": {
       "total": 7,
-      "standard": 0,
-      "failed": 7,
-      "standardRate": "0.0%",
-      "failedCount": 7
+      "standard": 2,
+      "failed": 5,
+      "standardRate": "28.6%",
+      "failedCount": 5
     },
     "zPresentaciones\\Rodilla flotante": {
       "total": 1,
@@ -902,17 +902,17 @@
     },
     "zPresentaciones\\Protesis de cupula radial": {
       "total": 14,
-      "standard": 0,
-      "failed": 14,
-      "standardRate": "0.0%",
-      "failedCount": 14
+      "standard": 2,
+      "failed": 12,
+      "standardRate": "14.3%",
+      "failedCount": 12
     },
     "zPresentaciones\\Mesa Redonda Fracturas intracapsulares y diafisarias de fémur": {
       "total": 8,
-      "standard": 0,
-      "failed": 8,
-      "standardRate": "0.0%",
-      "failedCount": 8
+      "standard": 1,
+      "failed": 7,
+      "standardRate": "12.5%",
+      "failedCount": 7
     },
     "zPresentaciones\\Marcha en mielomeningocele": {
       "total": 1,
@@ -922,60 +922,60 @@
       "failedCount": 1
     },
     "zPresentaciones\\NO UNION R4": {
-      "total": 16,
-      "standard": 0,
-      "failed": 16,
-      "standardRate": "0.0%",
-      "failedCount": 16
+      "total": 18,
+      "standard": 5,
+      "failed": 13,
+      "standardRate": "27.8%",
+      "failedCount": 13
     },
     "zPresentaciones\\R4 Fx PERIPROTESICA EN ARTROPLASTIA DE CADERA": {
-      "total": 26,
-      "standard": 0,
-      "failed": 26,
-      "standardRate": "0.0%",
-      "failedCount": 26
+      "total": 27,
+      "standard": 2,
+      "failed": 25,
+      "standardRate": "7.4%",
+      "failedCount": 25
     },
     "zPresentaciones\\POLLER SCREW (DRA MAYA)": {
       "total": 9,
-      "standard": 0,
-      "failed": 9,
-      "standardRate": "0.0%",
-      "failedCount": 9
+      "standard": 2,
+      "failed": 7,
+      "standardRate": "22.2%",
+      "failedCount": 7
     },
     "zPresentaciones\\R4 OSTEOCONDRITIS DISECANTE": {
       "total": 9,
-      "standard": 0,
-      "failed": 9,
-      "standardRate": "0.0%",
-      "failedCount": 9
+      "standard": 1,
+      "failed": 8,
+      "standardRate": "11.1%",
+      "failedCount": 8
     },
     "zPresentaciones\\Presentaciones Carmona\\Anatomia y biomecanica de ASI": {
       "total": 13,
-      "standard": 0,
-      "failed": 13,
-      "standardRate": "0.0%",
-      "failedCount": 13
+      "standard": 1,
+      "failed": 12,
+      "standardRate": "7.7%",
+      "failedCount": 12
     },
     "zPresentaciones\\Presentaciones Carmona\\Fijación con tornillos fenestrados": {
-      "total": 13,
-      "standard": 0,
-      "failed": 13,
-      "standardRate": "0.0%",
-      "failedCount": 13
+      "total": 14,
+      "standard": 2,
+      "failed": 12,
+      "standardRate": "14.3%",
+      "failedCount": 12
     },
     "zPresentaciones\\Presentaciones Carmona\\Fijación percutánea en trauma": {
       "total": 32,
-      "standard": 0,
-      "failed": 32,
-      "standardRate": "0.0%",
-      "failedCount": 32
+      "standard": 1,
+      "failed": 31,
+      "standardRate": "3.1%",
+      "failedCount": 31
     },
     "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna": {
       "total": 26,
-      "standard": 1,
-      "failed": 25,
-      "standardRate": "3.8%",
-      "failedCount": 25
+      "standard": 3,
+      "failed": 23,
+      "standardRate": "11.5%",
+      "failedCount": 23
     },
     "zPresentaciones\\Presentaciones Carmona": {
       "total": 0,
@@ -986,24 +986,24 @@
     },
     "zPresentaciones\\Presentación Byron Miranda": {
       "total": 16,
-      "standard": 0,
-      "failed": 16,
-      "standardRate": "0.0%",
-      "failedCount": 16
+      "standard": 1,
+      "failed": 15,
+      "standardRate": "6.3%",
+      "failedCount": 15
     },
     "zPresentaciones": {
-      "total": 114,
-      "standard": 18,
-      "failed": 96,
-      "standardRate": "15.8%",
-      "failedCount": 96
+      "total": 124,
+      "standard": 114,
+      "failed": 10,
+      "standardRate": "91.9%",
+      "failedCount": 10
     },
     "Reconstructiva\\AMPUTACIONES": {
       "total": 20,
-      "standard": 19,
-      "failed": 1,
-      "standardRate": "95.0%",
-      "failedCount": 1
+      "standard": 20,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "Reconstructiva\\Principios Fijacion externa Plano Oblicuo": {
       "total": 18,
@@ -1175,10 +1175,10 @@
     },
     "AO Curso Basico\\Ejercicio Planeamiento Qx": {
       "total": 10,
-      "standard": 3,
-      "failed": 7,
-      "standardRate": "30.0%",
-      "failedCount": 7
+      "standard": 5,
+      "failed": 5,
+      "standardRate": "50.0%",
+      "failedCount": 5
     },
     "AO Curso Basico\\Modulo 5 Tratamiento de emergencias y cirugía mínimamente invasiva": {
       "total": 3,
@@ -1224,10 +1224,10 @@
     },
     "AO 2018\\AOOS": {
       "total": 20,
-      "standard": 0,
-      "failed": 20,
-      "standardRate": "0.0%",
-      "failedCount": 20
+      "standard": 20,
+      "failed": 0,
+      "standardRate": "100.0%",
+      "failedCount": 0
     },
     "AO 2018\\AOUK MED-CD\\A01": {
       "total": 34,
@@ -1307,11 +1307,11 @@
       "failedCount": 0
     },
     "zPlaneamientos Quirurgicos": {
-      "total": 14,
-      "standard": 8,
-      "failed": 6,
-      "standardRate": "57.1%",
-      "failedCount": 6
+      "total": 16,
+      "standard": 14,
+      "failed": 2,
+      "standardRate": "87.5%",
+      "failedCount": 2
     },
     "_BIBLIOTECARIO": {
       "total": 0,
@@ -1473,30 +1473,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "Columna\\Lesiones medulares",
-      "filename": "Esteroides en lesiones cervicales.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1395858,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Columna\\Lesiones medulares",
-      "filename": "Luxación cervical.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 30748271,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Columna\\Infecciones Columna",
-      "filename": "infecciones columna final .pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10042388,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Libros\\LIBROS COLUMNA",
       "filename": "9781455712700_anteriorodontoid_001_640.mp4",
       "ext": ".mp4",
@@ -1594,14 +1570,6 @@
     },
     {
       "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
-      "filename": "ARTROPATIA HEMOFILICA IMAT.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5947086,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
       "filename": "ARTROPATIA HEMOFILICA.docx",
       "ext": ".docx",
       "sizeBytes": 22640,
@@ -1610,25 +1578,9 @@
     },
     {
       "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
-      "filename": "ARTROPATIA HEMOFILICA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5930271,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Artropatia hemofilica",
       "filename": "Examen presentación Artropatía hemofilica.txt",
       "ext": ".txt",
       "sizeBytes": 1432,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Biologia de los tumores",
-      "filename": "BIOLOGIA DE LOS TUMORES​.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10317415,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -1649,22 +1601,6 @@
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
-      "folder": "Ortopedia Oncologica\\Biologia de los tumores",
-      "filename": "Generalidades tumores.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10535011,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Clasificacion de los tumores",
-      "filename": "ESTADIFICACIÓN DE LOS TUMORES ÓSEOS Y DE PARTES BLANDAS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3396554,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Ortopedia Oncologica\\Imagenes en tumores musculoesqueleticos",
       "filename": "Tumores en mayores de 30.jpg",
       "ext": ".jpg",
@@ -1677,14 +1613,6 @@
       "filename": "Tumores en menores de 30.jpg",
       "ext": ".jpg",
       "sizeBytes": 1843858,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\LESIONES PSEUDOTUMORALES",
-      "filename": "LESIONES PSEUDOTUMORALES.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3073267,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -1713,42 +1641,10 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "Ortopedia Oncologica\\Tumor de celulas gigantes",
-      "filename": "T gigante.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2755075,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Ortopedia Oncologica\\Tumores benignos de tejidos blandos",
       "filename": "Resumen tumores benignos.docx",
       "ext": ".docx",
       "sizeBytes": 12910,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Tumores benignos de tejidos blandos",
-      "filename": "Tumores benignos de tejidos blandos.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3306806,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Tumores benignos del hueso",
-      "filename": "TUMORES ÓSEOS BENIGNOS_.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 12403102,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Oncologica\\Tumores malignos de tejidos blandos",
-      "filename": "Presentación 3.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 95392,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -1761,14 +1657,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "Ortopedia Oncologica\\Tumores malignos de tejidos blandos",
-      "filename": "TUMORES MALIGNOS DE TEJIDOS BLANDOS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1300160,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
       "filename": "Resumen.docx",
       "ext": ".docx",
@@ -1777,58 +1665,10 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "Ortopedia Oncologica\\Tumores malignos del hueso",
-      "filename": "Tumores Oseos Malignos.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4134380,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Deslizamiento Epifisiario Femoral Capital",
-      "filename": "Deslizamiento epifisiario femoral capital.pptm",
-      "ext": ".pptm",
-      "sizeBytes": 1532503,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Condilo lateral humeral",
-      "filename": "Fx condilo lateral humeral pediatrico.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3502296,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Cupula radial + Monteggia",
-      "filename": "Fx Cupula radia CdN y Lesiones TRASH.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6645819,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Diafisiarias de Femur",
-      "filename": "Fx Diafisiarias de Femur.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10022229,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Ortopedia Pediatrica\\Fx diafisis antebrazo",
       "filename": "AO_Fracture_Classification_-_Adult.png",
       "ext": ".png",
       "sizeBytes": 372211,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx diafisis antebrazo",
-      "filename": "Factura diafisiaria de antebrazo CdN.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 15741416,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -1858,57 +1698,9 @@
     },
     {
       "folder": "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi",
-      "filename": "FX RADIO DISTAL + GALEAZZI.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5300209,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Radio Distal + Galeazzi",
       "filename": "osteochondroma-femur.jpg",
       "ext": ".jpg",
       "sizeBytes": 1288597,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
-      "filename": "Diapos fracturas supracondileas.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4483400,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
-      "filename": "FRACTURAS SUPRACONDILEAS DE HUMERO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8629426,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
-      "filename": "Fracturas supracondileas.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 132162,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Fx Supracondileas",
-      "filename": "Fx supracondileas [Fernando].pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10324239,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Juntas medicas",
-      "filename": "JUNTA valgo.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 18008680,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -1941,14 +1733,6 @@
       "filename": "ALAN ABRAHAN PEREZ CERPA 2.png",
       "ext": ".png",
       "sizeBytes": 253469,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Radiografias POP - CdN",
-      "filename": "ANALISIS RADIOGRAFICO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 15189790,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -2129,14 +1913,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "Ortopedia Pediatrica\\Tareas CdN",
-      "filename": "Tareas CdN.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8537673,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "Ortopedia Pediatrica\\Test de mal alineamiento",
       "filename": "jUNTA 1.png",
       "ext": ".png",
@@ -2165,14 +1941,6 @@
       "filename": "Img Pre y PostQx.docx",
       "ext": ".docx",
       "sizeBytes": 57977288,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Evaluaciones y Clases",
-      "filename": "MEDICIÓN PERFIL TORSIONAL Y CONTRACTURAS MUSC.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10388315,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -2218,14 +1986,6 @@
     },
     {
       "folder": "Ortopedia Pediatrica\\Evaluaciones y Clases",
-      "filename": "INFECCIONES EN COLUMNA PEDIATRICA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11302479,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Ortopedia Pediatrica\\Evaluaciones y Clases",
       "filename": "Examen escrito residentes 2 (1).docx",
       "ext": ".docx",
       "sizeBytes": 186086,
@@ -2266,22 +2026,6 @@
     },
     {
       "folder": "zPresentaciones",
-      "filename": "ABORDAJE FEMUR DIAFISIS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5315393,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "ABORDAJES CADERA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 17435174,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
       "filename": "Abordajes quirurgicos de hombro ortopedia.pdf",
       "ext": ".pdf",
       "sizeBytes": 5316536,
@@ -2298,270 +2042,6 @@
     },
     {
       "folder": "zPresentaciones",
-      "filename": "ABORDAJES QX HOMBRO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5062666,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "ANATOMÍA DE PIE Y TOBILLO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10236222,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "AO PLACAS Y TORNILLOS - DAVID MUÑOZ R1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4123286,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "AO Politrauma y Control de daños en Ortopedia Curso 2024.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10458166,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "AO PRINCIPIOS - JENNY MURILLO R1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2869748,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "atb en fx.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 353939,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "AUTO INJERTO DE CRESTA ILIACA.pptm",
-      "ext": ".pptm",
-      "sizeBytes": 553306,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "BIOLOGÍA DE LA CURACIÓN ÓSEA - DAVID MUÑOZ R1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6064665,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "BIOMECANICA TORNILLOS Y PLACAS, PRINCIPIOS DE MANEJO DE FRACTURAS..pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9603968,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "CASO CLÍNICO LISFRANC - JULIAN RINCON.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 20241263,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "CIRUGIA CONTROL DE DAÑOS - WEBINAR  RUBEN.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8609971,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "CLASIFICACIONES ORTOPEDIA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6298001,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "ENCLAVIJAMIENTO INTRAMEDULAR - JULIAN RINCON R1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3186622,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Espondilo - Discitis.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5668339,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Fijador externo AO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 13546810,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Fijadore externo Corredores de seguridad en miembros inferiores.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3672916,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "FRACTURA CALCANEO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8825919,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "FRACTURA DE CALCANEO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8640548,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Fracturas abiertas AO (1).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5591553,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Fracturas abiertas AO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5591923,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "FRACTURAS ABIERTAS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5522147,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Fx_osteoporo.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3711481,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Indicaciones fijacion externa.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5128427,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "INDICACIONES FIJACIÓN EXTERNA - DAVID MUÑOZ.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5128171,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Lesion del manguito rotador.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 979861,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "LESIONES DE LIGAMENTO CRUZADO POSTERIOR_.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 385850,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Lesión de ligamento cruzado anterior.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1148035,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "LESIÓN DE TEJIDOS BLANDOS - JULIAN RINCON.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4082389,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "NEUROPATÍA DE CHARCOT.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9752698,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PIE DIABETICO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11049390,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PIE PLANO ADQUIRIDO DEL ADULTO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2935138,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PLACA PUENTE - FERNANDO MARULANDA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4557947,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PLACAS LCP - JENNY MURILLO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5908718,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
       "filename": "Plantilla Presentación Institucional 01.jpg",
       "ext": ".jpg",
       "sizeBytes": 224842,
@@ -2570,137 +2050,9 @@
     },
     {
       "folder": "zPresentaciones",
-      "filename": "Plantilla Universidad.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11390274,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PRESENTACIÓN COMITÉ .pptx",
-      "ext": ".pptx",
-      "sizeBytes": 282948,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Presentation Tibial Plafond Fractures.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9041937,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PRINCIPIOS ESTABILIZACIÓN FIJACIÓN EXTERNA CIRCULAR - JENNY MURILLO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2096465,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "sarcomas de tejidos blandos.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 18942203,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Scapular Fractures.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 111944514,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Semiologia hombro.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 35450793,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "SEMIOLOGÍA DE TOBILLO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 25766502,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "SINDROME COMPARTIMENTAL NUEVAS.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2455040,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "SINDROMES DOLOROSOS DEL PIE.pptm",
-      "ext": ".pptm",
-      "sizeBytes": 32135123,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "spine trauma.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1905949,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "TALLER DE INMOVILIZACION.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2836698,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
       "filename": "TENODESIS VS MIODESIS.docx",
       "ext": ".docx",
       "sizeBytes": 22775,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "TENODESIS Vs MIODESIS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6676697,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "TEST MAL_ALINEAMIENTO EN FIJACIÓN EXTERNA - JULIAN RINCON.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11389947,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Treatment of Segmental Loss of the Tibia.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2693185,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Zonas Seguras inserción pines.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 206242,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -2817,14 +2169,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones",
-      "filename": "Tornillo.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 3633664,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\CADERA EN RESORTE",
       "filename": "2021 Snapping Hip Syndrome A Comprehensive Update.pdf",
       "ext": ".pdf",
@@ -2863,14 +2207,6 @@
       "sizeBytes": 29692059,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CADERA EN RESORTE",
-      "filename": "CADERA EN RESORTE R3 SEPT 2024.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 52574529,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
       "folder": "zPresentaciones\\CADERA EN RESORTE",
@@ -2937,14 +2273,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\ABORDAJES DE RODILLA",
-      "filename": "ABORDAJES DE RODILLA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5650743,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\ANALGESIA EN ANCIANOS",
       "filename": "Acute Pain in Older Adults Recommendations for Assessment and Treatment 2019.pdf",
       "ext": ".pdf",
@@ -2957,14 +2285,6 @@
       "filename": "algoplus-sp.pdf",
       "ext": ".pdf",
       "sizeBytes": 68111,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\ANALGESIA EN ANCIANOS",
-      "filename": "ANALGESIA EN PACIENTE ANCIANO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 12670722,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -3226,14 +2546,6 @@
     },
     {
       "folder": "zPresentaciones\\ANALGESIA GENERAL",
-      "filename": "ANALGESIA EN PACIENTE ANCIANO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 12670722,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\ANALGESIA GENERAL",
       "filename": "Analgesia multimodal Pediatria.pdf",
       "ext": ".pdf",
       "sizeBytes": 435836,
@@ -3269,30 +2581,6 @@
       "filename": "MANEJO DEL DOLOR AINES OPIACEOS MULTIMODAL.docx",
       "ext": ".docx",
       "sizeBytes": 268302,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\ANALGESIA GENERAL",
-      "filename": "Manejo del dolor. Aines Opioides Multimodal (1).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1319627,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\ANALGESIA GENERAL",
-      "filename": "Manejo del dolor. Aines Opioides Multimodal (2).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2060144,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\ANALGESIA GENERAL",
-      "filename": "Manejo del dolor. Aines Opioides Multimodal.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1110762,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -3609,14 +2897,6 @@
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
-      "folder": "zPresentaciones\\ANTICOAGULACION",
-      "filename": "TROMBOPROFILAXIS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5338192,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\BIOMECANICA DE CODO",
       "filename": "00130911-200312000-00008.en.es.pdf",
       "ext": ".pdf",
@@ -3629,14 +2909,6 @@
       "filename": "00130911-200312000-00008.pdf",
       "ext": ".pdf",
       "sizeBytes": 672590,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\BIOMECANICA DE CODO",
-      "filename": "BIOMECANICA DEL CODO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8645408,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -3701,14 +2973,6 @@
       "filename": "Bases Biomecánicas del Tobillo.pdf",
       "ext": ".pdf",
       "sizeBytes": 122980,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\BIOMECANICA TOBILLO",
-      "filename": "BIOMECANICA DE TOBILLO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6747976,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -3850,14 +3114,6 @@
     },
     {
       "folder": "zPresentaciones\\CICATRIZACION TEJIDOS BLANDOS",
-      "filename": "FISIOLOGÍA DE LA CICATRIZACIÓN DE LOS TEJIDOS BLANDOS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2947842,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CICATRIZACION TEJIDOS BLANDOS",
       "filename": "Muscle Injuries.en.es.pdf",
       "ext": ".pdf",
       "sizeBytes": 2531792,
@@ -3941,14 +3197,6 @@
       "filename": "brummel2014.pdf",
       "ext": ".pdf",
       "sizeBytes": 183084,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CODO DE TENISTA . EPICONDILITIS LATERAL",
-      "filename": "CODO DE TENISTA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5737222,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -4169,26 +3417,10 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\COLUMNA",
-      "filename": "SITE Score infeccion de columna.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5027436,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\COLUMNA\\Canal cervical estrecho",
       "filename": "ANATOMÍA DE LA COLUMNA VERTEBRAL EN RADIOGRAFÍA CONVENCIONAL.pdf",
       "ext": ".pdf",
       "sizeBytes": 513734,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\COLUMNA\\Canal cervical estrecho",
-      "filename": "Canal cervical estrecho Presentación.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9104210,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -4301,14 +3533,6 @@
       "filename": "Tratamiento quirúrgico de la mielopatía cervical.pdf",
       "ext": ".pdf",
       "sizeBytes": 173388,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\COLUMNA\\CASOS CONGRESO",
-      "filename": "CASO SEGMENTO ADYACENTE CERVICAL.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 26068144,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -4490,14 +3714,6 @@
     },
     {
       "folder": "zPresentaciones\\COLUMNA\\Fractura columna HPAF",
-      "filename": "LESIONES DE LA COLUMNA HPAF.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 7988394,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\COLUMNA\\Fractura columna HPAF",
       "filename": "ot113-4f.pdf",
       "ext": ".pdf",
       "sizeBytes": 70677,
@@ -4530,25 +3746,9 @@
     },
     {
       "folder": "zPresentaciones\\COLUMNA\\Fx Acetabulares",
-      "filename": "FRACTURAS ACETABULARES.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 16410881,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\COLUMNA\\Fx Acetabulares",
       "filename": "Fracturas del acetábulo.pdf",
       "ext": ".pdf",
       "sizeBytes": 6566737,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\COLUMNA\\Fx Acetabulares",
-      "filename": "FRACTURAS PELVIS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 25281137,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -4697,14 +3897,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\COLUMNA",
-      "filename": "INFECCIONES EN COLUMNA PEDIATRICA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11302479,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\CONSOLIDACION OSEA",
       "filename": "Basic Science of Bone Healing.en.es.pdf",
       "ext": ".pdf",
@@ -4802,14 +3994,6 @@
     },
     {
       "folder": "zPresentaciones\\CONSOLIDACION OSEA",
-      "filename": "FISIOLOGÍA DE CICATRIZACIÓN Y CONSOLIDACIÓN DE LAS FRACTURAS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9028582,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CONSOLIDACION OSEA",
       "filename": "Fracturas distales de radio. Clasificacio. Manejo conservador.pdf",
       "ext": ".pdf",
       "sizeBytes": 3222690,
@@ -4837,30 +4021,6 @@
       "filename": "CURSO AO U DE C.pdf",
       "ext": ".pdf",
       "sizeBytes": 40188,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CURSO AO U DE C",
-      "filename": "IMPLANTES Y BIOTECNOLOGIA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2351961,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CURSO AO U DE C",
-      "filename": "PLACA PUENTE.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4557947,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\CURSO AO U DE C",
-      "filename": "Presentación Humero AO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3561531,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -5345,22 +4505,6 @@
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
-      "folder": "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA",
-      "filename": "DESARTICULACION INTER_ESCAPULO_TORACIA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 105562089,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\DESARTICULACION INTER_ESCAPULO_TORACIA",
-      "filename": "Casos escala SITE.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 127214955,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\F.R.I",
       "filename": "24aafd44290a523fae63b83c87dc70af.jpg",
       "ext": ".jpg",
@@ -5469,22 +4613,6 @@
       "filename": "Diagnostic accuracy of serum inflammatory markers in late fracture-related infection.pdf",
       "ext": ".pdf",
       "sizeBytes": 795092,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\F.R.I",
-      "filename": "FRACTURE RELATED INFECTION - ANTECEDENTE FISIOPAT BIOFILM.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10561700,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\F.R.I",
-      "filename": "FRACTURE RELATED INFECTION - COMPLETO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10848163,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -5665,14 +4793,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\FILOSOFIA AO Y PRINCIPIOS TTO FX",
-      "filename": "Plantilla-de-Ortopedia.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3181418,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\Fractura de calcaneo",
       "filename": "610303.pdf",
       "ext": ".pdf",
@@ -5685,22 +4805,6 @@
       "filename": "Tratamiento ortopédico de las fracturas de húmero Protocolo de Fernandez.pdf",
       "ext": ".pdf",
       "sizeBytes": 4291985,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Fx PERONE",
-      "filename": "Fx DE PERONE.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4172997,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Fx PERONE",
-      "filename": "Plantilla-de-Ortopedia.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3181418,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -5818,22 +4922,6 @@
     },
     {
       "folder": "zPresentaciones\\Fx RADIO DISTAL",
-      "filename": "Fractura de radio distal Fdo.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3715013,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Fx RADIO DISTAL",
-      "filename": "Fractura de radio distal Jhader.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3607430,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Fx RADIO DISTAL",
       "filename": "FX RADIO  DISTAL Abordaje mininvasivo con preservación del pronador cuadrado.pdf",
       "ext": ".pdf",
       "sizeBytes": 193567,
@@ -5874,14 +4962,6 @@
     },
     {
       "folder": "zPresentaciones\\Fx TUBEROSIDAD TIBIAL",
-      "filename": "Fx Tuberosidad Tibial.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1436072,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Fx TUBEROSIDAD TIBIAL",
       "filename": "rajakulasingam2020.en.es.pdf",
       "ext": ".pdf",
       "sizeBytes": 1708548,
@@ -5909,14 +4989,6 @@
       "filename": "AAOS_cap_134.pdf",
       "ext": ".pdf",
       "sizeBytes": 822221,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\HALLUX VALGUS",
-      "filename": "HALLUX VALGUS NO Qx.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2624964,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6049,22 +5121,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\LESION DE NERVIO PERIFERICO",
-      "filename": "LESION DE NERVIO PERIFERICO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 7328887,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\LESION DE NERVIO PERIFERICO",
-      "filename": "Plantilla Neurocirugia.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5979650,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\Lesiones en codo",
       "filename": "AAOS_cap_32.pdf",
       "ext": ".pdf",
@@ -6117,14 +5173,6 @@
       "filename": "Lisfranc.pdf",
       "ext": ".pdf",
       "sizeBytes": 4880371,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MANEJO Fx DIAFISIARIA HUMERO",
-      "filename": "CLASIFICACION HUMERO PROXIMAL (2).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1886784,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6258,14 +5306,6 @@
     },
     {
       "folder": "zPresentaciones\\MANEJO Fx FALANGE",
-      "filename": "MANEJO FRACTURA DE FALANGES ENFOQUE CONSERVADOR.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1874045,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MANEJO Fx FALANGE",
       "filename": "Manejo inicial de las lesiones de punta de dedo.pdf",
       "ext": ".pdf",
       "sizeBytes": 1918780,
@@ -6309,14 +5349,6 @@
       "filename": "HSITORIA NATURAL DE MANGUITO ROTADOR.pdf",
       "ext": ".pdf",
       "sizeBytes": 7591904,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MEDIHELP",
-      "filename": "Lesion del Manguito Rotador 28 abril.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1067655,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6413,14 +5445,6 @@
       "filename": "LCP Anatomia aplicada a la tecnica quirurgica.pdf",
       "ext": ".pdf",
       "sizeBytes": 245998,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MEDIHELP\\Caso LCP",
-      "filename": "LESION LCP. REVISION DE UN CASO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 53056520,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6593,14 +5617,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\MEDIHELP\\INESTABILIDAD ACROMIOCLAVICULAR",
-      "filename": "Inestabilidad acromioclavicular.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2362152,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\MEDIHELP\\Kinematic alignment in total knee arthroplasty",
       "filename": "Alignment and Balance Methods in Total Knee Arthroplasty.pdf",
       "ext": ".pdf",
@@ -6633,14 +5649,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\MEDIHELP\\Kinematic alignment in total knee arthroplasty",
-      "filename": "Kinematic alignment in total knee arthroplasty.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 32474,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\MEDIHELP\\LESIONES CONDRALES Y ANDAMIOS",
       "filename": "Autologous Matrix-Induced Chondrogenesis for Treatment of Focal Cartilage Defects in the Knee_ A Follow-up Study.pdf",
       "ext": ".pdf",
@@ -6661,14 +5669,6 @@
       "filename": "fcell-10-935795.pdf",
       "ext": ".pdf",
       "sizeBytes": 646992,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MEDIHELP\\LESIONES CONDRALES Y ANDAMIOS",
-      "filename": "LCA y Daño condral. Andamios.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3017374,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6765,14 +5765,6 @@
       "filename": "karia2018.pdf",
       "ext": ".pdf",
       "sizeBytes": 1100634,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MEDIHELP\\LESIONES MENISCALES",
-      "filename": "LESIONES MENISCALES.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5626180,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -6879,14 +5871,6 @@
       "sizeBytes": 34941715,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\MEDIHELP\\LESIONES MENISCALES",
-      "filename": "LESIONES MENISCALES 2024.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 48677480,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
       "folder": "zPresentaciones\\Meseta tibial",
@@ -7037,14 +6021,6 @@
       "filename": "guerado2019.pdf",
       "ext": ".pdf",
       "sizeBytes": 2401623,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\PIN INFECTION",
-      "filename": "INFECCIÓN DEL TRACTO DE LOS PINES DE SCHANZ.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11948106,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -7201,22 +6177,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones\\POLITRAUMA EN ORTOPEDIA",
-      "filename": "Plantilla-de-Ortopedia.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3181418,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\POLITRAUMA EN ORTOPEDIA",
-      "filename": "POLITRAUMA ENFOQUE ORTOPEDIA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3529975,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\Rodilla flotante",
       "filename": "Rev_Asoc_Argent_Ortop_Traumatol_2010_75_(4)_370-375_Lugones.pdf",
       "ext": ".pdf",
@@ -7330,86 +6290,6 @@
     },
     {
       "folder": "zPresentaciones",
-      "filename": "HIP DISLOCATION.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2695837,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "deformity of leg  (1).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6818793,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "shaft femur fx.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5187871,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PIE DIABETICO EN TRAUMATOLOGIA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 70346794,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "hip pain.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 24183983,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "coxa vara_6c7b702d-e273-4bef-a09e-5e3ebb209926.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 38301510,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "1. General traumatology.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9154770,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "3. lower lim fractures.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6745966,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "2- upper limb fractures.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 24979052,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "4. bone inflammation.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 15450365,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
       "filename": "MATAREY-ORTHOPEDIC-MCQ.pdf",
       "ext": ".pdf",
       "sizeBytes": 371106,
@@ -7421,38 +6301,6 @@
       "filename": "Q&A.docx",
       "ext": ".docx",
       "sizeBytes": 113387,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "5. nuitritonal disorders of the bone.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 5337941,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "NOTE DR YASAC Orthppedic pptx.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 16945948,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "6- bone tumors.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10251077,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "7- congeniatl disoreders.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11408167,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -7493,22 +6341,6 @@
       "filename": "joshua-j-bagley-optimal-prosthesis-sizing-for-radial.pdf",
       "ext": ".pdf",
       "sizeBytes": 1628183,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Protesis de cupula radial",
-      "filename": "Presentación1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 962446,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Protesis de cupula radial",
-      "filename": "Que sabemos de las prótesis de cúpula.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4312238,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -7569,38 +6401,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones",
-      "filename": "Clinical examination of spine (1).pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3086686,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "placas y tornillos.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 19244804,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "clase  de tumores por los residentes.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 67520407,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Mesa Redonda Fracturas intracapsulares y diafisarias de fémur.pptm",
-      "ext": ".pptm",
-      "sizeBytes": 639022,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\Mesa Redonda Fracturas intracapsulares y diafisarias de fémur",
       "filename": "2020 Epidemiology of pediatric femur fractures in children. the Swedish Fracture Register.pdf",
       "ext": ".pdf",
@@ -7657,14 +6457,6 @@
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
     {
-      "folder": "zPresentaciones\\Mesa Redonda Fracturas intracapsulares y diafisarias de fémur",
-      "filename": "Mesa Redonda Fracturas intracapsulares y diafisarias de fémur.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8468654,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\Marcha en mielomeningocele",
       "filename": "laboratorios de marcha en mielomeningocele.pdf",
       "ext": ".pdf",
@@ -7674,57 +6466,9 @@
     },
     {
       "folder": "zPresentaciones",
-      "filename": "FRACTURA DE HUMERO PROXIMAL.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9023395,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
       "filename": "PLANEAMIENTO RTC.pdf",
       "ext": ".pdf",
       "sizeBytes": 7568534,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Síndrome compartimental agudo.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2063471,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "generalidades fracturas .pptx",
-      "ext": ".pptx",
-      "sizeBytes": 13356931,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "BALANCE SAGITAL.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 7500420,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\NO UNION R4",
-      "filename": "NO UNION.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8587191,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\NO UNION R4",
-      "filename": "No Union Completa Dr Rcardo Bayona.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 119590971,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -7757,14 +6501,6 @@
       "filename": "Non union consensus from the 4th annual meeting of the Danish Orthopaedic Trauma Society.pdf",
       "ext": ".pdf",
       "sizeBytes": 1862949,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\NO UNION R4",
-      "filename": "NO UNION Parte II.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 11536022,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -7841,22 +6577,6 @@
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
-      "folder": "zPresentaciones",
-      "filename": "Scaphoid fracture and HCS headless compression screw.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6163912,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "GENERALIDADES DE FRACTURAS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 65630075,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
       "folder": "zPresentaciones\\R4 Fx PERIPROTESICA EN ARTROPLASTIA DE CADERA",
       "filename": "2023 Periprosthetic acetabular fractures as a complication of total hip arthroplasty.pdf",
       "ext": ".pdf",
@@ -7885,14 +6605,6 @@
       "filename": "2021 Periprosthetic occult acetabular fracture an unknown side effect of press‑fit techniques in primary cementless total hip arthroplasty.pdf",
       "ext": ".pdf",
       "sizeBytes": 898225,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
-    },
-    {
-      "folder": "zPresentaciones\\R4 Fx PERIPROTESICA EN ARTROPLASTIA DE CADERA",
-      "filename": "FRACTURAS PERIPROTESICAS DE LA CADERA 2025.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 9005629,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
     },
@@ -8066,14 +6778,6 @@
     },
     {
       "folder": "zPresentaciones\\POLLER SCREW (DRA MAYA)",
-      "filename": "Tornillos Poller .pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2366618,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\POLLER SCREW (DRA MAYA)",
       "filename": "2586_2.cerclajes-Poller.pdf",
       "ext": ".pdf",
       "sizeBytes": 264227,
@@ -8085,14 +6789,6 @@
       "filename": "biomecanica poller.pdf",
       "ext": ".pdf",
       "sizeBytes": 1760017,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\POLLER SCREW (DRA MAYA)",
-      "filename": "dokumen.tips_poller-or-blocking-screw.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2012672,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -8186,14 +6882,6 @@
     },
     {
       "folder": "zPresentaciones\\R4 OSTEOCONDRITIS DISECANTE",
-      "filename": "Osteocondritis disecante.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 7036147,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\R4 OSTEOCONDRITIS DISECANTE",
       "filename": "Osteocondritis disecante de los cóndilos femorales.pdf",
       "ext": ".pdf",
       "sizeBytes": 2571328,
@@ -8205,62 +6893,6 @@
       "filename": "The_Hidden_Cause_of_Knee_Pain.mp4",
       "ext": ".mp4",
       "sizeBytes": 38337885,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "CONCEPTOS GENÉRELES DE LA FIJACIÓN EXTENA CIRCULAR.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10555074,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Infecciones relacionadas a la fractura [Autoguardado].pptx",
-      "ext": ".pptx",
-      "sizeBytes": 84069315,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Radiología básica miembros inferiores.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 16878472,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "PRINCIPIOS DE LA CONSOLIDACION OSEA, OSTEOSINTESIS Y MATERIALES.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 70965975,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "CASO MARIMON.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 73997664,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "AO Politrauma y Control de daños en UniNuñez 2026 Instrumentación.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 12735068,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "DCO -WEBINAR.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8995937,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -8301,14 +6933,6 @@
       "filename": "A Systematic Review of the Normal Sacroiliac Joint Anatomy and Adjacent Tissues for Pain Physicians.pdf",
       "ext": ".pdf",
       "sizeBytes": 10112353,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Presentaciones Carmona\\Anatomia y biomecanica de ASI",
-      "filename": "ANATOMÍA Y BIOMECANICA DE LA ARTICULACIÓN SACROILIACA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 16996514,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -8439,14 +7063,6 @@
       "sizeBytes": 3705984,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
-    },
-    {
-      "folder": "zPresentaciones\\Presentaciones Carmona\\Fijación con tornillos fenestrados",
-      "filename": "FIJACION CON TORNILLOS FENESTRADOS EN OSTEOPOROSIS.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 3930881,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
       "folder": "zPresentaciones\\Presentaciones Carmona\\Fijación con tornillos fenestrados",
@@ -8714,14 +7330,6 @@
     },
     {
       "folder": "zPresentaciones\\Presentaciones Carmona\\Fijación percutánea en trauma",
-      "filename": "FIJACIÓN PERCUTANEA EN TRAUMA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 4440781,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Presentaciones Carmona\\Fijación percutánea en trauma",
       "filename": "Minimally invasive surgery for thoracolumbar spinal tra.pdf",
       "ext": ".pdf",
       "sizeBytes": 2605685,
@@ -8866,14 +7474,6 @@
     },
     {
       "folder": "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna",
-      "filename": "JUNTA MEDICA CIRUGIA DE COLUMNA.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 28630283,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna",
       "filename": "s00402-025-05988-5.pdf",
       "ext": ".pdf",
       "sizeBytes": 1726467,
@@ -8903,14 +7503,6 @@
       "sizeBytes": 613856,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Estructura no estándar (Año fuera de posición o separadores no oficiales)"
-    },
-    {
-      "folder": "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna",
-      "filename": "TRAUMA LUMBOPELVICO. MANEJO QUIRURGICO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 18377168,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
     {
       "folder": "zPresentaciones\\Presentaciones Carmona\\Trauma Lumbopelvico Manejo quirúrgico Una mirada desde el cirujano de columna",
@@ -9010,14 +7602,6 @@
     },
     {
       "folder": "zPresentaciones\\Presentación Byron Miranda",
-      "filename": "Fijador externo off-loading en tratamiento de pie diabético.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 1862282,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones\\Presentación Byron Miranda",
       "filename": "IWGDF Guideline on offloading foot ulcers in persons with diabetes.pdf",
       "ext": ".pdf",
       "sizeBytes": 2159162,
@@ -9053,38 +7637,6 @@
       "filename": "The principles and practicalities of  offloading diabetic foot ulcers.pdf",
       "ext": ".pdf",
       "sizeBytes": 194983,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Acute & Chronic OM osteomyelitis.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6724534,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "Lesion de nervio periferico MAMR.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 14765002,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPresentaciones",
-      "filename": "LESION ZONA II FLEXORA EN MANO.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 8691912,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "Reconstructiva\\AMPUTACIONES",
-      "filename": "Presentación1.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 839646,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -9874,14 +8426,6 @@
     },
     {
       "folder": "AO Curso Basico\\Ejercicio Planeamiento Qx",
-      "filename": "Planeando_mis_cirugi_as_con_Bonesetter.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 126918346,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO Curso Basico\\Ejercicio Planeamiento Qx",
       "filename": "Rx_Hu_mero_AP_taller.png",
       "ext": ".png",
       "sizeBytes": 930508,
@@ -9909,14 +8453,6 @@
       "filename": "Radiografia_de_Antebrazo_sano_.png",
       "ext": ".png",
       "sizeBytes": 1177780,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO Curso Basico\\Ejercicio Planeamiento Qx",
-      "filename": "Respuesta _ Ejercicio AO Planeamiento con Bonesetter.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2218845,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -10069,166 +8605,6 @@
       "filename": "FOOTPRINT_123_[www.keepvid.com].mp4",
       "ext": ".mp4",
       "sizeBytes": 20030807,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "03- Fracturas del tobillo.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 10256875,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "curacion_osea.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 8734720,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "estabilidad_absoluta.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 1023488,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "estabilidad_relativa.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 961024,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "filosofia_AO.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 1300480,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_articulares.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 3224064,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_cuello_femur.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 1964032,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_maleolares.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 841728,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_maleolares.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 715358,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_pelvis.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2926080,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_pilon_tibial.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 6673041,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Fx_platillo_tibial.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2089984,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "infeccion_aguda.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 678400,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "LCP_Aplicaciones.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 17175552,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "LCP_Biomecanica_Biologia.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 11649024,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Principios_de_osteosintesis.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2593792,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "reduccion.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 600064,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "seudoartrosis.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 2889216,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Tecnicas_extramedulares.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 18197504,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "AO 2018\\AOOS",
-      "filename": "Tornillo.ppt",
-      "ext": ".ppt",
-      "sizeBytes": 3633664,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     },
@@ -13722,22 +12098,6 @@
     },
     {
       "folder": "zPlaneamientos Quirurgicos",
-      "filename": "PLANEAMIENTOS FERNANDO M..pptx",
-      "ext": ".pptx",
-      "sizeBytes": 546971032,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPlaneamientos Quirurgicos",
-      "filename": "abordaje para patelar lateral extra articular.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2081188,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPlaneamientos Quirurgicos",
       "filename": "brightened-image-remove-photos.png",
       "ext": ".png",
       "sizeBytes": 6078,
@@ -13749,22 +12109,6 @@
       "filename": "ppt57C3.tmp",
       "ext": ".tmp",
       "sizeBytes": 338011205,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPlaneamientos Quirurgicos",
-      "filename": "PLANEAMIENTOS QX.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 526952905,
-      "category": "RAW_UNSTANDARDIZED",
-      "reason": "Nombre en bruto original sin año ni autor estandarizado"
-    },
-    {
-      "folder": "zPlaneamientos Quirurgicos",
-      "filename": "PLANEAMIENTOS FERNANDO M. 2.pptx",
-      "ext": ".pptx",
-      "sizeBytes": 2675681,
       "category": "RAW_UNSTANDARDIZED",
       "reason": "Nombre en bruto original sin año ni autor estandarizado"
     }
