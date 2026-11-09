@@ -290,9 +290,26 @@ print(json.dumps(res, ensure_ascii=False))
   }
 }
 
+async function waitForFileStability(filePath) {
+  try {
+    const s1 = fs.statSync(filePath);
+    if (!s1.isFile() || s1.size <= 0) return false;
+    await new Promise(r => setTimeout(r, 400));
+    if (!fs.existsSync(filePath)) return false;
+    const s2 = fs.statSync(filePath);
+    if (s2.size !== s1.size) return false;
+    const fd = fs.openSync(filePath, 'r+');
+    fs.closeSync(fd);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function processFile(filename) {
   const filePath = path.join(MAILBOX_DIR, filename);
   if (!fs.existsSync(filePath)) return;
+  if (!(await waitForFileStability(filePath))) return;
 
   log(`[NUEVO ARCHIVO DETECTADO EN _BIBLIOTECARIO] "${filename}"`);
 
@@ -444,7 +461,10 @@ async function monitorLoop() {
     isRunning = true;
     try {
       if (!fs.existsSync(MAILBOX_DIR)) return;
-      const files = fs.readdirSync(MAILBOX_DIR).filter(f => f.toLowerCase() !== 'desktop.ini');
+      const files = fs.readdirSync(MAILBOX_DIR).filter(f => {
+        const low = f.toLowerCase();
+        return low !== 'desktop.ini' && !low.startsWith('.') && !low.endsWith('.writing_tmp') && !low.endsWith('.tmp') && !low.endsWith('.part');
+      });
       for (const f of files) {
         if (!fs.existsSync(path.join(MAILBOX_DIR, f))) continue;
         await processFile(f);
